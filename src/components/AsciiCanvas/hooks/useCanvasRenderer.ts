@@ -41,8 +41,11 @@ export const useCanvasRenderer = (
     canvas.style.width = `${size.width}px`;
     canvas.style.height = `${size.height}px`;
 
+    // 1. 背景
     ctx.fillStyle = BACKGROUND_COLOR;
     ctx.fillRect(0, 0, size.width, size.height);
+
+    // 2. 网格
     ctx.beginPath();
     ctx.strokeStyle = GRID_COLOR;
     ctx.lineWidth = 1;
@@ -81,8 +84,12 @@ export const useCanvasRenderer = (
           y <= endRow
         ) {
           const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
+
           if (char === " ") {
-            ctx.clearRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
+            // 修复：如果是空格，什么都不做。
+            // 之前使用的 ctx.clearRect 会擦除背景上的网格线。
+            // 既然背景和网格已经画好了，空格就是透出它们即可。
+            return;
           } else {
             const wide = isWideChar(char);
             const centerX =
@@ -94,9 +101,11 @@ export const useCanvasRenderer = (
       });
     };
 
+    // 3. 文字内容
     renderLayer(grid, COLOR_PRIMARY_TEXT);
     if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
 
+    // 4. 选区渲染
     const renderSelection = (area: SelectionArea) => {
       const minX = Math.min(area.start.x, area.end.x);
       const maxX = Math.max(area.start.x, area.end.x);
@@ -109,15 +118,18 @@ export const useCanvasRenderer = (
 
       ctx.fillStyle = COLOR_SELECTION_BG;
       ctx.fillRect(screenStart.x, screenStart.y, width, height);
-      ctx.strokeStyle = COLOR_SELECTION_BORDER;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(screenStart.x, screenStart.y, width, height);
+
+      if (COLOR_SELECTION_BORDER !== "transparent") {
+        ctx.strokeStyle = COLOR_SELECTION_BORDER;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(screenStart.x, screenStart.y, width, height);
+      }
     };
 
     selections.forEach(renderSelection);
-
     if (draggingSelection) renderSelection(draggingSelection);
 
+    // 5. 光标
     if (textCursor) {
       const { x, y } = textCursor;
       if (
@@ -139,6 +151,7 @@ export const useCanvasRenderer = (
       }
     }
 
+    // 6. 原点
     const originX = offset.x;
     const originY = offset.y;
     ctx.fillStyle = COLOR_ORIGIN_MARKER;

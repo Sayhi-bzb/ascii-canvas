@@ -41,12 +41,13 @@ export interface CanvasState extends CanvasStateData {
   clearCanvas: () => void;
   setTextCursor: (pos: Point | null) => void;
   writeTextChar: (char: string) => void;
-  writeTextString: (str: string) => void;
+  writeTextString: (str: string, startPos?: Point) => void; // 修改：增加可选起始位置
   moveTextCursor: (dx: number, dy: number) => void;
   backspaceText: () => void;
   newlineText: () => void;
   addSelection: (area: SelectionArea) => void;
   clearSelections: () => void;
+  deleteSelection: () => void; // 新增：删除选区内容
   fillSelections: () => void;
   erasePoints: (points: Point[]) => void;
 }
@@ -151,23 +152,38 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
       }
     }),
 
-  writeTextString: (str) =>
+  // 修改：增强后的写入逻辑，支持从指定位置开始粘贴块状文本
+  writeTextString: (str, startPos) =>
     set((state) => {
-      if (state.textCursor) {
-        for (const char of str) {
-          const { x, y } = state.textCursor;
-          const wide = isWideChar(char);
+      const cursor = startPos ? { ...startPos } : state.textCursor;
+      if (!cursor) return;
 
-          state.grid.set(toKey(x, y), char);
+      const startX = cursor.x; // 记住起始X，用于换行归位
 
-          if (wide) {
-            state.grid.delete(toKey(x + 1, y));
-
-            state.textCursor.x += 2;
-          } else {
-            state.textCursor.x += 1;
-          }
+      for (const char of str) {
+        if (char === "\n") {
+          cursor.y += 1;
+          cursor.x = startX; // 回车归位
+          continue;
         }
+
+        const { x, y } = cursor;
+        const wide = isWideChar(char);
+
+        state.grid.set(toKey(x, y), char);
+
+        if (wide) {
+          state.grid.delete(toKey(x + 1, y));
+          cursor.x += 2;
+        } else {
+          cursor.x += 1;
+        }
+      }
+
+      // 更新全局光标位置
+      if (state.textCursor) {
+        state.textCursor.x = cursor.x;
+        state.textCursor.y = cursor.y;
       }
     }),
 
@@ -219,6 +235,28 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
   clearSelections: () =>
     set((state) => {
       state.selections = [];
+    }),
+
+  // 新增：拆除选区内容
+  deleteSelection: () =>
+    set((state) => {
+      if (state.selections.length === 0) return;
+
+      state.selections.forEach((area) => {
+        const minX = Math.min(area.start.x, area.end.x);
+        const maxX = Math.max(area.start.x, area.end.x);
+        const minY = Math.min(area.start.y, area.end.y);
+        const maxY = Math.max(area.start.y, area.end.y);
+
+        for (let x = minX; x <= maxX; x++) {
+          for (let y = minY; y <= maxY; y++) {
+            state.grid.delete(toKey(x, y));
+          }
+        }
+      });
+      // 拆迁完毕后，通常不清空选区框，方便用户确认已删除，或者继续操作
+      // 如果您希望删除后选区框也消失，取消注释下面这行：
+      // state.selections = [];
     }),
 
   fillSelections: () =>

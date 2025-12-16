@@ -1,3 +1,816 @@
+```src/components/AsciiCanvas/index.tsx
+import { useRef, useMemo, useEffect } from "react";
+import { useSize, useEventListener } from "ahooks";
+import { useCanvasStore } from "../../store/canvasStore";
+import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
+import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
+import { gridToScreen } from "../../utils/math";
+import { exportSelectionToString } from "../../utils/export";
+import { toast } from "sonner";
+
+export const AsciiCanvas = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isComposing = useRef(false);
+
+  const size = useSize(containerRef);
+  const store = useCanvasStore();
+  const {
+    tool,
+    textCursor,
+    writeTextString,
+    backspaceText,
+    newlineText,
+    moveTextCursor,
+    setTextCursor,
+    selections,
+    grid,
+  } = store;
+
+  const { draggingSelection, isSpacePanning } = useCanvasInteraction(
+    store,
+    containerRef
+  );
+  useCanvasRenderer(canvasRef, size, store, draggingSelection);
+
+  useEffect(() => {
+    if (textCursor && textareaRef.current) {
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
+    } else if (textareaRef.current) {
+      textareaRef.current.blur();
+    }
+  }, [textCursor]);
+
+  const handleCopy = (e: ClipboardEvent) => {
+    if (selections.length > 0) {
+      e.preventDefault();
+      const selectedText = exportSelectionToString(grid, selections);
+      navigator.clipboard.writeText(selectedText).then(() => {
+        toast.success("Selection copied!", {
+          description: `${selectedText.length} characters copied.`,
+        });
+      });
+    }
+  };
+
+  useEventListener("copy", handleCopy);
+
+  const cursorClass = useMemo(() => {
+    if (isSpacePanning) {
+      return "cursor-grab";
+    }
+    if (textCursor) {
+      return "cursor-text";
+    }
+
+    switch (tool) {
+      case "select":
+        return "cursor-default";
+      case "fill":
+        return "cursor-cell";
+      default:
+        return "cursor-crosshair";
+    }
+  }, [tool, isSpacePanning, textCursor]);
+
+  const textareaStyle: React.CSSProperties = useMemo(() => {
+    if (!textCursor || !size) return { display: "none" };
+
+    const { x, y } = gridToScreen(
+      textCursor.x,
+      textCursor.y,
+      store.offset.x,
+      store.offset.y,
+      store.zoom
+    );
+
+    return {
+      position: "absolute",
+      left: `${x}px`,
+      top: `${y}px`,
+      width: "1px",
+      height: "1px",
+      opacity: 0,
+      pointerEvents: "none",
+      zIndex: -1,
+    };
+  }, [textCursor, store.offset, store.zoom, size]);
+
+  const handleCompositionStart = () => {
+    isComposing.current = true;
+  };
+
+  const handleCompositionEnd = (
+    e: React.CompositionEvent<HTMLTextAreaElement>
+  ) => {
+    isComposing.current = false;
+    const value = e.data;
+    if (value) {
+      writeTextString(value);
+      if (textareaRef.current) textareaRef.current.value = "";
+    }
+  };
+
+  const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    if (isComposing.current) {
+      return;
+    }
+
+    const textarea = e.currentTarget;
+    const value = textarea.value;
+
+    if (value) {
+      writeTextString(value);
+      textarea.value = "";
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    e.stopPropagation();
+
+    if (isComposing.current) return;
+
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      backspaceText();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      newlineText();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveTextCursor(0, -1);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      moveTextCursor(0, 1);
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      moveTextCursor(-1, 0);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      moveTextCursor(1, 0);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setTextCursor(null);
+    }
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ touchAction: "none" }}
+      className={`w-full h-full overflow-hidden bg-gray-50 touch-none select-none ${cursorClass}`}
+    >
+      <canvas ref={canvasRef} />
+      <textarea
+        ref={textareaRef}
+        style={textareaStyle}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        autoCapitalize="off"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck="false"
+      />
+    </div>
+  );
+};
+```
+---
+```src/components/AsciiCanvas/hooks/useCanvasInteraction.ts
+import { useRef, useState } from "react";
+import { useGesture } from "@use-gesture/react";
+import { useEventListener, useThrottleFn, useCreation } from "ahooks";
+import { screenToGrid } from "../../../utils/math";
+import { getBoxPoints, getLinePoints } from "../../../utils/shapes";
+import type { Point, SelectionArea } from "../../../types";
+import type { CanvasState } from "../../../store/canvasStore";
+
+export const useCanvasInteraction = (
+  store: CanvasState,
+  containerRef: React.RefObject<HTMLDivElement | null>
+) => {
+  const {
+    tool,
+    brushChar,
+    setOffset,
+    setZoom,
+    setScratchLayer,
+    addScratchPoints,
+    commitScratch,
+    setTextCursor,
+    addSelection,
+    clearSelections,
+    fillSelections,
+    erasePoints,
+    offset,
+    zoom,
+    selections,
+  } = store;
+
+  const dragStartGrid = useRef<Point | null>(null);
+  const lastGrid = useRef<Point | null>(null);
+
+  const [draggingSelection, setDraggingSelection] =
+    useState<SelectionArea | null>(null);
+  const [isSpacePanning, setIsSpacePanning] = useState(false);
+
+  useEventListener(
+    "keydown",
+    (e) => {
+      if (e.key === " " && document.activeElement === document.body) {
+        e.preventDefault();
+        setIsSpacePanning(true);
+      }
+    },
+    { target: window }
+  );
+
+  useEventListener(
+    "keyup",
+    (e) => {
+      if (e.key === " ") {
+        e.preventDefault();
+        setIsSpacePanning(false);
+      }
+    },
+    { target: window }
+  );
+
+  const handleDrawing = useCreation(
+    () => (currentGrid: Point) => {
+      if (!lastGrid.current) return;
+      const points = getLinePoints(lastGrid.current, currentGrid);
+
+      if (tool === "brush") {
+        const pointsWithChar = points.map((p) => ({
+          ...p,
+          char: brushChar,
+        }));
+        addScratchPoints(pointsWithChar);
+      } else if (tool === "eraser") {
+        erasePoints(points);
+      }
+      lastGrid.current = currentGrid;
+    },
+    [tool, brushChar, addScratchPoints, erasePoints]
+  );
+
+  const { run: throttledDraw } = useThrottleFn(handleDrawing, {
+    wait: 16,
+    trailing: true,
+  });
+
+  const bind = useGesture(
+    {
+      onDragStart: ({ xy: [x, y], event }) => {
+        const isLeftClick = (event as MouseEvent).button === 0;
+        const isMiddleClickPan = (event as MouseEvent).buttons === 4;
+        const isMultiSelect =
+          (event as MouseEvent).ctrlKey || (event as MouseEvent).metaKey;
+        const rect = containerRef.current?.getBoundingClientRect();
+
+        if (isLeftClick && !isMiddleClickPan && !isSpacePanning && rect) {
+          const start = screenToGrid(
+            x - rect.left,
+            y - rect.top,
+            offset.x,
+            offset.y,
+            zoom
+          );
+
+          if (tool === "select") {
+            event.preventDefault();
+
+            if (!isMultiSelect) {
+              clearSelections();
+            }
+
+            setDraggingSelection({ start, end: start });
+            dragStartGrid.current = start;
+
+            setTextCursor(null);
+            return;
+          }
+
+          if (tool === "fill") {
+            if (selections.length > 0) {
+              fillSelections();
+            }
+            return;
+          }
+
+          clearSelections();
+          setTextCursor(null);
+
+          dragStartGrid.current = start;
+          lastGrid.current = start;
+
+          if (tool === "brush") {
+            addScratchPoints([{ ...start, char: brushChar }]);
+          } else if (tool === "eraser") {
+            erasePoints([start]);
+          }
+        }
+      },
+      onDrag: ({ delta: [dx, dy], xy: [x, y], event }) => {
+        const mouseEvent = event as MouseEvent;
+        const isPan = mouseEvent.buttons === 4 || isSpacePanning;
+
+        if (isPan) {
+          setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+          document.body.style.cursor = "grabbing";
+        } else {
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (rect && dragStartGrid.current) {
+            const currentGrid = screenToGrid(
+              x - rect.left,
+              y - rect.top,
+              offset.x,
+              offset.y,
+              zoom
+            );
+
+            if (tool === "select") {
+              setDraggingSelection({
+                start: dragStartGrid.current,
+                end: currentGrid,
+              });
+              return;
+            }
+
+            if (tool === "brush" || tool === "eraser") {
+              throttledDraw(currentGrid);
+            } else if (tool === "box") {
+              const points = getBoxPoints(dragStartGrid.current, currentGrid);
+              setScratchLayer(points);
+            } else if (tool === "line") {
+              const points = getLinePoints(dragStartGrid.current, currentGrid);
+              const pointsWithChar = points.map((p) => ({
+                ...p,
+                char: brushChar,
+              }));
+              setScratchLayer(pointsWithChar);
+            }
+          }
+        }
+      },
+      onDragEnd: ({ event }) => {
+        const isLeftClick = (event as MouseEvent).button === 0;
+        const isMiddleClickPan = (event as MouseEvent).buttons === 4;
+
+        if (isLeftClick && !isMiddleClickPan && !isSpacePanning) {
+          if (tool === "select" && draggingSelection) {
+            const { start, end } = draggingSelection;
+            const isClick = start.x === end.x && start.y === end.y;
+
+            if (isClick) {
+              setTextCursor(start);
+              setDraggingSelection(null);
+            } else {
+              addSelection(draggingSelection);
+              setDraggingSelection(null);
+            }
+          } else if (tool !== "fill" && tool !== "eraser") {
+            commitScratch();
+          }
+          dragStartGrid.current = null;
+          lastGrid.current = null;
+        }
+        document.body.style.cursor = "auto";
+      },
+      onWheel: ({ delta: [, dy], event }) => {
+        if (event.ctrlKey || event.metaKey) {
+          event.preventDefault();
+          setZoom((prev) => prev * (1 - dy * 0.002));
+        } else {
+          setOffset((prev) => ({
+            x: prev.x - event.deltaX,
+            y: prev.y - event.deltaY,
+          }));
+        }
+      },
+    },
+    { target: containerRef, eventOptions: { passive: false } }
+  );
+
+  return { bind, draggingSelection, isSpacePanning };
+};
+```
+---
+```src/components/AsciiCanvas/hooks/useCanvasRenderer.ts
+import { useEffect } from "react";
+import {
+  BACKGROUND_COLOR,
+  CELL_HEIGHT,
+  CELL_WIDTH,
+  COLOR_ORIGIN_MARKER,
+  COLOR_PRIMARY_TEXT,
+  COLOR_SCRATCH_LAYER,
+  COLOR_SELECTION_BG,
+  COLOR_SELECTION_BORDER,
+  COLOR_TEXT_CURSOR_BG,
+  COLOR_TEXT_CURSOR_FG,
+  FONT_SIZE,
+  GRID_COLOR,
+} from "../../../lib/constants";
+import type { CanvasState } from "../../../store/canvasStore";
+import { fromKey, gridToScreen, toKey } from "../../../utils/math";
+import type { SelectionArea } from "../../../types";
+import { isWideChar } from "../../../utils/char";
+
+export const useCanvasRenderer = (
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  size: { width: number; height: number } | undefined,
+  store: CanvasState,
+  draggingSelection: SelectionArea | null
+) => {
+  const { offset, zoom, grid, scratchLayer, tool, textCursor, selections } =
+    store;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx || !size || size.width === 0 || size.height === 0)
+      return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size.width * dpr;
+    canvas.height = size.height * dpr;
+    ctx.resetTransform();
+    ctx.scale(dpr, dpr);
+    canvas.style.width = `${size.width}px`;
+    canvas.style.height = `${size.height}px`;
+
+    ctx.fillStyle = BACKGROUND_COLOR;
+    ctx.fillRect(0, 0, size.width, size.height);
+    ctx.beginPath();
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.lineWidth = 1;
+
+    const scaledCellW = CELL_WIDTH * zoom;
+    const scaledCellH = CELL_HEIGHT * zoom;
+    const startCol = Math.floor(-offset.x / scaledCellW);
+    const endCol = startCol + size.width / scaledCellW + 1;
+    const startRow = Math.floor(-offset.y / scaledCellH);
+    const endRow = startRow + size.height / scaledCellH + 1;
+
+    for (let col = startCol; col <= endCol; col++) {
+      const x = Math.floor(col * scaledCellW + offset.x);
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, size.height);
+    }
+    for (let row = startRow; row <= endRow; row++) {
+      const y = Math.floor(row * scaledCellH + offset.y);
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(size.width, y + 0.5);
+    }
+    ctx.stroke();
+
+    ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono CN', monospace`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+
+    const renderLayer = (layer: Map<string, string>, color: string) => {
+      ctx.fillStyle = color;
+      layer.forEach((char, key) => {
+        const { x, y } = fromKey(key);
+        if (
+          x >= startCol - 1 &&
+          x <= endCol &&
+          y >= startRow - 1 &&
+          y <= endRow
+        ) {
+          const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
+          if (char === " ") {
+            ctx.clearRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
+          } else {
+            const wide = isWideChar(char);
+            const centerX =
+              screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
+            const centerY = screenPos.y + scaledCellH / 2;
+            ctx.fillText(char, centerX, centerY);
+          }
+        }
+      });
+    };
+
+    renderLayer(grid, COLOR_PRIMARY_TEXT);
+    if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
+
+    const renderSelection = (area: SelectionArea) => {
+      const minX = Math.min(area.start.x, area.end.x);
+      const maxX = Math.max(area.start.x, area.end.x);
+      const minY = Math.min(area.start.y, area.end.y);
+      const maxY = Math.max(area.start.y, area.end.y);
+
+      const screenStart = gridToScreen(minX, minY, offset.x, offset.y, zoom);
+      const width = (maxX - minX + 1) * scaledCellW;
+      const height = (maxY - minY + 1) * scaledCellH;
+
+      ctx.fillStyle = COLOR_SELECTION_BG;
+      ctx.fillRect(screenStart.x, screenStart.y, width, height);
+      ctx.strokeStyle = COLOR_SELECTION_BORDER;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(screenStart.x, screenStart.y, width, height);
+    };
+
+    selections.forEach(renderSelection);
+
+    if (draggingSelection) renderSelection(draggingSelection);
+
+    if (textCursor) {
+      const { x, y } = textCursor;
+      if (
+        x >= startCol - 1 &&
+        x <= endCol &&
+        y >= startRow - 1 &&
+        y <= endRow
+      ) {
+        const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
+        ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
+        ctx.fillRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
+        const charUnderCursor = grid.get(toKey(x, y));
+        if (charUnderCursor) {
+          const wide = isWideChar(charUnderCursor);
+          ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
+          const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
+          ctx.fillText(charUnderCursor, centerX, screenPos.y + scaledCellH / 2);
+        }
+      }
+    }
+
+    const originX = offset.x;
+    const originY = offset.y;
+    ctx.fillStyle = COLOR_ORIGIN_MARKER;
+    ctx.fillRect(originX - 2, originY - 10, 4, 20);
+    ctx.fillRect(originX - 10, originY - 2, 20, 4);
+  }, [
+    offset,
+    zoom,
+    size,
+    grid,
+    scratchLayer,
+    textCursor,
+    tool,
+    selections,
+    draggingSelection,
+    canvasRef,
+  ]);
+};
+```
+---
+```src/components/Toolbar.tsx
+import React from "react";
+import {
+  File,
+  Minus,
+  MousePointer2,
+  Pencil,
+  Redo2,
+  Square,
+  Trash2,
+  Undo2,
+  Eraser,
+  PaintBucket,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
+import { Button } from "./ui/button";
+import { ButtonGroup, ButtonGroupSeparator } from "./ui/button-group";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "./ui/alert-dialog";
+import type { ToolType } from "../types";
+
+interface ToolButtonProps {
+  tool: ToolType;
+  setTool: (tool: ToolType) => void;
+}
+
+interface ActionButtonProps {
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+}
+
+interface FileButtonProps {
+  onExport: () => void;
+  onClear: () => void;
+}
+
+export const Toolbar = ({
+  tool,
+  setTool,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  onExport,
+  onClear,
+}: ToolButtonProps & ActionButtonProps & FileButtonProps) => {
+  const tools: { name: ToolType; label: string; icon: React.ElementType }[] = [
+    {
+      name: "select",
+      label: "Select",
+      icon: MousePointer2,
+    },
+    { name: "fill", label: "Fill Selection", icon: PaintBucket },
+    { name: "brush", label: "Brush", icon: Pencil },
+    { name: "line", label: "Line", icon: Minus },
+    { name: "box", label: "Box", icon: Square },
+
+    { name: "eraser", label: "Eraser", icon: Eraser },
+  ];
+
+  return (
+    <TooltipProvider delayDuration={100}>
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+        <ButtonGroup className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-1.5">
+          {/* File Group */}
+          <ButtonGroup>
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9">
+                      <File size={20} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>File</p>
+                </TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent side="top" align="start" className="mb-2">
+                <DropdownMenuItem onClick={onExport}>
+                  <p>Export</p>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      className="text-red-500 focus:text-red-500 focus:bg-red-50"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      <span>Clear</span>
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear Canvas?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently
+                        delete all your artwork on the canvas.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={onClear}
+                        className="bg-red-500 hover:bg-red-600 focus:ring-red-500"
+                      >
+                        Yes, Clear it
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </ButtonGroup>
+
+          <ButtonGroupSeparator />
+
+          {/* Tools Group */}
+          <ButtonGroup>
+            {tools.map((t) => (
+              <Tooltip key={t.name}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={tool === t.name ? "default" : "ghost"}
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => setTool(t.name)}
+                  >
+                    <t.icon size={20} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t.label}</p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </ButtonGroup>
+
+          <ButtonGroupSeparator />
+
+          {/* History Group */}
+          <ButtonGroup>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={onUndo}
+                  disabled={!canUndo}
+                >
+                  <Undo2 size={20} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Undo</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={onRedo}
+                  disabled={!canRedo}
+                >
+                  <Redo2 size={20} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Redo</p>
+              </TooltipContent>
+            </Tooltip>
+          </ButtonGroup>
+        </ButtonGroup>
+      </div>
+    </TooltipProvider>
+  );
+};
+```
+---
+```src/layout.tsx
+import React from "react";
+import { Toaster } from "./components/ui/sonner";
+
+interface AppLayoutProps {
+  statusBar: React.ReactNode;
+  canvas: React.ReactNode;
+  children: React.ReactNode;
+}
+
+export const AppLayout = ({ statusBar, canvas, children }: AppLayoutProps) => {
+  return (
+    <div className="w-screen h-screen flex flex-col bg-gray-50 relative overflow-hidden">
+      <main className="flex-1 relative z-0">{canvas}</main>
+
+      <footer className="absolute bottom-4 left-4 z-10">{statusBar}</footer>
+
+      {/* 广播塔安装完毕 */}
+      <Toaster />
+
+      {children}
+    </div>
+  );
+};
+```
+---
+```src/main.tsx
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.tsx";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+```
+---
 ```src/lib/constants.ts
 export const CELL_WIDTH = 10;
 export const CELL_HEIGHT = 20;
@@ -48,6 +861,7 @@ import { temporal } from "zundo";
 import { enableMapSet } from "immer";
 import { MIN_ZOOM, MAX_ZOOM, UNDO_LIMIT } from "../lib/constants";
 import { toKey } from "../utils/math";
+import { isWideChar } from "../utils/char";
 import {
   PointSchema,
   GridMapSchema,
@@ -84,12 +898,14 @@ export interface CanvasState extends CanvasStateData {
   clearCanvas: () => void;
   setTextCursor: (pos: Point | null) => void;
   writeTextChar: (char: string) => void;
+  writeTextString: (str: string) => void;
   moveTextCursor: (dx: number, dy: number) => void;
   backspaceText: () => void;
   newlineText: () => void;
   addSelection: (area: SelectionArea) => void;
   clearSelections: () => void;
   fillSelections: () => void;
+  erasePoints: (points: Point[]) => void;
 }
 
 const zodValidator =
@@ -134,7 +950,11 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
       state.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, updater(state.zoom)));
     }),
 
-  setTool: (tool) => set({ tool, textCursor: null }),
+  setTool: (tool) =>
+    set((state) => {
+      state.tool = tool;
+      state.textCursor = null;
+    }),
   setBrushChar: (char) => set({ brushChar: char }),
 
   setScratchLayer: (points) =>
@@ -153,7 +973,11 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
     set((state) => {
       if (state.scratchLayer) {
         state.scratchLayer.forEach((value, key) => {
-          state.grid.set(key, value);
+          if (value === " ") {
+            state.grid.delete(key);
+          } else {
+            state.grid.set(key, value);
+          }
         });
         state.scratchLayer = null;
       }
@@ -184,6 +1008,26 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
       }
     }),
 
+  writeTextString: (str) =>
+    set((state) => {
+      if (state.textCursor) {
+        for (const char of str) {
+          const { x, y } = state.textCursor;
+          const wide = isWideChar(char);
+
+          state.grid.set(toKey(x, y), char);
+
+          if (wide) {
+            state.grid.delete(toKey(x + 1, y));
+
+            state.textCursor.x += 2;
+          } else {
+            state.textCursor.x += 1;
+          }
+        }
+      }
+    }),
+
   moveTextCursor: (dx, dy) =>
     set((state) => {
       if (state.textCursor) {
@@ -195,9 +1039,25 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
   backspaceText: () =>
     set((state) => {
       if (state.textCursor) {
-        state.textCursor.x -= 1;
         const { x, y } = state.textCursor;
-        state.grid.delete(toKey(x, y));
+
+        const prevKey = toKey(x - 1, y);
+        const prevChar = state.grid.get(prevKey);
+
+        if (prevChar) {
+          state.grid.delete(prevKey);
+          state.textCursor.x -= 1;
+        } else {
+          const prevPrevKey = toKey(x - 2, y);
+          const prevPrevChar = state.grid.get(prevPrevKey);
+
+          if (prevPrevChar && isWideChar(prevPrevChar)) {
+            state.grid.delete(prevPrevKey);
+            state.textCursor.x -= 2;
+          } else {
+            state.textCursor.x -= 1;
+          }
+        }
       }
     }),
 
@@ -235,6 +1095,13 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
         }
       });
     }),
+
+  erasePoints: (points) =>
+    set((state) => {
+      points.forEach((p) => {
+        state.grid.delete(toKey(p.x, p.y));
+      });
+    }),
 });
 
 export const useCanvasStore = create<CanvasState>()(
@@ -250,8 +1117,6 @@ import { z } from "zod";
 import type { StoreApi, UseBoundStore } from "zustand";
 import type { TemporalState } from "zundo";
 import type { CanvasState } from "../store/canvasStore";
-
-// --- Zod Schemas (The Single Source of Truth) ---
 
 export const PointSchema = z.object({
   x: z.number(),
@@ -276,18 +1141,13 @@ export const ToolTypeSchema = z.enum([
   "eraser",
   "box",
   "line",
-  "text",
 ]);
-
-// --- Inferred Types (Automatically Generated Blueprints) ---
 
 export type GridMap = z.infer<typeof GridMapSchema>;
 export type ToolType = z.infer<typeof ToolTypeSchema>;
 export type Point = z.infer<typeof PointSchema>;
 export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
 export type GridPoint = z.infer<typeof GridPointSchema>;
-
-// --- Untouched Library/Complex Types ---
 
 type TrackedState = {
   grid: GridMap;
@@ -302,9 +1162,17 @@ export type CanvasStoreWithTemporal = UseBoundStore<StoreApi<CanvasState>> & {
 };
 ```
 ---
+```src/utils/char.ts
+export const isWideChar = (char: string) => {
+  // eslint-disable-next-line no-control-regex
+  return /[^\x00-\xff]/.test(char);
+};
+```
+---
 ```src/utils/export.ts
 import { EXPORT_PADDING } from "../lib/constants";
-import { fromKey } from "./math";
+import type { GridMap, SelectionArea } from "../types";
+import { fromKey, toKey } from "./math";
 
 export const exportToString = (grid: Map<string, string>) => {
   if (grid.size === 0) return "";
@@ -340,6 +1208,36 @@ export const exportToString = (grid: Map<string, string>) => {
     lines[localY] =
       line.substring(0, localX) + char + line.substring(localX + 1);
   });
+
+  return lines.join("\n");
+};
+
+export const exportSelectionToString = (
+  grid: GridMap,
+  selections: SelectionArea[]
+) => {
+  if (selections.length === 0) return "";
+
+  let minX = Infinity,
+    maxX = -Infinity;
+  let minY = Infinity,
+    maxY = -Infinity;
+
+  selections.forEach((area) => {
+    minX = Math.min(minX, area.start.x, area.end.x);
+    maxX = Math.max(maxX, area.start.x, area.end.x);
+    minY = Math.min(minY, area.start.y, area.end.y);
+    maxY = Math.max(maxY, area.start.y, area.end.y);
+  });
+
+  const lines: string[] = [];
+  for (let y = minY; y <= maxY; y++) {
+    let line = "";
+    for (let x = minX; x <= maxX; x++) {
+      line += grid.get(toKey(x, y)) || " ";
+    }
+    lines.push(line);
+  }
 
   return lines.join("\n");
 };
@@ -439,7 +1337,8 @@ import { AppLayout } from "./layout";
 import { Toolbar } from "./components/Toolbar";
 
 function App() {
-  const { zoom, offset, tool, grid, setTool, clearCanvas } = useCanvasStore();
+  const { zoom, offset, tool, grid, textCursor, setTool, clearCanvas } =
+    useCanvasStore();
 
   const temporalStore = (useCanvasStore as CanvasStoreWithTemporal).temporal;
   const { undo, redo } = temporalStore.getState();
@@ -473,7 +1372,8 @@ function App() {
       Pos: {offset.x.toFixed(0)}, {offset.y.toFixed(0)} | Zoom:{" "}
       {(zoom * 100).toFixed(0)}% <br />
       Objects: {grid.size} <br />
-      {tool === "text" && (
+      {/* 修正：不再检查 tool === 'text'，而是检查是否有光标 */}
+      {!!textCursor && (
         <span className="text-blue-600 font-bold animate-pulse">
           Mode: Text Input (Click to focus)
         </span>
@@ -633,690 +1533,7 @@ body,
   }
   body {
     @apply bg-background text-foreground;
+    font-family: "Maple Mono CN", monospace;
   }
 }
-```
----
-```src/layout.tsx
-import React from "react";
-import { Toaster } from "./components/ui/sonner";
-
-interface AppLayoutProps {
-  statusBar: React.ReactNode;
-  canvas: React.ReactNode;
-  children: React.ReactNode;
-}
-
-export const AppLayout = ({ statusBar, canvas, children }: AppLayoutProps) => {
-  return (
-    <div className="w-screen h-screen flex flex-col bg-gray-50 relative overflow-hidden">
-      <main className="flex-1 relative z-0">{canvas}</main>
-
-      <footer className="absolute bottom-4 left-4 z-10">{statusBar}</footer>
-
-      {/* 广播塔安装完毕 */}
-      <Toaster />
-
-      {children}
-    </div>
-  );
-};
-```
----
-```src/main.tsx
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App.tsx";
-import "./index.css";
-
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
-```
----
-```src/components/Toolbar.tsx
-import React from "react";
-import {
-  File,
-  Minus,
-  MousePointer2,
-  Pencil,
-  Redo2,
-  Square,
-  Trash2,
-  Type,
-  Undo2,
-  Eraser,
-  PaintBucket,
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
-import { Button } from "./ui/button";
-import { ButtonGroup, ButtonGroupSeparator } from "./ui/button-group";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "./ui/alert-dialog";
-import type { ToolType } from "../types";
-
-interface ToolButtonProps {
-  tool: ToolType;
-  setTool: (tool: ToolType) => void;
-}
-
-interface ActionButtonProps {
-  onUndo: () => void;
-  onRedo: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
-}
-
-interface FileButtonProps {
-  onExport: () => void;
-  onClear: () => void;
-}
-
-export const Toolbar = ({
-  tool,
-  setTool,
-  onUndo,
-  onRedo,
-  canUndo,
-  canRedo,
-  onExport,
-  onClear,
-}: ToolButtonProps & ActionButtonProps & FileButtonProps) => {
-  const tools: { name: ToolType; label: string; icon: React.ElementType }[] = [
-    {
-      name: "select",
-      label: "Select (Ctrl+Drag to Multi-select)",
-      icon: MousePointer2,
-    },
-    { name: "fill", label: "Fill Selection", icon: PaintBucket },
-    { name: "brush", label: "Brush", icon: Pencil },
-    { name: "line", label: "Line", icon: Minus },
-    { name: "box", label: "Box", icon: Square },
-    { name: "text", label: "Text", icon: Type },
-    { name: "eraser", label: "Eraser", icon: Eraser },
-  ];
-
-  return (
-    <TooltipProvider delayDuration={100}>
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
-        <ButtonGroup className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-1.5">
-          {/* File Group */}
-          <ButtonGroup>
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9">
-                      <File size={20} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>File</p>
-                </TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent side="top" align="start" className="mb-2">
-                <DropdownMenuItem onClick={onExport}>
-                  <p>Export</p>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      className="text-red-500 focus:text-red-500 focus:bg-red-50"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      <span>Clear</span>
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Clear Canvas?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently
-                        delete all your artwork on the canvas.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={onClear}
-                        className="bg-red-500 hover:bg-red-600 focus:ring-red-500"
-                      >
-                        Yes, Clear it
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </ButtonGroup>
-
-          <ButtonGroupSeparator />
-
-          {/* Tools Group */}
-          <ButtonGroup>
-            {tools.map((t) => (
-              <Tooltip key={t.name}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={tool === t.name ? "default" : "ghost"}
-                    size="icon"
-                    className="h-9 w-9"
-                    onClick={() => setTool(t.name)}
-                  >
-                    <t.icon size={20} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t.label}</p>
-                </TooltipContent>
-              </Tooltip>
-            ))}
-          </ButtonGroup>
-
-          <ButtonGroupSeparator />
-
-          {/* History Group */}
-          <ButtonGroup>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={onUndo}
-                  disabled={!canUndo}
-                >
-                  <Undo2 size={20} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Undo</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={onRedo}
-                  disabled={!canRedo}
-                >
-                  <Redo2 size={20} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Redo</p>
-              </TooltipContent>
-            </Tooltip>
-          </ButtonGroup>
-        </ButtonGroup>
-      </div>
-    </TooltipProvider>
-  );
-};
-```
----
-```src/components/AsciiCanvas/index.tsx
-import { useRef, useMemo } from "react";
-import { useSize } from "ahooks";
-import { useCanvasStore } from "../../store/canvasStore";
-import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
-import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
-
-export const AsciiCanvas = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const size = useSize(containerRef);
-  const store = useCanvasStore();
-
-  const { bind, draggingSelection } = useCanvasInteraction(store, containerRef);
-  useCanvasRenderer(canvasRef, size, store, draggingSelection);
-
-  const cursorClass = useMemo(() => {
-    switch (store.tool) {
-      case "text":
-        return "cursor-text";
-      case "select":
-        return "cursor-default";
-      case "fill":
-        return "cursor-cell";
-      default:
-        return "cursor-crosshair";
-    }
-  }, [store.tool]);
-
-  return (
-    <div
-      ref={containerRef}
-      style={{ touchAction: "none" }}
-      className={`w-full h-full overflow-hidden bg-gray-50 touch-none select-none ${cursorClass}`}
-      {...bind}
-    >
-      <canvas ref={canvasRef} />
-    </div>
-  );
-};
-```
----
-```src/components/AsciiCanvas/hooks/useCanvasInteraction.ts
-import { useRef, useState } from "react";
-import { useGesture } from "@use-gesture/react";
-import { useEventListener, useThrottleFn, useCreation } from "ahooks";
-import { screenToGrid } from "../../../utils/math";
-import { getBoxPoints, getLinePoints } from "../../../utils/shapes";
-import type { Point, SelectionArea } from "../../../types";
-import type { CanvasState } from "../../../store/canvasStore";
-
-export const useCanvasInteraction = (
-  store: CanvasState,
-  containerRef: React.RefObject<HTMLDivElement | null>
-) => {
-  const {
-    tool,
-    brushChar,
-    textCursor,
-    setOffset,
-    setZoom,
-    setScratchLayer,
-    addScratchPoints,
-    commitScratch,
-    setTextCursor,
-    writeTextChar,
-    moveTextCursor,
-    backspaceText,
-    newlineText,
-    addSelection,
-    clearSelections,
-    fillSelections,
-    offset,
-    zoom,
-    selections,
-  } = store;
-
-  const dragStartGrid = useRef<Point | null>(null);
-  const lastGrid = useRef<Point | null>(null);
-
-  const [draggingSelection, setDraggingSelection] =
-    useState<SelectionArea | null>(null);
-
-  const handleKeyDown = useCreation(
-    () => (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) return;
-      if (e.key.length === 1) {
-        e.preventDefault();
-        writeTextChar(e.key);
-      } else if (e.key === "Backspace") {
-        e.preventDefault();
-        backspaceText();
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        newlineText();
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        moveTextCursor(0, -1);
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        moveTextCursor(0, 1);
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        moveTextCursor(-1, 0);
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        moveTextCursor(1, 0);
-      } else if (e.key === "Escape") {
-        setTextCursor(null);
-      }
-    },
-    [writeTextChar, backspaceText, newlineText, moveTextCursor, setTextCursor]
-  );
-
-  useEventListener("keydown", handleKeyDown, {
-    enable: tool === "text" && !!textCursor,
-  });
-
-  const handleDrawing = useCreation(
-    () => (currentGrid: Point) => {
-      if (!lastGrid.current) return;
-      if (tool === "brush") {
-        const points = getLinePoints(lastGrid.current, currentGrid);
-        const pointsWithChar = points.map((p) => ({
-          ...p,
-          char: brushChar,
-        }));
-        addScratchPoints(pointsWithChar);
-      } else if (tool === "eraser") {
-        const points = getLinePoints(lastGrid.current, currentGrid);
-        const pointsWithChar = points.map((p) => ({ ...p, char: " " }));
-        addScratchPoints(pointsWithChar);
-      }
-      lastGrid.current = currentGrid;
-    },
-    [tool, brushChar, addScratchPoints]
-  );
-
-  const { run: throttledDraw } = useThrottleFn(handleDrawing, {
-    wait: 16,
-    trailing: true,
-  });
-
-  const bind = useGesture(
-    {
-      onDragStart: ({ xy: [x, y], event }) => {
-        const isLeftClick = (event as MouseEvent).button === 0;
-        const isPan = (event as MouseEvent).buttons === 4;
-        const isMultiSelect =
-          (event as MouseEvent).ctrlKey || (event as MouseEvent).metaKey;
-        const rect = containerRef.current?.getBoundingClientRect();
-
-        if (isLeftClick && !isPan && rect) {
-          const start = screenToGrid(
-            x - rect.left,
-            y - rect.top,
-            offset.x,
-            offset.y,
-            zoom
-          );
-
-          if (tool === "text") {
-            setTextCursor(start);
-            return;
-          }
-
-          if (tool === "select") {
-            if (!isMultiSelect) {
-              clearSelections();
-            }
-
-            setDraggingSelection({ start, end: start });
-            dragStartGrid.current = start;
-            return;
-          }
-
-          if (tool === "fill") {
-            if (selections.length > 0) {
-              fillSelections();
-            }
-            return;
-          }
-
-          clearSelections();
-
-          dragStartGrid.current = start;
-          lastGrid.current = start;
-
-          if (tool === "brush") {
-            addScratchPoints([{ ...start, char: brushChar }]);
-          }
-        }
-      },
-      onDrag: ({ delta: [dx, dy], xy: [x, y], event }) => {
-        const mouseEvent = event as MouseEvent;
-        if (tool === "text") return;
-
-        const isPan = mouseEvent.buttons === 4;
-
-        if (isPan) {
-          setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-          document.body.style.cursor = "grabbing";
-        } else {
-          const rect = containerRef.current?.getBoundingClientRect();
-          if (rect && dragStartGrid.current) {
-            const currentGrid = screenToGrid(
-              x - rect.left,
-              y - rect.top,
-              offset.x,
-              offset.y,
-              zoom
-            );
-
-            if (tool === "select") {
-              setDraggingSelection({
-                start: dragStartGrid.current,
-                end: currentGrid,
-              });
-              return;
-            }
-
-            if (tool === "brush" || tool === "eraser") {
-              throttledDraw(currentGrid);
-            } else if (tool === "box") {
-              const points = getBoxPoints(dragStartGrid.current, currentGrid);
-              setScratchLayer(points);
-            } else if (tool === "line") {
-              const points = getLinePoints(dragStartGrid.current, currentGrid);
-              const pointsWithChar = points.map((p) => ({
-                ...p,
-                char: brushChar,
-              }));
-              setScratchLayer(pointsWithChar);
-            }
-          }
-        }
-      },
-      onDragEnd: ({ event }) => {
-        if (tool === "text") return;
-        const isLeftClick = (event as MouseEvent).button === 0;
-        const isPan = (event as MouseEvent).buttons === 4;
-
-        if (isLeftClick && !isPan) {
-          if (tool === "select" && draggingSelection) {
-            addSelection(draggingSelection);
-            setDraggingSelection(null);
-          } else if (tool !== "fill") {
-            commitScratch();
-          }
-          dragStartGrid.current = null;
-          lastGrid.current = null;
-        }
-        document.body.style.cursor = "auto";
-      },
-      onWheel: ({ delta: [, dy], event }) => {
-        if (event.ctrlKey || event.metaKey) {
-          event.preventDefault();
-          setZoom((prev) => prev * (1 - dy * 0.002));
-        } else {
-          setOffset((prev) => ({
-            x: prev.x - event.deltaX,
-            y: prev.y - event.deltaY,
-          }));
-        }
-      },
-    },
-    { target: containerRef, eventOptions: { passive: false } }
-  );
-
-  return { bind, draggingSelection };
-};
-```
----
-```src/components/AsciiCanvas/hooks/useCanvasRenderer.ts
-import { useEffect } from "react";
-import {
-  BACKGROUND_COLOR,
-  CELL_HEIGHT,
-  CELL_WIDTH,
-  COLOR_ORIGIN_MARKER,
-  COLOR_PRIMARY_TEXT,
-  COLOR_SCRATCH_LAYER,
-  COLOR_SELECTION_BG,
-  COLOR_SELECTION_BORDER,
-  COLOR_TEXT_CURSOR_BG,
-  COLOR_TEXT_CURSOR_FG,
-  FONT_SIZE,
-  GRID_COLOR,
-} from "../../../lib/constants";
-import type { CanvasState } from "../../../store/canvasStore";
-import { fromKey, gridToScreen, toKey } from "../../../utils/math";
-import type { SelectionArea } from "../../../types";
-
-export const useCanvasRenderer = (
-  canvasRef: React.RefObject<HTMLCanvasElement | null>,
-  size: { width: number; height: number } | undefined,
-  store: CanvasState,
-  draggingSelection: SelectionArea | null
-) => {
-  const { offset, zoom, grid, scratchLayer, tool, textCursor, selections } =
-    store;
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx || !size || size.width === 0 || size.height === 0)
-      return;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = size.width * dpr;
-    canvas.height = size.height * dpr;
-    ctx.resetTransform();
-    ctx.scale(dpr, dpr);
-    canvas.style.width = `${size.width}px`;
-    canvas.style.height = `${size.height}px`;
-
-    ctx.fillStyle = BACKGROUND_COLOR;
-    ctx.fillRect(0, 0, size.width, size.height);
-    ctx.beginPath();
-    ctx.strokeStyle = GRID_COLOR;
-    ctx.lineWidth = 1;
-
-    const scaledCellW = CELL_WIDTH * zoom;
-    const scaledCellH = CELL_HEIGHT * zoom;
-    const startCol = Math.floor(-offset.x / scaledCellW);
-    const endCol = startCol + size.width / scaledCellW + 1;
-    const startRow = Math.floor(-offset.y / scaledCellH);
-    const endRow = startRow + size.height / scaledCellH + 1;
-
-    for (let col = startCol; col <= endCol; col++) {
-      const x = Math.floor(col * scaledCellW + offset.x);
-      ctx.moveTo(x + 0.5, 0);
-      ctx.lineTo(x + 0.5, size.height);
-    }
-    for (let row = startRow; row <= endRow; row++) {
-      const y = Math.floor(row * scaledCellH + offset.y);
-      ctx.moveTo(0, y + 0.5);
-      ctx.lineTo(size.width, y + 0.5);
-    }
-    ctx.stroke();
-
-    ctx.font = `${FONT_SIZE * zoom}px monospace`;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
-
-    const renderLayer = (layer: Map<string, string>, color: string) => {
-      ctx.fillStyle = color;
-      layer.forEach((char, key) => {
-        const { x, y } = fromKey(key);
-        if (
-          x >= startCol - 1 &&
-          x <= endCol &&
-          y >= startRow - 1 &&
-          y <= endRow
-        ) {
-          const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
-          if (char === " ") {
-            ctx.clearRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
-          } else {
-            ctx.fillText(
-              char,
-              screenPos.x + scaledCellW / 2,
-              screenPos.y + scaledCellH / 2
-            );
-          }
-        }
-      });
-    };
-
-    renderLayer(grid, COLOR_PRIMARY_TEXT);
-    if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
-
-    const renderSelection = (area: SelectionArea) => {
-      const minX = Math.min(area.start.x, area.end.x);
-      const maxX = Math.max(area.start.x, area.end.x);
-      const minY = Math.min(area.start.y, area.end.y);
-      const maxY = Math.max(area.start.y, area.end.y);
-
-      const screenStart = gridToScreen(minX, minY, offset.x, offset.y, zoom);
-      const width = (maxX - minX + 1) * scaledCellW;
-      const height = (maxY - minY + 1) * scaledCellH;
-
-      ctx.fillStyle = COLOR_SELECTION_BG;
-      ctx.fillRect(screenStart.x, screenStart.y, width, height);
-      ctx.strokeStyle = COLOR_SELECTION_BORDER;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(screenStart.x, screenStart.y, width, height);
-    };
-
-    selections.forEach(renderSelection);
-
-    if (draggingSelection) renderSelection(draggingSelection);
-
-    if (tool === "text" && textCursor) {
-      const { x, y } = textCursor;
-      if (
-        x >= startCol - 1 &&
-        x <= endCol &&
-        y >= startRow - 1 &&
-        y <= endRow
-      ) {
-        const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
-        ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
-        ctx.fillRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
-        const charUnderCursor = grid.get(toKey(x, y));
-        if (charUnderCursor) {
-          ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-          ctx.fillText(
-            charUnderCursor,
-            screenPos.x + scaledCellW / 2,
-            screenPos.y + scaledCellH / 2
-          );
-        }
-      }
-    }
-
-    const originX = offset.x;
-    const originY = offset.y;
-    ctx.fillStyle = COLOR_ORIGIN_MARKER;
-    ctx.fillRect(originX - 2, originY - 10, 4, 20);
-    ctx.fillRect(originX - 10, originY - 2, 20, 4);
-  }, [
-    offset,
-    zoom,
-    size,
-    grid,
-    scratchLayer,
-    textCursor,
-    tool,
-    selections,
-    draggingSelection,
-    canvasRef,
-  ]);
-};
 ```

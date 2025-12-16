@@ -16,7 +16,6 @@ export const AsciiCanvas = () => {
   const size = useSize(containerRef);
   const store = useCanvasStore();
   const {
-    tool,
     textCursor,
     writeTextString,
     backspaceText,
@@ -24,13 +23,11 @@ export const AsciiCanvas = () => {
     moveTextCursor,
     setTextCursor,
     selections,
+    deleteSelection,
     grid,
   } = store;
 
-  const { draggingSelection, isSpacePanning } = useCanvasInteraction(
-    store,
-    containerRef
-  );
+  const { draggingSelection } = useCanvasInteraction(store, containerRef);
   useCanvasRenderer(canvasRef, size, store, draggingSelection);
 
   useEffect(() => {
@@ -43,37 +40,67 @@ export const AsciiCanvas = () => {
     }
   }, [textCursor]);
 
+  // --- Copy Logic ---
   const handleCopy = (e: ClipboardEvent) => {
     if (selections.length > 0) {
       e.preventDefault();
       const selectedText = exportSelectionToString(grid, selections);
       navigator.clipboard.writeText(selectedText).then(() => {
-        toast.success("Selection copied!", {
-          description: `${selectedText.length} characters copied.`,
+        toast.success("Copied!", {
+          description: "Selection copied to clipboard.",
         });
       });
     }
   };
-
   useEventListener("copy", handleCopy);
 
-  const cursorClass = useMemo(() => {
-    if (isSpacePanning) {
-      return "cursor-grab";
+  // --- Cut Logic ---
+  const handleCut = (e: ClipboardEvent) => {
+    if (selections.length > 0) {
+      e.preventDefault();
+      // 1. Copy
+      const selectedText = exportSelectionToString(grid, selections);
+      navigator.clipboard.writeText(selectedText).then(() => {
+        // 2. Delete
+        deleteSelection();
+        toast.success("Cut!", {
+          description: "Selection moved to clipboard and deleted.",
+        });
+      });
     }
-    if (textCursor) {
-      return "cursor-text";
+  };
+  useEventListener("cut", handleCut);
+
+  // --- Paste Logic ---
+  const handlePaste = (e: ClipboardEvent) => {
+    if (isComposing.current) return;
+
+    e.preventDefault();
+    const text = e.clipboardData?.getData("text");
+    if (!text) return;
+
+    let pasteStartPos = textCursor;
+
+    if (!pasteStartPos && selections.length > 0) {
+      const firstSelection = selections[0];
+      pasteStartPos = {
+        x: Math.min(firstSelection.start.x, firstSelection.end.x),
+        y: Math.min(firstSelection.start.y, firstSelection.end.y),
+      };
     }
 
-    switch (tool) {
-      case "select":
-        return "cursor-default";
-      case "fill":
-        return "cursor-cell";
-      default:
-        return "cursor-crosshair";
+    if (pasteStartPos) {
+      writeTextString(text, pasteStartPos);
+      toast.success("Pasted!", {
+        description: "Content inserted from clipboard.",
+      });
+    } else {
+      toast.warning("Where to paste?", {
+        description: "Please select an area or click to place cursor first.",
+      });
     }
-  }, [tool, isSpacePanning, textCursor]);
+  };
+  useEventListener("paste", handlePaste);
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
     if (!textCursor || !size) return { display: "none" };
@@ -114,13 +141,9 @@ export const AsciiCanvas = () => {
   };
 
   const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
-    if (isComposing.current) {
-      return;
-    }
-
+    if (isComposing.current) return;
     const textarea = e.currentTarget;
     const value = textarea.value;
-
     if (value) {
       writeTextString(value);
       textarea.value = "";
@@ -129,12 +152,26 @@ export const AsciiCanvas = () => {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
-
     if (isComposing.current) return;
 
+    if (e.key === "Delete") {
+      if (selections.length > 0) {
+        e.preventDefault();
+        deleteSelection();
+        return;
+      }
+    }
+
     if (e.key === "Backspace") {
-      e.preventDefault();
-      backspaceText();
+      if (selections.length > 0 && !textCursor) {
+        e.preventDefault();
+        deleteSelection();
+        return;
+      }
+      if (textCursor) {
+        e.preventDefault();
+        backspaceText();
+      }
     } else if (e.key === "Enter") {
       e.preventDefault();
       newlineText();
@@ -156,11 +193,25 @@ export const AsciiCanvas = () => {
     }
   };
 
+  useEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Delete" || e.key === "Backspace") {
+      const activeTag = document.activeElement?.tagName.toLowerCase();
+      if (
+        activeTag !== "input" &&
+        activeTag !== "textarea" &&
+        selections.length > 0
+      ) {
+        e.preventDefault();
+        deleteSelection();
+      }
+    }
+  });
+
   return (
     <div
       ref={containerRef}
       style={{ touchAction: "none" }}
-      className={`w-full h-full overflow-hidden bg-gray-50 touch-none select-none ${cursorClass}`}
+      className="w-full h-full overflow-hidden bg-gray-50 touch-none select-none cursor-default"
     >
       <canvas ref={canvasRef} />
       <textarea
