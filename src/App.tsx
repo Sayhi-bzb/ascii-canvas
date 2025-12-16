@@ -1,5 +1,7 @@
+// src/App.tsx
 import React from "react";
 import { useStore } from "zustand";
+import { toast } from "sonner"; // 接入新系统
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
 import { exportToString } from "./utils/export";
@@ -18,18 +20,25 @@ function App() {
   const handleExport = () => {
     const text = exportToString(grid);
     if (!text) {
-      alert("Canvas is empty!");
+      toast.warning("Canvas is empty!", {
+        description: "Draw something before exporting.",
+      });
       return;
     }
     navigator.clipboard.writeText(text).then(() => {
-      alert("Copied to clipboard!\n\n" + text);
+      toast.success("Copied to clipboard!", {
+        description: `${text.length} characters ready to paste.`,
+      });
     });
   };
 
   const handleClear = () => {
-    if (confirm("Are you sure you want to clear the canvas?")) {
-      clearCanvas();
-    }
+    // 逻辑简化：确认工作已下放给 Toolbar 中的 AlertDialog
+    // 这里只负责执行命令并广播结果
+    clearCanvas();
+    toast.success("Canvas Cleared", {
+      description: "Start fresh!",
+    });
   };
 
   const statusBar = (

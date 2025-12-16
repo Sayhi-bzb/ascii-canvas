@@ -1,3 +1,4 @@
+// src/components/Toolbar.tsx
 import React from "react";
 import {
   File,
@@ -10,6 +11,7 @@ import {
   Type,
   Undo2,
   Eraser,
+  PaintBucket, // 新增图标
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -26,6 +28,17 @@ import {
 } from "./ui/tooltip";
 import { Button } from "./ui/button";
 import { ButtonGroup, ButtonGroupSeparator } from "./ui/button-group";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "./ui/alert-dialog";
 import type { ToolType } from "../types";
 
 interface ToolButtonProps {
@@ -56,7 +69,12 @@ export const Toolbar = ({
   onClear,
 }: ToolButtonProps & ActionButtonProps & FileButtonProps) => {
   const tools: { name: ToolType; label: string; icon: React.ElementType }[] = [
-    { name: "move", label: "Move", icon: MousePointer2 },
+    {
+      name: "select",
+      label: "Select (Ctrl+Drag to Multi-select)",
+      icon: MousePointer2,
+    },
+    { name: "fill", label: "Fill Selection", icon: PaintBucket }, // 新增工具
     { name: "brush", label: "Brush", icon: Pencil },
     { name: "line", label: "Line", icon: Minus },
     { name: "box", label: "Box", icon: Square },
@@ -88,10 +106,36 @@ export const Toolbar = ({
                   <p>Export</p>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onClear} className="text-red-500">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  <span>Clear</span>
-                </DropdownMenuItem>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      className="text-red-500 focus:text-red-500 focus:bg-red-50"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      <span>Clear</span>
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear Canvas?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently
+                        delete all your artwork on the canvas.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={onClear}
+                        className="bg-red-500 hover:bg-red-600 focus:ring-red-500"
+                      >
+                        Yes, Clear it
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </DropdownMenuContent>
             </DropdownMenu>
           </ButtonGroup>

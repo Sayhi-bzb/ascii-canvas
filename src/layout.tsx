@@ -1,4 +1,6 @@
+// src/layout.tsx
 import React from "react";
+import { Toaster } from "./components/ui/sonner"; // 假设路径
 
 interface AppLayoutProps {
   statusBar: React.ReactNode;
@@ -13,7 +15,9 @@ export const AppLayout = ({ statusBar, canvas, children }: AppLayoutProps) => {
 
       <footer className="absolute bottom-4 left-4 z-10">{statusBar}</footer>
 
-      {/* This will hold the floating toolbar */}
+      {/* 广播塔安装完毕 */}
+      <Toaster />
+
       {children}
     </div>
   );

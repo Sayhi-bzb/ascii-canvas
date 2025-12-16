@@ -1,3 +1,4 @@
+// src/components/AsciiCanvas.tsx
 import { useEffect, useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
 import {
@@ -7,6 +8,8 @@ import {
   COLOR_ORIGIN_MARKER,
   COLOR_PRIMARY_TEXT,
   COLOR_SCRATCH_LAYER,
+  COLOR_SELECTION_BG,
+  COLOR_SELECTION_BORDER,
   COLOR_TEXT_CURSOR_BG,
   COLOR_TEXT_CURSOR_FG,
   FONT_SIZE,
@@ -15,7 +18,7 @@ import {
 import { useCanvasStore } from "../store/canvasStore";
 import { fromKey, gridToScreen, screenToGrid, toKey } from "../utils/math";
 import { getBoxPoints, getLinePoints } from "../utils/shapes";
-import type { Point } from "../types";
+import type { Point, SelectionArea } from "../types";
 
 export const AsciiCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,6 +28,10 @@ export const AsciiCanvas = () => {
   const dragStartGrid = useRef<Point | null>(null);
   const lastGrid = useRef<Point | null>(null);
 
+  // 用于实时渲染当前正在拖拽的选区（尚未 commit 到 store）
+  const [draggingSelection, setDraggingSelection] =
+    useState<SelectionArea | null>(null);
+
   const {
     offset,
     zoom,
@@ -33,6 +40,7 @@ export const AsciiCanvas = () => {
     tool,
     brushChar,
     textCursor,
+    selections, // 获取选区数组
     setOffset,
     setZoom,
     setScratchLayer,
@@ -43,6 +51,9 @@ export const AsciiCanvas = () => {
     moveTextCursor,
     backspaceText,
     newlineText,
+    addSelection, // 新增
+    clearSelections, // 新增
+    fillSelections, // 新增
   } = useCanvasStore();
 
   useEffect(() => {
@@ -59,10 +70,8 @@ export const AsciiCanvas = () => {
 
   useEffect(() => {
     if (tool !== "text" || !textCursor) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) return;
-
       if (e.key.length === 1) {
         e.preventDefault();
         writeTextChar(e.key);
@@ -88,7 +97,6 @@ export const AsciiCanvas = () => {
         setTextCursor(null);
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
@@ -105,7 +113,9 @@ export const AsciiCanvas = () => {
     {
       onDragStart: ({ xy: [x, y], event }) => {
         const isLeftClick = (event as MouseEvent).button === 0;
-        const isPan = (event as MouseEvent).ctrlKey || tool === "move";
+        const isPan = (event as MouseEvent).buttons === 4; // 仅中键平移
+        const isMultiSelect =
+          (event as MouseEvent).ctrlKey || (event as MouseEvent).metaKey;
         const rect = containerRef.current?.getBoundingClientRect();
 
         if (isLeftClick && !isPan && rect) {
@@ -122,6 +132,29 @@ export const AsciiCanvas = () => {
             return;
           }
 
+          if (tool === "select") {
+            // 关键逻辑：如果是多选模式(Ctrl)，保留旧选区；否则清除
+            if (!isMultiSelect) {
+              clearSelections();
+            }
+            // 开始新的拖拽选区
+            setDraggingSelection({ start, end: start });
+            dragStartGrid.current = start;
+            return;
+          }
+
+          if (tool === "fill") {
+            // 油漆桶工具：点击即填充
+            // 如果有选区，填充选区；如果没有，暂不处理（或未来实现泛洪填充）
+            if (selections.length > 0) {
+              fillSelections();
+            }
+            return;
+          }
+
+          // 其他工具点击时，清除选区（除非你在选区内操作，这里简化为点击即清除）
+          clearSelections();
+
           dragStartGrid.current = start;
           lastGrid.current = start;
 
@@ -134,8 +167,8 @@ export const AsciiCanvas = () => {
         const mouseEvent = event as MouseEvent;
         if (tool === "text") return;
 
-        const isPan =
-          mouseEvent.buttons === 4 || mouseEvent.ctrlKey || tool === "move";
+        // 注意：移除了 Ctrl 平移，因为 Ctrl 现在用于多选
+        const isPan = mouseEvent.buttons === 4;
 
         if (isPan) {
           setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
@@ -150,6 +183,15 @@ export const AsciiCanvas = () => {
               offset.y,
               zoom
             );
+
+            if (tool === "select") {
+              // 更新正在拖拽的临时选区
+              setDraggingSelection({
+                start: dragStartGrid.current,
+                end: currentGrid,
+              });
+              return;
+            }
 
             if (tool === "brush" && lastGrid.current) {
               const points = getLinePoints(lastGrid.current, currentGrid);
@@ -180,12 +222,18 @@ export const AsciiCanvas = () => {
       },
       onDragEnd: ({ event }) => {
         if (tool === "text") return;
-
         const isLeftClick = (event as MouseEvent).button === 0;
-        const isPan = (event as MouseEvent).ctrlKey || tool === "move";
+        const isPan = (event as MouseEvent).buttons === 4;
 
         if (isLeftClick && !isPan) {
-          commitScratch();
+          if (tool === "select" && draggingSelection) {
+            // 拖拽结束，将临时选区“转正”，存入档案室
+            addSelection(draggingSelection);
+            setDraggingSelection(null);
+          } else if (tool !== "fill") {
+            // Fill 工具在 dragStart 就触发了，这里不需要 commit
+            commitScratch();
+          }
           dragStartGrid.current = null;
           lastGrid.current = null;
         }
@@ -275,6 +323,29 @@ export const AsciiCanvas = () => {
     renderLayer(grid, COLOR_PRIMARY_TEXT);
     if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
 
+    // === 渲染所有选区 (Archive + Temp) ===
+    const renderSelection = (area: SelectionArea) => {
+      const minX = Math.min(area.start.x, area.end.x);
+      const maxX = Math.max(area.start.x, area.end.x);
+      const minY = Math.min(area.start.y, area.end.y);
+      const maxY = Math.max(area.start.y, area.end.y);
+
+      const screenStart = gridToScreen(minX, minY, offset.x, offset.y, zoom);
+      const width = (maxX - minX + 1) * scaledCellW;
+      const height = (maxY - minY + 1) * scaledCellH;
+
+      ctx.fillStyle = COLOR_SELECTION_BG;
+      ctx.fillRect(screenStart.x, screenStart.y, width, height);
+      ctx.strokeStyle = COLOR_SELECTION_BORDER;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(screenStart.x, screenStart.y, width, height);
+    };
+
+    // 1. 渲染已归档的选区
+    selections.forEach(renderSelection);
+    // 2. 渲染正在拖拽的临时选区
+    if (draggingSelection) renderSelection(draggingSelection);
+
     if (tool === "text" && textCursor) {
       const { x, y } = textCursor;
       if (
@@ -286,7 +357,6 @@ export const AsciiCanvas = () => {
         const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
         ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
         ctx.fillRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
-
         const charUnderCursor = grid.get(toKey(x, y));
         if (charUnderCursor) {
           ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
@@ -304,7 +374,17 @@ export const AsciiCanvas = () => {
     ctx.fillStyle = COLOR_ORIGIN_MARKER;
     ctx.fillRect(originX - 2, originY - 10, 4, 20);
     ctx.fillRect(originX - 10, originY - 2, 20, 4);
-  }, [offset, zoom, size, grid, scratchLayer, textCursor, tool]);
+  }, [
+    offset,
+    zoom,
+    size,
+    grid,
+    scratchLayer,
+    textCursor,
+    tool,
+    selections,
+    draggingSelection,
+  ]);
 
   return (
     <div
@@ -313,8 +393,10 @@ export const AsciiCanvas = () => {
       className={`w-full h-full overflow-hidden bg-gray-50 touch-none select-none ${
         tool === "text"
           ? "cursor-text"
-          : tool === "move"
-          ? "cursor-grab"
+          : tool === "select"
+          ? "cursor-default"
+          : tool === "fill"
+          ? "cursor-cell" // 油漆桶模式显示为 "cell" 光标，或者可以用自定义 CSS
           : "cursor-crosshair"
       }`}
     >
