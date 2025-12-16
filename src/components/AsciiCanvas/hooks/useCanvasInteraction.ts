@@ -100,17 +100,15 @@ export const useCanvasInteraction = (
           );
 
           if (tool === "select") {
-            // 阻止默认行为，防止焦点丢失，确保文本输入能获取焦点
             event.preventDefault();
 
             if (!isMultiSelect) {
               clearSelections();
             }
 
-            // 无论点击还是拖拽，先初始化选区
             setDraggingSelection({ start, end: start });
             dragStartGrid.current = start;
-            // 清除可能存在的文本光标，除非后续判定为点击
+
             setTextCursor(null);
             return;
           }
@@ -123,7 +121,7 @@ export const useCanvasInteraction = (
           }
 
           clearSelections();
-          setTextCursor(null); // 切换其他工具时清除光标
+          setTextCursor(null);
 
           dragStartGrid.current = start;
           lastGrid.current = start;
@@ -183,16 +181,13 @@ export const useCanvasInteraction = (
 
         if (isLeftClick && !isMiddleClickPan && !isSpacePanning) {
           if (tool === "select" && draggingSelection) {
-            // 核心逻辑：判断是拖拽还是点击
             const { start, end } = draggingSelection;
             const isClick = start.x === end.x && start.y === end.y;
 
             if (isClick) {
-              // 如果起点等于终点，视为点击 -> 放置文本光标
               setTextCursor(start);
-              setDraggingSelection(null); // 清除临时的点击选区
+              setDraggingSelection(null);
             } else {
-              // 否则视为框选 -> 添加选区
               addSelection(draggingSelection);
               setDraggingSelection(null);
             }

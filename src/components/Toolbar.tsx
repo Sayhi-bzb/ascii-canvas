@@ -69,14 +69,14 @@ export const Toolbar = ({
   const tools: { name: ToolType; label: string; icon: React.ElementType }[] = [
     {
       name: "select",
-      label: "Select", // 更新提示语
+      label: "Select",
       icon: MousePointer2,
     },
     { name: "fill", label: "Fill Selection", icon: PaintBucket },
     { name: "brush", label: "Brush", icon: Pencil },
     { name: "line", label: "Line", icon: Minus },
     { name: "box", label: "Box", icon: Square },
-    // 移除了 "text" 工具
+
     { name: "eraser", label: "Eraser", icon: Eraser },
   ];
 

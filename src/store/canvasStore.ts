@@ -158,17 +158,13 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
           const { x, y } = state.textCursor;
           const wide = isWideChar(char);
 
-          // 1. 写入字符
           state.grid.set(toKey(x, y), char);
 
           if (wide) {
-            // 2. 如果是宽字符，因为占两个格子，所以要“清除”后面那个格子，防止重叠
-            // 比如 "中" 在 (0,0)，它视觉上盖住了 (1,0)，所以 (1,0) 不能有东西
             state.grid.delete(toKey(x + 1, y));
-            // 3. 光标跳2格
+
             state.textCursor.x += 2;
           } else {
-            // 3. 窄字符，光标跳1格
             state.textCursor.x += 1;
           }
         }
@@ -188,25 +184,20 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
       if (state.textCursor) {
         const { x, y } = state.textCursor;
 
-        // 尝试检查前一个位置 (x-1)
         const prevKey = toKey(x - 1, y);
         const prevChar = state.grid.get(prevKey);
 
         if (prevChar) {
-          // 情况A：前一格就有字符，直接删除，退一格
           state.grid.delete(prevKey);
           state.textCursor.x -= 1;
         } else {
-          // 情况B：前一格是空的，可能是因为再前面 (x-2) 是个宽字符
           const prevPrevKey = toKey(x - 2, y);
           const prevPrevChar = state.grid.get(prevPrevKey);
 
           if (prevPrevChar && isWideChar(prevPrevChar)) {
-            // 确实是宽字符！删除它，退两格
             state.grid.delete(prevPrevKey);
             state.textCursor.x -= 2;
           } else {
-            // 只是普通的空格，退一格
             state.textCursor.x -= 1;
           }
         }

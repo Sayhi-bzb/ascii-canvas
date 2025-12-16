@@ -118,7 +118,6 @@ export const useCanvasRenderer = (
 
     if (draggingSelection) renderSelection(draggingSelection);
 
-    // 只要有 textCursor 就渲染光标，不检查 tool
     if (textCursor) {
       const { x, y } = textCursor;
       if (

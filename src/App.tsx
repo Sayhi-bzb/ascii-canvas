@@ -9,7 +9,6 @@ import { AppLayout } from "./layout";
 import { Toolbar } from "./components/Toolbar";
 
 function App() {
-  // 修正：这里不再解构 tool，因为我们下面只用到了 textCursor 来判断状态
   const { zoom, offset, tool, grid, textCursor, setTool, clearCanvas } =
     useCanvasStore();
 

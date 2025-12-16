@@ -27,7 +27,6 @@ export const AsciiCanvas = () => {
     grid,
   } = store;
 
-  // 这里的 bind 现在是 undefined，因为我们在 hook 里用了 target ref
   const { draggingSelection, isSpacePanning } = useCanvasInteraction(
     store,
     containerRef
@@ -65,7 +64,7 @@ export const AsciiCanvas = () => {
     if (textCursor) {
       return "cursor-text";
     }
-    // 修正：使用解构出来的 tool 变量，而不是 store.tool
+
     switch (tool) {
       case "select":
         return "cursor-default";
@@ -161,7 +160,6 @@ export const AsciiCanvas = () => {
     <div
       ref={containerRef}
       style={{ touchAction: "none" }}
-      // 修正：移除了 {...bind}，因为事件监听已经通过 ref 自动挂载了
       className={`w-full h-full overflow-hidden bg-gray-50 touch-none select-none ${cursorClass}`}
     >
       <canvas ref={canvasRef} />
