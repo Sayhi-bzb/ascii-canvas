@@ -1,45 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
-import { useEventListener, useSize, useThrottleFn, useCreation } from "ahooks";
-import {
-  BACKGROUND_COLOR,
-  CELL_HEIGHT,
-  CELL_WIDTH,
-  COLOR_ORIGIN_MARKER,
-  COLOR_PRIMARY_TEXT,
-  COLOR_SCRATCH_LAYER,
-  COLOR_SELECTION_BG,
-  COLOR_SELECTION_BORDER,
-  COLOR_TEXT_CURSOR_BG,
-  COLOR_TEXT_CURSOR_FG,
-  FONT_SIZE,
-  GRID_COLOR,
-} from "../lib/constants";
-import { useCanvasStore } from "../store/canvasStore";
-import { fromKey, gridToScreen, screenToGrid, toKey } from "../utils/math";
-import { getBoxPoints, getLinePoints } from "../utils/shapes";
-import type { Point, SelectionArea } from "../types";
+import { useEventListener, useThrottleFn, useCreation } from "ahooks";
+import { screenToGrid } from "../../../utils/math";
+import { getBoxPoints, getLinePoints } from "../../../utils/shapes";
+import type { Point, SelectionArea } from "../../../types";
+import type { CanvasState } from "../../../store/canvasStore";
 
-export const AsciiCanvas = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const size = useSize(containerRef);
-
-  const dragStartGrid = useRef<Point | null>(null);
-  const lastGrid = useRef<Point | null>(null);
-
-  const [draggingSelection, setDraggingSelection] =
-    useState<SelectionArea | null>(null);
-
+export const useCanvasInteraction = (
+  store: CanvasState,
+  containerRef: React.RefObject<HTMLDivElement | null>
+) => {
   const {
-    offset,
-    zoom,
-    grid,
-    scratchLayer,
     tool,
     brushChar,
     textCursor,
-    selections,
     setOffset,
     setZoom,
     setScratchLayer,
@@ -53,7 +27,16 @@ export const AsciiCanvas = () => {
     addSelection,
     clearSelections,
     fillSelections,
-  } = useCanvasStore();
+    offset,
+    zoom,
+    selections,
+  } = store;
+
+  const dragStartGrid = useRef<Point | null>(null);
+  const lastGrid = useRef<Point | null>(null);
+
+  const [draggingSelection, setDraggingSelection] =
+    useState<SelectionArea | null>(null);
 
   const handleKeyDown = useCreation(
     () => (e: KeyboardEvent) => {
@@ -87,7 +70,7 @@ export const AsciiCanvas = () => {
   );
 
   useEventListener("keydown", handleKeyDown, {
-    enabled: tool === "text" && !!textCursor,
+    enable: tool === "text" && !!textCursor,
   });
 
   const handleDrawing = useCreation(
@@ -115,7 +98,7 @@ export const AsciiCanvas = () => {
     trailing: true,
   });
 
-  useGesture(
+  const bind = useGesture(
     {
       onDragStart: ({ xy: [x, y], event }) => {
         const isLeftClick = (event as MouseEvent).button === 0;
@@ -241,152 +224,5 @@ export const AsciiCanvas = () => {
     { target: containerRef, eventOptions: { passive: false } }
   );
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx || !size || size.width === 0 || size.height === 0)
-      return;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = size.width * dpr;
-    canvas.height = size.height * dpr;
-    ctx.resetTransform();
-    ctx.scale(dpr, dpr);
-    canvas.style.width = `${size.width}px`;
-    canvas.style.height = `${size.height}px`;
-
-    ctx.fillStyle = BACKGROUND_COLOR;
-    ctx.fillRect(0, 0, size.width, size.height);
-    ctx.beginPath();
-    ctx.strokeStyle = GRID_COLOR;
-    ctx.lineWidth = 1;
-
-    const scaledCellW = CELL_WIDTH * zoom;
-    const scaledCellH = CELL_HEIGHT * zoom;
-    const startCol = Math.floor(-offset.x / scaledCellW);
-    const endCol = startCol + size.width / scaledCellW + 1;
-    const startRow = Math.floor(-offset.y / scaledCellH);
-    const endRow = startRow + size.height / scaledCellH + 1;
-
-    for (let col = startCol; col <= endCol; col++) {
-      const x = Math.floor(col * scaledCellW + offset.x);
-      ctx.moveTo(x + 0.5, 0);
-      ctx.lineTo(x + 0.5, size.height);
-    }
-    for (let row = startRow; row <= endRow; row++) {
-      const y = Math.floor(row * scaledCellH + offset.y);
-      ctx.moveTo(0, y + 0.5);
-      ctx.lineTo(size.width, y + 0.5);
-    }
-    ctx.stroke();
-
-    ctx.font = `${FONT_SIZE * zoom}px monospace`;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
-
-    const renderLayer = (layer: Map<string, string>, color: string) => {
-      ctx.fillStyle = color;
-      layer.forEach((char, key) => {
-        const { x, y } = fromKey(key);
-        if (
-          x >= startCol - 1 &&
-          x <= endCol &&
-          y >= startRow - 1 &&
-          y <= endRow
-        ) {
-          const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
-          if (char === " ") {
-            ctx.clearRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
-          } else {
-            ctx.fillText(
-              char,
-              screenPos.x + scaledCellW / 2,
-              screenPos.y + scaledCellH / 2
-            );
-          }
-        }
-      });
-    };
-
-    renderLayer(grid, COLOR_PRIMARY_TEXT);
-    if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
-
-    const renderSelection = (area: SelectionArea) => {
-      const minX = Math.min(area.start.x, area.end.x);
-      const maxX = Math.max(area.start.x, area.end.x);
-      const minY = Math.min(area.start.y, area.end.y);
-      const maxY = Math.max(area.start.y, area.end.y);
-
-      const screenStart = gridToScreen(minX, minY, offset.x, offset.y, zoom);
-      const width = (maxX - minX + 1) * scaledCellW;
-      const height = (maxY - minY + 1) * scaledCellH;
-
-      ctx.fillStyle = COLOR_SELECTION_BG;
-      ctx.fillRect(screenStart.x, screenStart.y, width, height);
-      ctx.strokeStyle = COLOR_SELECTION_BORDER;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(screenStart.x, screenStart.y, width, height);
-    };
-
-    selections.forEach(renderSelection);
-
-    if (draggingSelection) renderSelection(draggingSelection);
-
-    if (tool === "text" && textCursor) {
-      const { x, y } = textCursor;
-      if (
-        x >= startCol - 1 &&
-        x <= endCol &&
-        y >= startRow - 1 &&
-        y <= endRow
-      ) {
-        const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
-        ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
-        ctx.fillRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
-        const charUnderCursor = grid.get(toKey(x, y));
-        if (charUnderCursor) {
-          ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-          ctx.fillText(
-            charUnderCursor,
-            screenPos.x + scaledCellW / 2,
-            screenPos.y + scaledCellH / 2
-          );
-        }
-      }
-    }
-
-    const originX = offset.x;
-    const originY = offset.y;
-    ctx.fillStyle = COLOR_ORIGIN_MARKER;
-    ctx.fillRect(originX - 2, originY - 10, 4, 20);
-    ctx.fillRect(originX - 10, originY - 2, 20, 4);
-  }, [
-    offset,
-    zoom,
-    size,
-    grid,
-    scratchLayer,
-    textCursor,
-    tool,
-    selections,
-    draggingSelection,
-  ]);
-
-  return (
-    <div
-      ref={containerRef}
-      style={{ touchAction: "none" }}
-      className={`w-full h-full overflow-hidden bg-gray-50 touch-none select-none ${
-        tool === "text"
-          ? "cursor-text"
-          : tool === "select"
-          ? "cursor-default"
-          : tool === "fill"
-          ? "cursor-cell"
-          : "cursor-crosshair"
-      }`}
-    >
-      <canvas ref={canvasRef} />
-    </div>
-  );
+  return { bind, draggingSelection };
 };

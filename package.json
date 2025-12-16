@@ -19,6 +19,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@use-gesture/react": "^10.3.1",
     "ahooks": "^3.9.6",
+    "bresenham": "^0.0.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "immer": "^11.0.1",
@@ -35,6 +36,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.1.18",
+    "@types/bresenham": "^0.0.3",
     "@types/node": "^24.10.4",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
