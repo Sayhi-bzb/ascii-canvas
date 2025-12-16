@@ -46,6 +46,7 @@ export interface CanvasState extends CanvasStateData {
   addSelection: (area: SelectionArea) => void;
   clearSelections: () => void;
   fillSelections: () => void;
+  erasePoints: (points: Point[]) => void;
 }
 
 const zodValidator =
@@ -109,7 +110,11 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
     set((state) => {
       if (state.scratchLayer) {
         state.scratchLayer.forEach((value, key) => {
-          state.grid.set(key, value);
+          if (value === " ") {
+            state.grid.delete(key);
+          } else {
+            state.grid.set(key, value);
+          }
         });
         state.scratchLayer = null;
       }
@@ -189,6 +194,13 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
             state.grid.set(toKey(x, y), state.brushChar);
           }
         }
+      });
+    }),
+
+  erasePoints: (points) =>
+    set((state) => {
+      points.forEach((p) => {
+        state.grid.delete(toKey(p.x, p.y));
       });
     }),
 });

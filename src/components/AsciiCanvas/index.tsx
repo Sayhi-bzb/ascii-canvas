@@ -10,10 +10,16 @@ export const AsciiCanvas = () => {
   const size = useSize(containerRef);
   const store = useCanvasStore();
 
-  const { bind, draggingSelection } = useCanvasInteraction(store, containerRef);
+  const { bind, draggingSelection, isSpacePanning } = useCanvasInteraction(
+    store,
+    containerRef
+  );
   useCanvasRenderer(canvasRef, size, store, draggingSelection);
 
   const cursorClass = useMemo(() => {
+    if (isSpacePanning) {
+      return "cursor-grab";
+    }
     switch (store.tool) {
       case "text":
         return "cursor-text";
@@ -24,7 +30,7 @@ export const AsciiCanvas = () => {
       default:
         return "cursor-crosshair";
     }
-  }, [store.tool]);
+  }, [store.tool, isSpacePanning]);
 
   return (
     <div

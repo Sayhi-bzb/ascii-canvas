@@ -27,6 +27,7 @@ export const useCanvasInteraction = (
     addSelection,
     clearSelections,
     fillSelections,
+    erasePoints,
     offset,
     zoom,
     selections,
@@ -37,6 +38,29 @@ export const useCanvasInteraction = (
 
   const [draggingSelection, setDraggingSelection] =
     useState<SelectionArea | null>(null);
+  const [isSpacePanning, setIsSpacePanning] = useState(false);
+
+  useEventListener(
+    "keydown",
+    (e) => {
+      if (e.key === " " && document.activeElement === document.body) {
+        e.preventDefault();
+        setIsSpacePanning(true);
+      }
+    },
+    { target: window }
+  );
+
+  useEventListener(
+    "keyup",
+    (e) => {
+      if (e.key === " ") {
+        e.preventDefault();
+        setIsSpacePanning(false);
+      }
+    },
+    { target: window }
+  );
 
   const handleKeyDown = useCreation(
     () => (e: KeyboardEvent) => {
@@ -76,21 +100,20 @@ export const useCanvasInteraction = (
   const handleDrawing = useCreation(
     () => (currentGrid: Point) => {
       if (!lastGrid.current) return;
+      const points = getLinePoints(lastGrid.current, currentGrid);
+
       if (tool === "brush") {
-        const points = getLinePoints(lastGrid.current, currentGrid);
         const pointsWithChar = points.map((p) => ({
           ...p,
           char: brushChar,
         }));
         addScratchPoints(pointsWithChar);
       } else if (tool === "eraser") {
-        const points = getLinePoints(lastGrid.current, currentGrid);
-        const pointsWithChar = points.map((p) => ({ ...p, char: " " }));
-        addScratchPoints(pointsWithChar);
+        erasePoints(points);
       }
       lastGrid.current = currentGrid;
     },
-    [tool, brushChar, addScratchPoints]
+    [tool, brushChar, addScratchPoints, erasePoints]
   );
 
   const { run: throttledDraw } = useThrottleFn(handleDrawing, {
@@ -102,12 +125,12 @@ export const useCanvasInteraction = (
     {
       onDragStart: ({ xy: [x, y], event }) => {
         const isLeftClick = (event as MouseEvent).button === 0;
-        const isPan = (event as MouseEvent).buttons === 4;
+        const isMiddleClickPan = (event as MouseEvent).buttons === 4;
         const isMultiSelect =
           (event as MouseEvent).ctrlKey || (event as MouseEvent).metaKey;
         const rect = containerRef.current?.getBoundingClientRect();
 
-        if (isLeftClick && !isPan && rect) {
+        if (isLeftClick && !isMiddleClickPan && !isSpacePanning && rect) {
           const start = screenToGrid(
             x - rect.left,
             y - rect.top,
@@ -145,14 +168,16 @@ export const useCanvasInteraction = (
 
           if (tool === "brush") {
             addScratchPoints([{ ...start, char: brushChar }]);
+          } else if (tool === "eraser") {
+            erasePoints([start]);
           }
         }
       },
       onDrag: ({ delta: [dx, dy], xy: [x, y], event }) => {
         const mouseEvent = event as MouseEvent;
-        if (tool === "text") return;
+        if (tool === "text" && !isSpacePanning) return;
 
-        const isPan = mouseEvent.buttons === 4;
+        const isPan = mouseEvent.buttons === 4 || isSpacePanning;
 
         if (isPan) {
           setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
@@ -193,15 +218,16 @@ export const useCanvasInteraction = (
         }
       },
       onDragEnd: ({ event }) => {
-        if (tool === "text") return;
-        const isLeftClick = (event as MouseEvent).button === 0;
-        const isPan = (event as MouseEvent).buttons === 4;
+        if (tool === "text" && !isSpacePanning) return;
 
-        if (isLeftClick && !isPan) {
+        const isLeftClick = (event as MouseEvent).button === 0;
+        const isMiddleClickPan = (event as MouseEvent).buttons === 4;
+
+        if (isLeftClick && !isMiddleClickPan && !isSpacePanning) {
           if (tool === "select" && draggingSelection) {
             addSelection(draggingSelection);
             setDraggingSelection(null);
-          } else if (tool !== "fill") {
+          } else if (tool !== "fill" && tool !== "eraser") {
             commitScratch();
           }
           dragStartGrid.current = null;
@@ -224,5 +250,5 @@ export const useCanvasInteraction = (
     { target: containerRef, eventOptions: { passive: false } }
   );
 
-  return { bind, draggingSelection };
+  return { bind, draggingSelection, isSpacePanning };
 };
