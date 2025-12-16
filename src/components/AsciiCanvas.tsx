@@ -1,9 +1,16 @@
+// src/components/AsciiCanvas.tsx
 import { useEffect, useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
 import {
   BACKGROUND_COLOR,
   CELL_HEIGHT,
   CELL_WIDTH,
+  COLOR_ORIGIN_MARKER,
+  COLOR_PRIMARY_TEXT,
+  COLOR_SCRATCH_LAYER,
+  COLOR_TEXT_CURSOR_BG,
+  COLOR_TEXT_CURSOR_FG,
+  FONT_SIZE,
   GRID_COLOR,
 } from "../lib/constants";
 import { useCanvasStore } from "../store/canvasStore";
@@ -238,7 +245,7 @@ export const AsciiCanvas = () => {
     }
     ctx.stroke();
 
-    ctx.font = `${15 * zoom}px monospace`;
+    ctx.font = `${FONT_SIZE * zoom}px monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
 
@@ -266,8 +273,8 @@ export const AsciiCanvas = () => {
       });
     };
 
-    renderLayer(grid, "#000000");
-    if (scratchLayer) renderLayer(scratchLayer, "#3b82f6");
+    renderLayer(grid, COLOR_PRIMARY_TEXT);
+    if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
 
     if (tool === "text" && textCursor) {
       const { x, y } = textCursor;
@@ -278,12 +285,12 @@ export const AsciiCanvas = () => {
         y <= endRow
       ) {
         const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
         ctx.fillRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
 
         const charUnderCursor = grid.get(toKey(x, y));
         if (charUnderCursor) {
-          ctx.fillStyle = "#ffffff";
+          ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
           ctx.fillText(
             charUnderCursor,
             screenPos.x + scaledCellW / 2,
@@ -295,7 +302,7 @@ export const AsciiCanvas = () => {
 
     const originX = offset.x;
     const originY = offset.y;
-    ctx.fillStyle = "red";
+    ctx.fillStyle = COLOR_ORIGIN_MARKER;
     ctx.fillRect(originX - 2, originY - 10, 4, 20);
     ctx.fillRect(originX - 10, originY - 2, 20, 4);
   }, [offset, zoom, size, grid, scratchLayer, textCursor, tool]);

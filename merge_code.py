@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-代码合并脚本 (TUI风格 GUI版) - V1.2
+代码合并脚本 (TUI风格 GUI版) - V1.3
 新增：文本批量导入功能、缺失文件检测
+更新：输出格式优化为 Markdown 代码块格式 (Token Friendly)
 """
 
 import os
@@ -30,7 +31,8 @@ def is_text_file(file_path):
     text_extensions = {
         '.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.txt', '.yml', '.yaml',
         '.css', '.scss', '.less', '.html', '.xml', '.py', '.java', '.c', '.cpp',
-        '.h', '.hpp', '.sh', '.bat', '.ps1', '.mjs', '.spec.ts', '.test.ts'
+        '.h', '.hpp', '.sh', '.bat', '.ps1', '.mjs', '.spec.ts', '.test.ts',
+        '.vue', '.sql', '.properties', '.ini', '.toml', '.conf', '.env'
     }
     _, ext = os.path.splitext(file_path)
     return ext.lower() in text_extensions
@@ -65,6 +67,11 @@ def process_target(target_full_path, base_path):
             
     elif os.path.isdir(target_full_path):
         for root, dirs, files in os.walk(target_full_path):
+            # 排除常见的非代码目录
+            if 'node_modules' in dirs: dirs.remove('node_modules')
+            if '.git' in dirs: dirs.remove('.git')
+            if '__pycache__' in dirs: dirs.remove('__pycache__')
+
             for file in files:
                 file_path = os.path.join(root, file)
                 if is_text_file(file_path):
@@ -76,21 +83,35 @@ def process_target(target_full_path, base_path):
                     files_data.append({"path": rel_path.replace('\\', '/'), "content": content})
     return files_data
 
-def write_json_without_escaping_newlines(data, file_path):
+def write_markdown_format(data, file_path):
+    """
+    将数据写入 Token 友好的 Markdown 格式
+    格式示例:
+    ```src/main.py
+    print("hello")
+    ```
+    ---
+    """
     with open(file_path, 'w', encoding='utf-8') as f:
-        f.write('[\n')
         for i, item in enumerate(data):
-            f.write('  {\n')
-            f.write(f'    "path": "{item["path"]}",\n')
-            f.write('    "content": "')
-            content = item["content"].replace('\\', '\\\\').replace('"', '\\"')
+            # 写入文件路径作为代码块的语言标记
+            # 格式: ```路径
+            f.write(f"```{item['path']}\n")
+            
+            # 写入内容
+            content = item["content"]
             f.write(content)
-            f.write('"\n')
-            f.write('  }')
+            
+            # 确保内容以换行符结尾，避免 ``` 接在代码后面
+            if content and not content.endswith('\n'):
+                f.write('\n')
+            
+            # 闭合代码块
+            f.write("```\n")
+            
+            # 如果不是最后一个文件，添加分隔符
             if i < len(data) - 1:
-                f.write(',')
-            f.write('\n')
-        f.write(']\n')
+                f.write("---\n")
 
 # ==================== 自定义 TUI 组件 ====================
 
@@ -180,7 +201,7 @@ class TextInputDialog(tk.Toplevel):
 class TuiMergerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("CODE_MERGER_V1.2")
+        self.root.title("CODE_MERGER_V1.3 (TOKEN_SAVER)")
         self.root.geometry("800x600")
         self.root.configure(bg=STYLE_BG) 
         
@@ -254,7 +275,8 @@ class TuiMergerApp:
         self.path_var = tk.StringVar(value=f"ROOT: {self.base_path}")
         TUILabel(footer, text=f"ROOT: {self.base_path}", font=("Consolas", 8)).pack(anchor=tk.W, pady=(0,5))
 
-        self.run_btn = TUIButton(footer, "EXECUTE_MERGE -> merged_code.json", self.run_merge)
+        # 更新按钮文字以反映新的输出格式
+        self.run_btn = TUIButton(footer, "EXECUTE_MERGE -> merged_code.md", self.run_merge)
         self.run_btn.pack(fill=tk.X)
 
     # === 新增：文本导入逻辑 ===
@@ -269,20 +291,15 @@ class TuiMergerApp:
         
         for line in lines:
             line = line.strip()
-            # 去除首尾可能的引号
             line = line.strip('"').strip("'")
             if not line:
                 continue
             
-            # 解析路径
-            # 1. 如果是绝对路径，直接用
-            # 2. 如果是相对路径，拼接 base_path
             if os.path.isabs(line):
                 full_path = os.path.normpath(line)
             else:
                 full_path = os.path.normpath(os.path.join(self.base_path, line))
             
-            # 添加到列表（无论存在与否，都先加进去，在 refresh_listbox 里做状态展示）
             if full_path not in self.target_list:
                 self.target_list.append(full_path)
                 added_count += 1
@@ -359,9 +376,6 @@ class TuiMergerApp:
             
             display_text = f"{prefix} {display_path}"
             self.listbox.insert(tk.END, display_text)
-            
-            # 如果缺失，给这一行加个颜色（TUI风格用 灰色 或 保持文字提示）
-            # Listbox 设置单行颜色比较麻烦，这里依靠前缀文本提示
 
     def run_merge(self):
         if not self.target_list:
@@ -376,7 +390,8 @@ class TuiMergerApp:
             if not messagebox.askyesno("WARNING", f"FOUND {missing_count} MISSING FILES.\nCONTINUE MERGING VALID FILES ONLY?"):
                 return
 
-        output_file = os.path.join(self.base_path, "merged_code.json")
+        # 更改输出文件后缀为 txt
+        output_file = os.path.join(self.base_path, "merged_code.md")
         result = []
         
         self.status_label.config(text="STATUS: PROCESSING...")
@@ -394,7 +409,8 @@ class TuiMergerApp:
                     unique_result.append(item)
                     seen_paths.add(item['path'])
 
-            write_json_without_escaping_newlines(unique_result, output_file)
+            # 使用新的写入函数
+            write_markdown_format(unique_result, output_file)
             
             self.status_label.config(text="STATUS: SUCCESS")
             messagebox.showinfo("SUCCESS", 

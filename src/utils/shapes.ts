@@ -1,3 +1,5 @@
+// src/utils/shapes.ts
+import { BOX_CHARS } from "../lib/constants";
 import type { Point, GridPoint } from "../types";
 
 export function getLinePoints(start: Point, end: Point): Point[] {
@@ -36,26 +38,27 @@ export function getBoxPoints(start: Point, end: Point): GridPoint[] {
   const bottom = Math.max(start.y, end.y);
 
   if (left === right || top === bottom) {
-    if (left === right && top === bottom) return [{ ...start, char: "+" }];
+    if (left === right && top === bottom)
+      return [{ ...start, char: BOX_CHARS.CROSS }];
     return getLinePoints(start, end).map((p) => ({
       ...p,
-      char: left === right ? "│" : "─",
+      char: left === right ? BOX_CHARS.VERTICAL : BOX_CHARS.HORIZONTAL,
     }));
   }
 
-  points.push({ x: left, y: top, char: "┌" });
-  points.push({ x: right, y: top, char: "┐" });
-  points.push({ x: left, y: bottom, char: "└" });
-  points.push({ x: right, y: bottom, char: "┘" });
+  points.push({ x: left, y: top, char: BOX_CHARS.TOP_LEFT });
+  points.push({ x: right, y: top, char: BOX_CHARS.TOP_RIGHT });
+  points.push({ x: left, y: bottom, char: BOX_CHARS.BOTTOM_LEFT });
+  points.push({ x: right, y: bottom, char: BOX_CHARS.BOTTOM_RIGHT });
 
   for (let x = left + 1; x < right; x++) {
-    points.push({ x, y: top, char: "─" });
-    points.push({ x, y: bottom, char: "─" });
+    points.push({ x, y: top, char: BOX_CHARS.HORIZONTAL });
+    points.push({ x, y: bottom, char: BOX_CHARS.HORIZONTAL });
   }
 
   for (let y = top + 1; y < bottom; y++) {
-    points.push({ x: left, y, char: "│" });
-    points.push({ x: right, y, char: "│" });
+    points.push({ x: left, y, char: BOX_CHARS.VERTICAL });
+    points.push({ x: right, y, char: BOX_CHARS.VERTICAL });
   }
 
   return points;

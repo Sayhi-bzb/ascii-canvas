@@ -1,8 +1,9 @@
+// src/store/canvasStore.ts
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { temporal } from "zundo";
 import { enableMapSet } from "immer";
-import { MIN_ZOOM, MAX_ZOOM } from "../lib/constants";
+import { MIN_ZOOM, MAX_ZOOM, UNDO_LIMIT } from "../lib/constants";
 import { toKey } from "../utils/math";
 import type { Point, GridPoint, GridMap, ToolType } from "../types";
 
@@ -133,7 +134,7 @@ export const useCanvasStore = create<CanvasState>()(
     })),
     {
       partialize: (state) => ({ grid: state.grid }),
-      limit: 100,
+      limit: UNDO_LIMIT,
     }
   )
 );

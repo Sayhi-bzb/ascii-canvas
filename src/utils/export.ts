@@ -1,3 +1,5 @@
+// src/utils/export.ts
+import { EXPORT_PADDING } from "../lib/constants";
 import { fromKey } from "./math";
 
 export const exportToString = (grid: Map<string, string>) => {
@@ -16,7 +18,7 @@ export const exportToString = (grid: Map<string, string>) => {
     if (y > maxY) maxY = y;
   });
 
-  const padding = 1;
+  const padding = EXPORT_PADDING;
   const width = maxX - minX + 1 + padding * 2;
   const height = maxY - minY + 1 + padding * 2;
 
