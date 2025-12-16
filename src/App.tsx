@@ -1,4 +1,3 @@
-// src/App.tsx
 import React from "react";
 import { useStore } from "zustand";
 import { AsciiCanvas } from "./components/AsciiCanvas";

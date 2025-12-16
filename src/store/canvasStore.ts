@@ -1,4 +1,3 @@
-// src/store/canvasStore.ts
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { temporal } from "zundo";

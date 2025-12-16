@@ -1,10 +1,9 @@
-// src/layout.tsx
 import React from "react";
 
 interface AppLayoutProps {
   statusBar: React.ReactNode;
   canvas: React.ReactNode;
-  children: React.ReactNode; // For the new toolbar
+  children: React.ReactNode;
 }
 
 export const AppLayout = ({ statusBar, canvas, children }: AppLayoutProps) => {

@@ -1,4 +1,3 @@
-// src/utils/shapes.ts
 import { BOX_CHARS } from "../lib/constants";
 import type { Point, GridPoint } from "../types";
 

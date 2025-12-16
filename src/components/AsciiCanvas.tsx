@@ -1,4 +1,3 @@
-// src/components/AsciiCanvas.tsx
 import { useEffect, useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
 import {

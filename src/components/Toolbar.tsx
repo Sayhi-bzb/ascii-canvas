@@ -1,4 +1,3 @@
-// src/components/Toolbar.tsx
 import React from "react";
 import {
   File,
