@@ -1,75 +1,12 @@
+// src/App.tsx
 import React from "react";
 import { useStore } from "zustand";
-import {
-  Download,
-  Eraser,
-  Minus,
-  MousePointer2,
-  Pencil,
-  Redo2,
-  Square,
-  Trash2,
-  Type,
-  Undo2,
-} from "lucide-react";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
 import { exportToString } from "./utils/export";
 import type { CanvasStoreWithTemporal } from "./types";
 import { AppLayout } from "./layout";
-
-interface ToolButtonProps {
-  isActive: boolean;
-  onClick: () => void;
-  icon: React.ElementType;
-  label: string;
-}
-const ToolButton = ({
-  isActive,
-  onClick,
-  icon: Icon,
-  label,
-}: ToolButtonProps) => (
-  <button
-    onClick={onClick}
-    className={`p-2 rounded-md flex flex-col items-center gap-1 transition-all ${
-      isActive
-        ? "bg-slate-900 text-white shadow-md scale-105"
-        : "bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-    }`}
-    title={label}
-  >
-    <Icon size={18} />
-    <span className="text-[10px] font-medium">{label}</span>
-  </button>
-);
-
-interface ActionButtonProps {
-  onClick: () => void;
-  icon: React.ElementType;
-  label: string;
-  disabled?: boolean;
-}
-const ActionButton = ({
-  onClick,
-  icon: Icon,
-  label,
-  disabled,
-}: ActionButtonProps) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className={`p-2 rounded-md flex flex-col items-center gap-1 transition-colors ${
-      disabled
-        ? "opacity-30 cursor-not-allowed text-slate-400 bg-white"
-        : "bg-white text-slate-600 hover:bg-slate-50 hover:text-blue-600 shadow-sm border border-gray-100"
-    }`}
-    title={label}
-  >
-    <Icon size={18} />
-    <span className="text-[10px] font-medium">{label}</span>
-  </button>
-);
+import { Toolbar } from "./components/Toolbar";
 
 function App() {
   const { zoom, offset, tool, grid, setTool, clearCanvas } = useCanvasStore();
@@ -96,72 +33,6 @@ function App() {
     }
   };
 
-  // 定义各个区域的功能模块
-  const toolbar = (
-    <div className="flex gap-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50">
-      <ToolButton
-        isActive={tool === "move"}
-        onClick={() => setTool("move")}
-        icon={MousePointer2}
-        label="Move"
-      />
-      <div className="w-px bg-gray-200 mx-1 h-8 self-center" />
-      <ToolButton
-        isActive={tool === "brush"}
-        onClick={() => setTool("brush")}
-        icon={Pencil}
-        label="Brush"
-      />
-      <ToolButton
-        isActive={tool === "line"}
-        onClick={() => setTool("line")}
-        icon={Minus}
-        label="Line"
-      />
-      <ToolButton
-        isActive={tool === "box"}
-        onClick={() => setTool("box")}
-        icon={Square}
-        label="Box"
-      />
-      <ToolButton
-        isActive={tool === "text"}
-        onClick={() => setTool("text")}
-        icon={Type}
-        label="Text"
-      />
-      <ToolButton
-        isActive={tool === "eraser"}
-        onClick={() => setTool("eraser")}
-        icon={Eraser}
-        label="Eraser"
-      />
-    </div>
-  );
-
-  const actionBar = (
-    <div className="flex gap-2">
-      <div className="flex bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-1.5 gap-1">
-        <ActionButton
-          onClick={undo}
-          disabled={pastStates.length === 0}
-          icon={Undo2}
-          label="Undo"
-        />
-        <ActionButton
-          onClick={redo}
-          disabled={futureStates.length === 0}
-          icon={Redo2}
-          label="Redo"
-        />
-      </div>
-      <div className="flex bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-1.5 gap-1">
-        <ActionButton onClick={handleClear} icon={Trash2} label="Clear" />
-        <ActionButton onClick={handleExport} icon={Download} label="Export" />
-      </div>
-    </div>
-  );
-
   const statusBar = (
     <div className="pointer-events-none select-none font-mono text-xs text-gray-400 bg-white/50 p-2 rounded backdrop-blur-sm">
       Pos: {offset.x.toFixed(0)}, {offset.y.toFixed(0)} | Zoom:{" "}
@@ -176,12 +47,18 @@ function App() {
   );
 
   return (
-    <AppLayout
-      toolbar={toolbar}
-      actionBar={actionBar}
-      statusBar={statusBar}
-      canvas={<AsciiCanvas />}
-    />
+    <AppLayout statusBar={statusBar} canvas={<AsciiCanvas />}>
+      <Toolbar
+        tool={tool}
+        setTool={setTool}
+        onUndo={() => undo()}
+        onRedo={() => redo()}
+        canUndo={pastStates.length > 0}
+        canRedo={futureStates.length > 0}
+        onExport={handleExport}
+        onClear={handleClear}
+      />
+    </AppLayout>
   );
 }
 
