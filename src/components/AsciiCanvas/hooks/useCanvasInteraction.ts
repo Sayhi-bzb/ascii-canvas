@@ -100,6 +100,7 @@ export const useCanvasInteraction = (
           );
 
           if (tool === "text") {
+            event.preventDefault();
             setTextCursor(start);
             return;
           }
