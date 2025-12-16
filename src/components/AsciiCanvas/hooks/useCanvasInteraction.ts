@@ -99,19 +99,19 @@ export const useCanvasInteraction = (
             zoom
           );
 
-          if (tool === "text") {
-            event.preventDefault();
-            setTextCursor(start);
-            return;
-          }
-
           if (tool === "select") {
+            // 阻止默认行为，防止焦点丢失，确保文本输入能获取焦点
+            event.preventDefault();
+
             if (!isMultiSelect) {
               clearSelections();
             }
 
+            // 无论点击还是拖拽，先初始化选区
             setDraggingSelection({ start, end: start });
             dragStartGrid.current = start;
+            // 清除可能存在的文本光标，除非后续判定为点击
+            setTextCursor(null);
             return;
           }
 
@@ -123,6 +123,7 @@ export const useCanvasInteraction = (
           }
 
           clearSelections();
+          setTextCursor(null); // 切换其他工具时清除光标
 
           dragStartGrid.current = start;
           lastGrid.current = start;
@@ -136,8 +137,6 @@ export const useCanvasInteraction = (
       },
       onDrag: ({ delta: [dx, dy], xy: [x, y], event }) => {
         const mouseEvent = event as MouseEvent;
-        if (tool === "text" && !isSpacePanning) return;
-
         const isPan = mouseEvent.buttons === 4 || isSpacePanning;
 
         if (isPan) {
@@ -179,15 +178,24 @@ export const useCanvasInteraction = (
         }
       },
       onDragEnd: ({ event }) => {
-        if (tool === "text" && !isSpacePanning) return;
-
         const isLeftClick = (event as MouseEvent).button === 0;
         const isMiddleClickPan = (event as MouseEvent).buttons === 4;
 
         if (isLeftClick && !isMiddleClickPan && !isSpacePanning) {
           if (tool === "select" && draggingSelection) {
-            addSelection(draggingSelection);
-            setDraggingSelection(null);
+            // 核心逻辑：判断是拖拽还是点击
+            const { start, end } = draggingSelection;
+            const isClick = start.x === end.x && start.y === end.y;
+
+            if (isClick) {
+              // 如果起点等于终点，视为点击 -> 放置文本光标
+              setTextCursor(start);
+              setDraggingSelection(null); // 清除临时的点击选区
+            } else {
+              // 否则视为框选 -> 添加选区
+              addSelection(draggingSelection);
+              setDraggingSelection(null);
+            }
           } else if (tool !== "fill" && tool !== "eraser") {
             commitScratch();
           }

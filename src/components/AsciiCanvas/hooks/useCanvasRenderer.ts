@@ -16,6 +16,7 @@ import {
 import type { CanvasState } from "../../../store/canvasStore";
 import { fromKey, gridToScreen, toKey } from "../../../utils/math";
 import type { SelectionArea } from "../../../types";
+import { isWideChar } from "../../../utils/char";
 
 export const useCanvasRenderer = (
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -83,11 +84,11 @@ export const useCanvasRenderer = (
           if (char === " ") {
             ctx.clearRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
           } else {
-            ctx.fillText(
-              char,
-              screenPos.x + scaledCellW / 2,
-              screenPos.y + scaledCellH / 2
-            );
+            const wide = isWideChar(char);
+            const centerX =
+              screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
+            const centerY = screenPos.y + scaledCellH / 2;
+            ctx.fillText(char, centerX, centerY);
           }
         }
       });
@@ -117,7 +118,8 @@ export const useCanvasRenderer = (
 
     if (draggingSelection) renderSelection(draggingSelection);
 
-    if (tool === "text" && textCursor) {
+    // 只要有 textCursor 就渲染光标，不检查 tool
+    if (textCursor) {
       const { x, y } = textCursor;
       if (
         x >= startCol - 1 &&
@@ -130,12 +132,10 @@ export const useCanvasRenderer = (
         ctx.fillRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
         const charUnderCursor = grid.get(toKey(x, y));
         if (charUnderCursor) {
+          const wide = isWideChar(charUnderCursor);
           ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-          ctx.fillText(
-            charUnderCursor,
-            screenPos.x + scaledCellW / 2,
-            screenPos.y + scaledCellH / 2
-          );
+          const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
+          ctx.fillText(charUnderCursor, centerX, screenPos.y + scaledCellH / 2);
         }
       }
     }

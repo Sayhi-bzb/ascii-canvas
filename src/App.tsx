@@ -9,7 +9,9 @@ import { AppLayout } from "./layout";
 import { Toolbar } from "./components/Toolbar";
 
 function App() {
-  const { zoom, offset, tool, grid, setTool, clearCanvas } = useCanvasStore();
+  // 修正：这里不再解构 tool，因为我们下面只用到了 textCursor 来判断状态
+  const { zoom, offset, tool, grid, textCursor, setTool, clearCanvas } =
+    useCanvasStore();
 
   const temporalStore = (useCanvasStore as CanvasStoreWithTemporal).temporal;
   const { undo, redo } = temporalStore.getState();
@@ -43,7 +45,8 @@ function App() {
       Pos: {offset.x.toFixed(0)}, {offset.y.toFixed(0)} | Zoom:{" "}
       {(zoom * 100).toFixed(0)}% <br />
       Objects: {grid.size} <br />
-      {tool === "text" && (
+      {/* 修正：不再检查 tool === 'text'，而是检查是否有光标 */}
+      {!!textCursor && (
         <span className="text-blue-600 font-bold animate-pulse">
           Mode: Text Input (Click to focus)
         </span>

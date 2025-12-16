@@ -21,6 +21,7 @@ export const GridPointSchema = PointSchema.extend({
 
 export const GridMapSchema = z.map(z.string(), z.string());
 
+// 移除 "text"
 export const ToolTypeSchema = z.enum([
   "select",
   "fill",
@@ -28,7 +29,6 @@ export const ToolTypeSchema = z.enum([
   "eraser",
   "box",
   "line",
-  "text",
 ]);
 
 // --- Inferred Types (Automatically Generated Blueprints) ---

@@ -11,7 +11,6 @@ export const AsciiCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // 新增：引入一个标记，用来记录“是否正在使用中文输入法选词”
   const isComposing = useRef(false);
 
   const size = useSize(containerRef);
@@ -28,23 +27,22 @@ export const AsciiCanvas = () => {
     grid,
   } = store;
 
-  const { bind, draggingSelection, isSpacePanning } = useCanvasInteraction(
+  // 这里的 bind 现在是 undefined，因为我们在 hook 里用了 target ref
+  const { draggingSelection, isSpacePanning } = useCanvasInteraction(
     store,
     containerRef
   );
   useCanvasRenderer(canvasRef, size, store, draggingSelection);
 
-  // 自动聚焦逻辑
   useEffect(() => {
-    if (tool === "text" && textCursor && textareaRef.current) {
-      // 稍微延迟聚焦，防止点击事件冲突
+    if (textCursor && textareaRef.current) {
       setTimeout(() => {
         textareaRef.current?.focus();
       }, 0);
     } else if (textareaRef.current) {
       textareaRef.current.blur();
     }
-  }, [tool, textCursor]);
+  }, [textCursor]);
 
   const handleCopy = (e: ClipboardEvent) => {
     if (selections.length > 0) {
@@ -64,9 +62,11 @@ export const AsciiCanvas = () => {
     if (isSpacePanning) {
       return "cursor-grab";
     }
-    switch (store.tool) {
-      case "text":
-        return "cursor-text";
+    if (textCursor) {
+      return "cursor-text";
+    }
+    // 修正：使用解构出来的 tool 变量，而不是 store.tool
+    switch (tool) {
       case "select":
         return "cursor-default";
       case "fill":
@@ -74,7 +74,7 @@ export const AsciiCanvas = () => {
       default:
         return "cursor-crosshair";
     }
-  }, [store.tool, isSpacePanning]);
+  }, [tool, isSpacePanning, textCursor]);
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
     if (!textCursor || !size) return { display: "none" };
@@ -95,36 +95,26 @@ export const AsciiCanvas = () => {
       height: "1px",
       opacity: 0,
       pointerEvents: "none",
-      // 关键：确保输入法候选框能出现在正确位置
       zIndex: -1,
     };
   }, [textCursor, store.offset, store.zoom, size]);
 
-  // --- W3C 标准中文输入处理流程 ---
-
-  // 1. 选词开始：比如按下了 's' 准备打 '是'
   const handleCompositionStart = () => {
     isComposing.current = true;
   };
 
-  // 2. 选词结束：用户按下了空格或回车，选定了 '是'
   const handleCompositionEnd = (
     e: React.CompositionEvent<HTMLTextAreaElement>
   ) => {
     isComposing.current = false;
-    // 获取最终确认的汉字
     const value = e.data;
     if (value) {
       writeTextString(value);
-      // 清空输入框，准备下一次输入
       if (textareaRef.current) textareaRef.current.value = "";
     }
   };
 
-  // 3. 常规输入：处理英文、数字，或者中文输入法确认后的数据流
   const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
-    // 如果正在选词（isComposing 为 true），直接无视这个事件！
-    // 这就完美解决了 "s" 和 "是" 同时出现的问题
     if (isComposing.current) {
       return;
     }
@@ -132,18 +122,15 @@ export const AsciiCanvas = () => {
     const textarea = e.currentTarget;
     const value = textarea.value;
 
-    // 只有在非选词状态下，才处理输入
     if (value) {
       writeTextString(value);
       textarea.value = "";
     }
   };
 
-  // 4. 按键处理：只负责功能键（回车、删除、方向），不负责字符输入
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
 
-    // 如果正在选词，不要处理任何功能键（比如回车可能是确认选词，不应该是换行）
     if (isComposing.current) return;
 
     if (e.key === "Backspace") {
@@ -168,15 +155,14 @@ export const AsciiCanvas = () => {
       e.preventDefault();
       setTextCursor(null);
     }
-    // 注意：这里不再有 writeTextChar 的调用，全部交给 handleInput 和 compositionEnd
   };
 
   return (
     <div
       ref={containerRef}
       style={{ touchAction: "none" }}
+      // 修正：移除了 {...bind}，因为事件监听已经通过 ref 自动挂载了
       className={`w-full h-full overflow-hidden bg-gray-50 touch-none select-none ${cursorClass}`}
-      {...bind}
     >
       <canvas ref={canvasRef} />
       <textarea
