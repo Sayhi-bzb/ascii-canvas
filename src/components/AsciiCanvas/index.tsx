@@ -40,7 +40,6 @@ export const AsciiCanvas = () => {
     }
   }, [textCursor]);
 
-  // --- Copy Logic ---
   const handleCopy = (e: ClipboardEvent) => {
     if (selections.length > 0) {
       e.preventDefault();
@@ -54,14 +53,12 @@ export const AsciiCanvas = () => {
   };
   useEventListener("copy", handleCopy);
 
-  // --- Cut Logic ---
   const handleCut = (e: ClipboardEvent) => {
     if (selections.length > 0) {
       e.preventDefault();
-      // 1. Copy
+
       const selectedText = exportSelectionToString(grid, selections);
       navigator.clipboard.writeText(selectedText).then(() => {
-        // 2. Delete
         deleteSelection();
         toast.success("Cut!", {
           description: "Selection moved to clipboard and deleted.",
@@ -71,7 +68,6 @@ export const AsciiCanvas = () => {
   };
   useEventListener("cut", handleCut);
 
-  // --- Paste Logic ---
   const handlePaste = (e: ClipboardEvent) => {
     if (isComposing.current) return;
 

@@ -20,13 +20,12 @@ export const COLOR_SELECTION_BORDER = "transparent";
 export const UNDO_LIMIT = 100;
 export const EXPORT_PADDING = 1;
 
-// 修改：更新为圆角风格标准
 export const BOX_CHARS = {
-  TOP_LEFT: "╭", // U+256D
-  TOP_RIGHT: "╮", // U+256E
-  BOTTOM_LEFT: "╰", // U+2570
-  BOTTOM_RIGHT: "╯", // U+256F
-  HORIZONTAL: "─", // U+2500
-  VERTICAL: "│", // U+2502
-  CROSS: "┼", // U+253C (标准制表符十字，比键盘上的 + 更美观)
+  TOP_LEFT: "╭",
+  TOP_RIGHT: "╮",
+  BOTTOM_LEFT: "╰",
+  BOTTOM_RIGHT: "╯",
+  HORIZONTAL: "─",
+  VERTICAL: "│",
+  CROSS: "┼",
 };

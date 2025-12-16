@@ -41,13 +41,13 @@ export interface CanvasState extends CanvasStateData {
   clearCanvas: () => void;
   setTextCursor: (pos: Point | null) => void;
   writeTextChar: (char: string) => void;
-  writeTextString: (str: string, startPos?: Point) => void; // 修改：增加可选起始位置
+  writeTextString: (str: string, startPos?: Point) => void;
   moveTextCursor: (dx: number, dy: number) => void;
   backspaceText: () => void;
   newlineText: () => void;
   addSelection: (area: SelectionArea) => void;
   clearSelections: () => void;
-  deleteSelection: () => void; // 新增：删除选区内容
+  deleteSelection: () => void;
   fillSelections: () => void;
   erasePoints: (points: Point[]) => void;
 }
@@ -152,18 +152,17 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
       }
     }),
 
-  // 修改：增强后的写入逻辑，支持从指定位置开始粘贴块状文本
   writeTextString: (str, startPos) =>
     set((state) => {
       const cursor = startPos ? { ...startPos } : state.textCursor;
       if (!cursor) return;
 
-      const startX = cursor.x; // 记住起始X，用于换行归位
+      const startX = cursor.x;
 
       for (const char of str) {
         if (char === "\n") {
           cursor.y += 1;
-          cursor.x = startX; // 回车归位
+          cursor.x = startX;
           continue;
         }
 
@@ -180,7 +179,6 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
         }
       }
 
-      // 更新全局光标位置
       if (state.textCursor) {
         state.textCursor.x = cursor.x;
         state.textCursor.y = cursor.y;
@@ -237,7 +235,6 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
       state.selections = [];
     }),
 
-  // 新增：拆除选区内容
   deleteSelection: () =>
     set((state) => {
       if (state.selections.length === 0) return;
@@ -254,9 +251,6 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
           }
         }
       });
-      // 拆迁完毕后，通常不清空选区框，方便用户确认已删除，或者继续操作
-      // 如果您希望删除后选区框也消失，取消注释下面这行：
-      // state.selections = [];
     }),
 
   fillSelections: () =>
