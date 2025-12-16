@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
+import { useEventListener, useSize, useThrottleFn, useCreation } from "ahooks";
 import {
   BACKGROUND_COLOR,
   CELL_HEIGHT,
@@ -22,7 +23,7 @@ import type { Point, SelectionArea } from "../types";
 export const AsciiCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  const size = useSize(containerRef);
 
   const dragStartGrid = useRef<Point | null>(null);
   const lastGrid = useRef<Point | null>(null);
@@ -54,21 +55,8 @@ export const AsciiCanvas = () => {
     fillSelections,
   } = useCanvasStore();
 
-  useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
-        const { width, height } = containerRef.current.getBoundingClientRect();
-        setSize({ width, height });
-      }
-    };
-    updateSize();
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
-  }, []);
-
-  useEffect(() => {
-    if (tool !== "text" || !textCursor) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = useCreation(
+    () => (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) return;
       if (e.key.length === 1) {
         e.preventDefault();
@@ -94,18 +82,38 @@ export const AsciiCanvas = () => {
       } else if (e.key === "Escape") {
         setTextCursor(null);
       }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    tool,
-    textCursor,
-    writeTextChar,
-    backspaceText,
-    newlineText,
-    moveTextCursor,
-    setTextCursor,
-  ]);
+    },
+    [writeTextChar, backspaceText, newlineText, moveTextCursor, setTextCursor]
+  );
+
+  useEventListener("keydown", handleKeyDown, {
+    enabled: tool === "text" && !!textCursor,
+  });
+
+  const handleDrawing = useCreation(
+    () => (currentGrid: Point) => {
+      if (!lastGrid.current) return;
+      if (tool === "brush") {
+        const points = getLinePoints(lastGrid.current, currentGrid);
+        const pointsWithChar = points.map((p) => ({
+          ...p,
+          char: brushChar,
+        }));
+        addScratchPoints(pointsWithChar);
+      } else if (tool === "eraser") {
+        const points = getLinePoints(lastGrid.current, currentGrid);
+        const pointsWithChar = points.map((p) => ({ ...p, char: " " }));
+        addScratchPoints(pointsWithChar);
+      }
+      lastGrid.current = currentGrid;
+    },
+    [tool, brushChar, addScratchPoints]
+  );
+
+  const { run: throttledDraw } = useThrottleFn(handleDrawing, {
+    wait: 16,
+    trailing: true,
+  });
 
   useGesture(
     {
@@ -185,19 +193,8 @@ export const AsciiCanvas = () => {
               return;
             }
 
-            if (tool === "brush" && lastGrid.current) {
-              const points = getLinePoints(lastGrid.current, currentGrid);
-              const pointsWithChar = points.map((p) => ({
-                ...p,
-                char: brushChar,
-              }));
-              addScratchPoints(pointsWithChar);
-              lastGrid.current = currentGrid;
-            } else if (tool === "eraser" && lastGrid.current) {
-              const points = getLinePoints(lastGrid.current, currentGrid);
-              const pointsWithChar = points.map((p) => ({ ...p, char: " " }));
-              addScratchPoints(pointsWithChar);
-              lastGrid.current = currentGrid;
+            if (tool === "brush" || tool === "eraser") {
+              throttledDraw(currentGrid);
             } else if (tool === "box") {
               const points = getBoxPoints(dragStartGrid.current, currentGrid);
               setScratchLayer(points);
@@ -247,7 +244,8 @@ export const AsciiCanvas = () => {
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx || size.width === 0 || size.height === 0) return;
+    if (!canvas || !ctx || !size || size.width === 0 || size.height === 0)
+      return;
 
     const dpr = window.devicePixelRatio || 1;
     canvas.width = size.width * dpr;
