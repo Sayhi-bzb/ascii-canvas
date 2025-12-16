@@ -40,6 +40,7 @@ export interface CanvasState extends CanvasStateData {
   clearCanvas: () => void;
   setTextCursor: (pos: Point | null) => void;
   writeTextChar: (char: string) => void;
+  writeTextString: (str: string) => void;
   moveTextCursor: (dx: number, dy: number) => void;
   backspaceText: () => void;
   newlineText: () => void;
@@ -91,7 +92,11 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
       state.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, updater(state.zoom)));
     }),
 
-  setTool: (tool) => set({ tool, textCursor: null }),
+  setTool: (tool) =>
+    set((state) => {
+      state.tool = tool;
+      state.textCursor = null;
+    }),
   setBrushChar: (char) => set({ brushChar: char }),
 
   setScratchLayer: (points) =>
@@ -142,6 +147,17 @@ const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
         const { x, y } = state.textCursor;
         state.grid.set(toKey(x, y), char);
         state.textCursor.x += 1;
+      }
+    }),
+
+  writeTextString: (str) =>
+    set((state) => {
+      if (state.textCursor) {
+        for (const char of str) {
+          const { x, y } = state.textCursor;
+          state.grid.set(toKey(x, y), char);
+          state.textCursor.x += 1;
+        }
       }
     }),
 

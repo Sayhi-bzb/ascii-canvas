@@ -13,17 +13,12 @@ export const useCanvasInteraction = (
   const {
     tool,
     brushChar,
-    textCursor,
     setOffset,
     setZoom,
     setScratchLayer,
     addScratchPoints,
     commitScratch,
     setTextCursor,
-    writeTextChar,
-    moveTextCursor,
-    backspaceText,
-    newlineText,
     addSelection,
     clearSelections,
     fillSelections,
@@ -61,41 +56,6 @@ export const useCanvasInteraction = (
     },
     { target: window }
   );
-
-  const handleKeyDown = useCreation(
-    () => (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) return;
-      if (e.key.length === 1) {
-        e.preventDefault();
-        writeTextChar(e.key);
-      } else if (e.key === "Backspace") {
-        e.preventDefault();
-        backspaceText();
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        newlineText();
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        moveTextCursor(0, -1);
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        moveTextCursor(0, 1);
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        moveTextCursor(-1, 0);
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        moveTextCursor(1, 0);
-      } else if (e.key === "Escape") {
-        setTextCursor(null);
-      }
-    },
-    [writeTextChar, backspaceText, newlineText, moveTextCursor, setTextCursor]
-  );
-
-  useEventListener("keydown", handleKeyDown, {
-    enable: tool === "text" && !!textCursor,
-  });
 
   const handleDrawing = useCreation(
     () => (currentGrid: Point) => {
