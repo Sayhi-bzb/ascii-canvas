@@ -1,6 +1,5 @@
-// src/layout.tsx
 import React from "react";
-import { Toaster } from "./components/ui/sonner"; // 假设路径
+import { Toaster } from "./components/ui/sonner";
 
 interface AppLayoutProps {
   statusBar: React.ReactNode;

@@ -1,4 +1,3 @@
-// src/components/AsciiCanvas.tsx
 import { useEffect, useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
 import {
@@ -28,7 +27,6 @@ export const AsciiCanvas = () => {
   const dragStartGrid = useRef<Point | null>(null);
   const lastGrid = useRef<Point | null>(null);
 
-  // 用于实时渲染当前正在拖拽的选区（尚未 commit 到 store）
   const [draggingSelection, setDraggingSelection] =
     useState<SelectionArea | null>(null);
 
@@ -40,7 +38,7 @@ export const AsciiCanvas = () => {
     tool,
     brushChar,
     textCursor,
-    selections, // 获取选区数组
+    selections,
     setOffset,
     setZoom,
     setScratchLayer,
@@ -51,9 +49,9 @@ export const AsciiCanvas = () => {
     moveTextCursor,
     backspaceText,
     newlineText,
-    addSelection, // 新增
-    clearSelections, // 新增
-    fillSelections, // 新增
+    addSelection,
+    clearSelections,
+    fillSelections,
   } = useCanvasStore();
 
   useEffect(() => {
@@ -113,7 +111,7 @@ export const AsciiCanvas = () => {
     {
       onDragStart: ({ xy: [x, y], event }) => {
         const isLeftClick = (event as MouseEvent).button === 0;
-        const isPan = (event as MouseEvent).buttons === 4; // 仅中键平移
+        const isPan = (event as MouseEvent).buttons === 4;
         const isMultiSelect =
           (event as MouseEvent).ctrlKey || (event as MouseEvent).metaKey;
         const rect = containerRef.current?.getBoundingClientRect();
@@ -133,26 +131,22 @@ export const AsciiCanvas = () => {
           }
 
           if (tool === "select") {
-            // 关键逻辑：如果是多选模式(Ctrl)，保留旧选区；否则清除
             if (!isMultiSelect) {
               clearSelections();
             }
-            // 开始新的拖拽选区
+
             setDraggingSelection({ start, end: start });
             dragStartGrid.current = start;
             return;
           }
 
           if (tool === "fill") {
-            // 油漆桶工具：点击即填充
-            // 如果有选区，填充选区；如果没有，暂不处理（或未来实现泛洪填充）
             if (selections.length > 0) {
               fillSelections();
             }
             return;
           }
 
-          // 其他工具点击时，清除选区（除非你在选区内操作，这里简化为点击即清除）
           clearSelections();
 
           dragStartGrid.current = start;
@@ -167,7 +161,6 @@ export const AsciiCanvas = () => {
         const mouseEvent = event as MouseEvent;
         if (tool === "text") return;
 
-        // 注意：移除了 Ctrl 平移，因为 Ctrl 现在用于多选
         const isPan = mouseEvent.buttons === 4;
 
         if (isPan) {
@@ -185,7 +178,6 @@ export const AsciiCanvas = () => {
             );
 
             if (tool === "select") {
-              // 更新正在拖拽的临时选区
               setDraggingSelection({
                 start: dragStartGrid.current,
                 end: currentGrid,
@@ -227,11 +219,9 @@ export const AsciiCanvas = () => {
 
         if (isLeftClick && !isPan) {
           if (tool === "select" && draggingSelection) {
-            // 拖拽结束，将临时选区“转正”，存入档案室
             addSelection(draggingSelection);
             setDraggingSelection(null);
           } else if (tool !== "fill") {
-            // Fill 工具在 dragStart 就触发了，这里不需要 commit
             commitScratch();
           }
           dragStartGrid.current = null;
@@ -323,7 +313,6 @@ export const AsciiCanvas = () => {
     renderLayer(grid, COLOR_PRIMARY_TEXT);
     if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
 
-    // === 渲染所有选区 (Archive + Temp) ===
     const renderSelection = (area: SelectionArea) => {
       const minX = Math.min(area.start.x, area.end.x);
       const maxX = Math.max(area.start.x, area.end.x);
@@ -341,9 +330,8 @@ export const AsciiCanvas = () => {
       ctx.strokeRect(screenStart.x, screenStart.y, width, height);
     };
 
-    // 1. 渲染已归档的选区
     selections.forEach(renderSelection);
-    // 2. 渲染正在拖拽的临时选区
+
     if (draggingSelection) renderSelection(draggingSelection);
 
     if (tool === "text" && textCursor) {
@@ -396,7 +384,7 @@ export const AsciiCanvas = () => {
           : tool === "select"
           ? "cursor-default"
           : tool === "fill"
-          ? "cursor-cell" // 油漆桶模式显示为 "cell" 光标，或者可以用自定义 CSS
+          ? "cursor-cell"
           : "cursor-crosshair"
       }`}
     >

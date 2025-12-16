@@ -1,4 +1,3 @@
-// src/store/canvasStore.ts
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { temporal } from "zundo";
@@ -23,7 +22,7 @@ export interface CanvasState {
   tool: ToolType;
   brushChar: string;
   textCursor: Point | null;
-  selections: SelectionArea[]; // 升级为数组，支持多选
+  selections: SelectionArea[];
 
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
@@ -40,10 +39,9 @@ export interface CanvasState {
   backspaceText: () => void;
   newlineText: () => void;
 
-  // 选区相关新方法
   addSelection: (area: SelectionArea) => void;
   clearSelections: () => void;
-  fillSelections: () => void; // 油漆桶功能
+  fillSelections: () => void;
 }
 
 export const useCanvasStore = create<CanvasState>()(
@@ -56,7 +54,7 @@ export const useCanvasStore = create<CanvasState>()(
       tool: "brush",
       brushChar: "#",
       textCursor: null,
-      selections: [], // 初始化为空数组
+      selections: [],
 
       setOffset: (updater) =>
         set((state) => {
@@ -69,7 +67,7 @@ export const useCanvasStore = create<CanvasState>()(
             Math.min(MAX_ZOOM, updater(state.zoom))
           );
         }),
-      // 切换工具时，如果不切到 fill，通常清除选区，但为了体验，保留选区直到用户主动清除或开始新选择
+
       setTool: (tool) => set({ tool, textCursor: null }),
       setBrushChar: (char) => set({ brushChar: char }),
 
@@ -106,13 +104,13 @@ export const useCanvasStore = create<CanvasState>()(
       clearCanvas: () =>
         set((state) => {
           state.grid.clear();
-          state.selections = []; // 清空画布时也清空选区
+          state.selections = [];
         }),
 
       setTextCursor: (pos) =>
         set((state) => {
           state.textCursor = pos;
-          state.selections = []; // 进入打字模式时清空选区
+          state.selections = [];
         }),
 
       writeTextChar: (char) =>
@@ -148,19 +146,16 @@ export const useCanvasStore = create<CanvasState>()(
           }
         }),
 
-      // 新增：添加一个选区
       addSelection: (area) =>
         set((state) => {
           state.selections.push(area);
         }),
 
-      // 新增：清除所有选区
       clearSelections: () =>
         set((state) => {
           state.selections = [];
         }),
 
-      // 新增：油漆桶 - 填充所有选区
       fillSelections: () =>
         set((state) => {
           if (state.selections.length === 0) return;
@@ -177,8 +172,6 @@ export const useCanvasStore = create<CanvasState>()(
               }
             }
           });
-          // 填充后不一定要清除选区，方便用户换字符再填，但也可是清除。
-          // 这里保留选区，符合大多数设计软件习惯。
         }),
     })),
     {

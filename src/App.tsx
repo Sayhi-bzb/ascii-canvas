@@ -1,7 +1,6 @@
-// src/App.tsx
 import React from "react";
 import { useStore } from "zustand";
-import { toast } from "sonner"; // 接入新系统
+import { toast } from "sonner";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
 import { exportToString } from "./utils/export";
@@ -33,8 +32,6 @@ function App() {
   };
 
   const handleClear = () => {
-    // 逻辑简化：确认工作已下放给 Toolbar 中的 AlertDialog
-    // 这里只负责执行命令并广播结果
     clearCanvas();
     toast.success("Canvas Cleared", {
       description: "Start fresh!",

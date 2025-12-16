@@ -1,4 +1,3 @@
-// src/components/Toolbar.tsx
 import React from "react";
 import {
   File,
@@ -11,7 +10,7 @@ import {
   Type,
   Undo2,
   Eraser,
-  PaintBucket, // 新增图标
+  PaintBucket,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -74,7 +73,7 @@ export const Toolbar = ({
       label: "Select (Ctrl+Drag to Multi-select)",
       icon: MousePointer2,
     },
-    { name: "fill", label: "Fill Selection", icon: PaintBucket }, // 新增工具
+    { name: "fill", label: "Fill Selection", icon: PaintBucket },
     { name: "brush", label: "Brush", icon: Pencil },
     { name: "line", label: "Line", icon: Minus },
     { name: "box", label: "Box", icon: Square },
