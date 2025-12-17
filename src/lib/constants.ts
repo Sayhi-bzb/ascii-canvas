@@ -17,7 +17,6 @@ export const COLOR_ORIGIN_MARKER = "red";
 export const COLOR_SELECTION_BG = "rgba(0, 0, 0, 0.2)";
 export const COLOR_SELECTION_BORDER = "transparent";
 
-export const UNDO_LIMIT = 100;
 export const EXPORT_PADDING = 1;
 
 export const BOX_CHARS = {

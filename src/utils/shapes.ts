@@ -2,7 +2,7 @@ import bresenham from "bresenham";
 import { BOX_CHARS } from "../lib/constants";
 import type { Point, GridPoint } from "../types";
 
-export function getLinePoints(start: Point, end: Point): Point[] {
+function getLinePoints(start: Point, end: Point): Point[] {
   const points = bresenham(start.x, start.y, end.x, end.y);
   return points.map(({ x, y }) => ({ x, y }));
 }

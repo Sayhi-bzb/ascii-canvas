@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 
-export const yDoc = new Y.Doc();
+const yDoc = new Y.Doc();
 
 export const yGrid = yDoc.getMap<string>("grid");
 
