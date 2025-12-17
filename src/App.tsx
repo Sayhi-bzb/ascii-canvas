@@ -6,6 +6,7 @@ import { exportToString, exportSelectionToString } from "./utils/export";
 import { AppLayout } from "./layout";
 import { Toolbar } from "./components/Toolbar";
 import { undoManager } from "./lib/yjs-setup";
+import { isCtrlOrMeta } from "./utils/event";
 
 function App() {
   const {
@@ -74,29 +75,29 @@ function App() {
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
       const isAlt = e.altKey;
+      const hasModifier = isCtrlOrMeta(e);
 
-      if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === "z") {
+      if (hasModifier && !e.shiftKey && e.key.toLowerCase() === "z") {
         e.preventDefault();
         handleUndo();
         return;
       }
       if (
-        (isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === "z") ||
-        (isCtrlOrMeta && e.key.toLowerCase() === "y")
+        (hasModifier && e.shiftKey && e.key.toLowerCase() === "z") ||
+        (hasModifier && e.key.toLowerCase() === "y")
       ) {
         e.preventDefault();
         handleRedo();
         return;
       }
 
-      if (isCtrlOrMeta && e.key.toLowerCase() === "c") {
+      if (hasModifier && e.key.toLowerCase() === "c") {
         e.preventDefault();
         handleCopySelection();
         return;
       }
-      if (isCtrlOrMeta && e.key.toLowerCase() === "x") {
+      if (hasModifier && e.key.toLowerCase() === "x") {
         e.preventDefault();
         handleCutSelection();
         return;
@@ -104,7 +105,7 @@ function App() {
 
       const { selections, textCursor } = useCanvasStore.getState();
       if (
-        !isCtrlOrMeta &&
+        !hasModifier &&
         !isAlt &&
         e.key.length === 1 &&
         selections.length > 0 &&

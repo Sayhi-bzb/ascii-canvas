@@ -10,6 +10,7 @@ import type {
   GridMap,
 } from "../types";
 import { yGrid, performTransaction, forceHistorySave } from "../lib/yjs-setup";
+import { getSelectionBounds } from "../utils/selection";
 
 export interface CanvasState {
   offset: Point;
@@ -220,10 +221,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
 
       performTransaction(() => {
         selections.forEach((area) => {
-          const minX = Math.min(area.start.x, area.end.x);
-          const maxX = Math.max(area.start.x, area.end.x);
-          const minY = Math.min(area.start.y, area.end.y);
-          const maxY = Math.max(area.start.y, area.end.y);
+          const { minX, maxX, minY, maxY } = getSelectionBounds(area);
 
           for (let x = minX; x <= maxX; x++) {
             for (let y = minY; y <= maxY; y++) {
@@ -249,10 +247,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
 
       performTransaction(() => {
         selections.forEach((area) => {
-          const minX = Math.min(area.start.x, area.end.x);
-          const maxX = Math.max(area.start.x, area.end.x);
-          const minY = Math.min(area.start.y, area.end.y);
-          const maxY = Math.max(area.start.y, area.end.y);
+          const { minX, maxX, minY, maxY } = getSelectionBounds(area);
 
           for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {

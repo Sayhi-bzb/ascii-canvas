@@ -17,6 +17,7 @@ import { type CanvasState } from "../../../store/canvasStore";
 import { gridToScreen, toKey } from "../../../utils/math";
 import type { SelectionArea } from "../../../types";
 import { isWideChar } from "../../../utils/char";
+import { getSelectionBounds } from "../../../utils/selection";
 
 export const useCanvasRenderer = (
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -95,10 +96,7 @@ export const useCanvasRenderer = (
     if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
 
     const renderSelection = (area: SelectionArea) => {
-      const minX = Math.min(area.start.x, area.end.x);
-      const maxX = Math.max(area.start.x, area.end.x);
-      const minY = Math.min(area.start.y, area.end.y);
-      const maxY = Math.max(area.start.y, area.end.y);
+      const { minX, minY, maxX, maxY } = getSelectionBounds(area);
 
       const screenStart = gridToScreen(minX, minY, offset.x, offset.y, zoom);
       const width = (maxX - minX + 1) * scaledCellW;

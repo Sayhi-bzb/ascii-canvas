@@ -1,569 +1,3 @@
-```src/components/AsciiCanvas/index.tsx
-import { useRef, useMemo, useEffect } from "react";
-import { useSize, useEventListener } from "ahooks";
-import { useCanvasStore } from "../../store/canvasStore";
-import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
-import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
-import { gridToScreen } from "../../utils/math";
-import { exportSelectionToString } from "../../utils/export";
-import { toast } from "sonner";
-
-export const AsciiCanvas = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const isComposing = useRef(false);
-
-  const size = useSize(containerRef);
-  const store = useCanvasStore();
-  const {
-    tool,
-    textCursor,
-    writeTextString,
-    backspaceText,
-    newlineText,
-    moveTextCursor,
-    setTextCursor,
-    selections,
-    grid,
-  } = store;
-
-  const { draggingSelection, isSpacePanning } = useCanvasInteraction(
-    store,
-    containerRef
-  );
-  useCanvasRenderer(canvasRef, size, store, draggingSelection);
-
-  useEffect(() => {
-    if (textCursor && textareaRef.current) {
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 0);
-    } else if (textareaRef.current) {
-      textareaRef.current.blur();
-    }
-  }, [textCursor]);
-
-  const handleCopy = (e: ClipboardEvent) => {
-    if (selections.length > 0) {
-      e.preventDefault();
-      const selectedText = exportSelectionToString(grid, selections);
-      navigator.clipboard.writeText(selectedText).then(() => {
-        toast.success("Selection copied!", {
-          description: `${selectedText.length} characters copied.`,
-        });
-      });
-    }
-  };
-
-  useEventListener("copy", handleCopy);
-
-  const cursorClass = useMemo(() => {
-    if (isSpacePanning) {
-      return "cursor-grab";
-    }
-    if (textCursor) {
-      return "cursor-text";
-    }
-
-    switch (tool) {
-      case "select":
-        return "cursor-default";
-      case "fill":
-        return "cursor-cell";
-      default:
-        return "cursor-crosshair";
-    }
-  }, [tool, isSpacePanning, textCursor]);
-
-  const textareaStyle: React.CSSProperties = useMemo(() => {
-    if (!textCursor || !size) return { display: "none" };
-
-    const { x, y } = gridToScreen(
-      textCursor.x,
-      textCursor.y,
-      store.offset.x,
-      store.offset.y,
-      store.zoom
-    );
-
-    return {
-      position: "absolute",
-      left: `${x}px`,
-      top: `${y}px`,
-      width: "1px",
-      height: "1px",
-      opacity: 0,
-      pointerEvents: "none",
-      zIndex: -1,
-    };
-  }, [textCursor, store.offset, store.zoom, size]);
-
-  const handleCompositionStart = () => {
-    isComposing.current = true;
-  };
-
-  const handleCompositionEnd = (
-    e: React.CompositionEvent<HTMLTextAreaElement>
-  ) => {
-    isComposing.current = false;
-    const value = e.data;
-    if (value) {
-      writeTextString(value);
-      if (textareaRef.current) textareaRef.current.value = "";
-    }
-  };
-
-  const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
-    if (isComposing.current) {
-      return;
-    }
-
-    const textarea = e.currentTarget;
-    const value = textarea.value;
-
-    if (value) {
-      writeTextString(value);
-      textarea.value = "";
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    e.stopPropagation();
-
-    if (isComposing.current) return;
-
-    if (e.key === "Backspace") {
-      e.preventDefault();
-      backspaceText();
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      newlineText();
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      moveTextCursor(0, -1);
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      moveTextCursor(0, 1);
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      moveTextCursor(-1, 0);
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      moveTextCursor(1, 0);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      setTextCursor(null);
-    }
-  };
-
-  return (
-    <div
-      ref={containerRef}
-      style={{ touchAction: "none" }}
-      className={`w-full h-full overflow-hidden bg-gray-50 touch-none select-none ${cursorClass}`}
-    >
-      <canvas ref={canvasRef} />
-      <textarea
-        ref={textareaRef}
-        style={textareaStyle}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
-        onInput={handleInput}
-        onKeyDown={handleKeyDown}
-        autoCapitalize="off"
-        autoComplete="off"
-        autoCorrect="off"
-        spellCheck="false"
-      />
-    </div>
-  );
-};
-```
----
-```src/components/AsciiCanvas/hooks/useCanvasInteraction.ts
-import { useRef, useState } from "react";
-import { useGesture } from "@use-gesture/react";
-import { useEventListener, useThrottleFn, useCreation } from "ahooks";
-import { screenToGrid } from "../../../utils/math";
-import { getBoxPoints, getLinePoints } from "../../../utils/shapes";
-import type { Point, SelectionArea } from "../../../types";
-import type { CanvasState } from "../../../store/canvasStore";
-
-export const useCanvasInteraction = (
-  store: CanvasState,
-  containerRef: React.RefObject<HTMLDivElement | null>
-) => {
-  const {
-    tool,
-    brushChar,
-    setOffset,
-    setZoom,
-    setScratchLayer,
-    addScratchPoints,
-    commitScratch,
-    setTextCursor,
-    addSelection,
-    clearSelections,
-    fillSelections,
-    erasePoints,
-    offset,
-    zoom,
-    selections,
-  } = store;
-
-  const dragStartGrid = useRef<Point | null>(null);
-  const lastGrid = useRef<Point | null>(null);
-
-  const [draggingSelection, setDraggingSelection] =
-    useState<SelectionArea | null>(null);
-  const [isSpacePanning, setIsSpacePanning] = useState(false);
-
-  useEventListener(
-    "keydown",
-    (e) => {
-      if (e.key === " " && document.activeElement === document.body) {
-        e.preventDefault();
-        setIsSpacePanning(true);
-      }
-    },
-    { target: window }
-  );
-
-  useEventListener(
-    "keyup",
-    (e) => {
-      if (e.key === " ") {
-        e.preventDefault();
-        setIsSpacePanning(false);
-      }
-    },
-    { target: window }
-  );
-
-  const handleDrawing = useCreation(
-    () => (currentGrid: Point) => {
-      if (!lastGrid.current) return;
-      const points = getLinePoints(lastGrid.current, currentGrid);
-
-      if (tool === "brush") {
-        const pointsWithChar = points.map((p) => ({
-          ...p,
-          char: brushChar,
-        }));
-        addScratchPoints(pointsWithChar);
-      } else if (tool === "eraser") {
-        erasePoints(points);
-      }
-      lastGrid.current = currentGrid;
-    },
-    [tool, brushChar, addScratchPoints, erasePoints]
-  );
-
-  const { run: throttledDraw } = useThrottleFn(handleDrawing, {
-    wait: 16,
-    trailing: true,
-  });
-
-  const bind = useGesture(
-    {
-      onDragStart: ({ xy: [x, y], event }) => {
-        const isLeftClick = (event as MouseEvent).button === 0;
-        const isMiddleClickPan = (event as MouseEvent).buttons === 4;
-        const isMultiSelect =
-          (event as MouseEvent).ctrlKey || (event as MouseEvent).metaKey;
-        const rect = containerRef.current?.getBoundingClientRect();
-
-        if (isLeftClick && !isMiddleClickPan && !isSpacePanning && rect) {
-          const start = screenToGrid(
-            x - rect.left,
-            y - rect.top,
-            offset.x,
-            offset.y,
-            zoom
-          );
-
-          if (tool === "select") {
-            event.preventDefault();
-
-            if (!isMultiSelect) {
-              clearSelections();
-            }
-
-            setDraggingSelection({ start, end: start });
-            dragStartGrid.current = start;
-
-            setTextCursor(null);
-            return;
-          }
-
-          if (tool === "fill") {
-            if (selections.length > 0) {
-              fillSelections();
-            }
-            return;
-          }
-
-          clearSelections();
-          setTextCursor(null);
-
-          dragStartGrid.current = start;
-          lastGrid.current = start;
-
-          if (tool === "brush") {
-            addScratchPoints([{ ...start, char: brushChar }]);
-          } else if (tool === "eraser") {
-            erasePoints([start]);
-          }
-        }
-      },
-      onDrag: ({ delta: [dx, dy], xy: [x, y], event }) => {
-        const mouseEvent = event as MouseEvent;
-        const isPan = mouseEvent.buttons === 4 || isSpacePanning;
-
-        if (isPan) {
-          setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-          document.body.style.cursor = "grabbing";
-        } else {
-          const rect = containerRef.current?.getBoundingClientRect();
-          if (rect && dragStartGrid.current) {
-            const currentGrid = screenToGrid(
-              x - rect.left,
-              y - rect.top,
-              offset.x,
-              offset.y,
-              zoom
-            );
-
-            if (tool === "select") {
-              setDraggingSelection({
-                start: dragStartGrid.current,
-                end: currentGrid,
-              });
-              return;
-            }
-
-            if (tool === "brush" || tool === "eraser") {
-              throttledDraw(currentGrid);
-            } else if (tool === "box") {
-              const points = getBoxPoints(dragStartGrid.current, currentGrid);
-              setScratchLayer(points);
-            } else if (tool === "line") {
-              const points = getLinePoints(dragStartGrid.current, currentGrid);
-              const pointsWithChar = points.map((p) => ({
-                ...p,
-                char: brushChar,
-              }));
-              setScratchLayer(pointsWithChar);
-            }
-          }
-        }
-      },
-      onDragEnd: ({ event }) => {
-        const isLeftClick = (event as MouseEvent).button === 0;
-        const isMiddleClickPan = (event as MouseEvent).buttons === 4;
-
-        if (isLeftClick && !isMiddleClickPan && !isSpacePanning) {
-          if (tool === "select" && draggingSelection) {
-            const { start, end } = draggingSelection;
-            const isClick = start.x === end.x && start.y === end.y;
-
-            if (isClick) {
-              setTextCursor(start);
-              setDraggingSelection(null);
-            } else {
-              addSelection(draggingSelection);
-              setDraggingSelection(null);
-            }
-          } else if (tool !== "fill" && tool !== "eraser") {
-            commitScratch();
-          }
-          dragStartGrid.current = null;
-          lastGrid.current = null;
-        }
-        document.body.style.cursor = "auto";
-      },
-      onWheel: ({ delta: [, dy], event }) => {
-        if (event.ctrlKey || event.metaKey) {
-          event.preventDefault();
-          setZoom((prev) => prev * (1 - dy * 0.002));
-        } else {
-          setOffset((prev) => ({
-            x: prev.x - event.deltaX,
-            y: prev.y - event.deltaY,
-          }));
-        }
-      },
-    },
-    { target: containerRef, eventOptions: { passive: false } }
-  );
-
-  return { bind, draggingSelection, isSpacePanning };
-};
-```
----
-```src/components/AsciiCanvas/hooks/useCanvasRenderer.ts
-import { useEffect } from "react";
-import {
-  BACKGROUND_COLOR,
-  CELL_HEIGHT,
-  CELL_WIDTH,
-  COLOR_ORIGIN_MARKER,
-  COLOR_PRIMARY_TEXT,
-  COLOR_SCRATCH_LAYER,
-  COLOR_SELECTION_BG,
-  COLOR_SELECTION_BORDER,
-  COLOR_TEXT_CURSOR_BG,
-  COLOR_TEXT_CURSOR_FG,
-  FONT_SIZE,
-  GRID_COLOR,
-} from "../../../lib/constants";
-import type { CanvasState } from "../../../store/canvasStore";
-import { fromKey, gridToScreen, toKey } from "../../../utils/math";
-import type { SelectionArea } from "../../../types";
-import { isWideChar } from "../../../utils/char";
-
-export const useCanvasRenderer = (
-  canvasRef: React.RefObject<HTMLCanvasElement | null>,
-  size: { width: number; height: number } | undefined,
-  store: CanvasState,
-  draggingSelection: SelectionArea | null
-) => {
-  const { offset, zoom, grid, scratchLayer, tool, textCursor, selections } =
-    store;
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx || !size || size.width === 0 || size.height === 0)
-      return;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = size.width * dpr;
-    canvas.height = size.height * dpr;
-    ctx.resetTransform();
-    ctx.scale(dpr, dpr);
-    canvas.style.width = `${size.width}px`;
-    canvas.style.height = `${size.height}px`;
-
-    ctx.fillStyle = BACKGROUND_COLOR;
-    ctx.fillRect(0, 0, size.width, size.height);
-    ctx.beginPath();
-    ctx.strokeStyle = GRID_COLOR;
-    ctx.lineWidth = 1;
-
-    const scaledCellW = CELL_WIDTH * zoom;
-    const scaledCellH = CELL_HEIGHT * zoom;
-    const startCol = Math.floor(-offset.x / scaledCellW);
-    const endCol = startCol + size.width / scaledCellW + 1;
-    const startRow = Math.floor(-offset.y / scaledCellH);
-    const endRow = startRow + size.height / scaledCellH + 1;
-
-    for (let col = startCol; col <= endCol; col++) {
-      const x = Math.floor(col * scaledCellW + offset.x);
-      ctx.moveTo(x + 0.5, 0);
-      ctx.lineTo(x + 0.5, size.height);
-    }
-    for (let row = startRow; row <= endRow; row++) {
-      const y = Math.floor(row * scaledCellH + offset.y);
-      ctx.moveTo(0, y + 0.5);
-      ctx.lineTo(size.width, y + 0.5);
-    }
-    ctx.stroke();
-
-    ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono CN', monospace`;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
-
-    const renderLayer = (layer: Map<string, string>, color: string) => {
-      ctx.fillStyle = color;
-      layer.forEach((char, key) => {
-        const { x, y } = fromKey(key);
-        if (
-          x >= startCol - 1 &&
-          x <= endCol &&
-          y >= startRow - 1 &&
-          y <= endRow
-        ) {
-          const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
-          if (char === " ") {
-            ctx.clearRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
-          } else {
-            const wide = isWideChar(char);
-            const centerX =
-              screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
-            const centerY = screenPos.y + scaledCellH / 2;
-            ctx.fillText(char, centerX, centerY);
-          }
-        }
-      });
-    };
-
-    renderLayer(grid, COLOR_PRIMARY_TEXT);
-    if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
-
-    const renderSelection = (area: SelectionArea) => {
-      const minX = Math.min(area.start.x, area.end.x);
-      const maxX = Math.max(area.start.x, area.end.x);
-      const minY = Math.min(area.start.y, area.end.y);
-      const maxY = Math.max(area.start.y, area.end.y);
-
-      const screenStart = gridToScreen(minX, minY, offset.x, offset.y, zoom);
-      const width = (maxX - minX + 1) * scaledCellW;
-      const height = (maxY - minY + 1) * scaledCellH;
-
-      ctx.fillStyle = COLOR_SELECTION_BG;
-      ctx.fillRect(screenStart.x, screenStart.y, width, height);
-      ctx.strokeStyle = COLOR_SELECTION_BORDER;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(screenStart.x, screenStart.y, width, height);
-    };
-
-    selections.forEach(renderSelection);
-
-    if (draggingSelection) renderSelection(draggingSelection);
-
-    if (textCursor) {
-      const { x, y } = textCursor;
-      if (
-        x >= startCol - 1 &&
-        x <= endCol &&
-        y >= startRow - 1 &&
-        y <= endRow
-      ) {
-        const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
-        ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
-        ctx.fillRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
-        const charUnderCursor = grid.get(toKey(x, y));
-        if (charUnderCursor) {
-          const wide = isWideChar(charUnderCursor);
-          ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-          const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
-          ctx.fillText(charUnderCursor, centerX, screenPos.y + scaledCellH / 2);
-        }
-      }
-    }
-
-    const originX = offset.x;
-    const originY = offset.y;
-    ctx.fillStyle = COLOR_ORIGIN_MARKER;
-    ctx.fillRect(originX - 2, originY - 10, 4, 20);
-    ctx.fillRect(originX - 10, originY - 2, 20, 4);
-  }, [
-    offset,
-    zoom,
-    size,
-    grid,
-    scratchLayer,
-    textCursor,
-    tool,
-    selections,
-    draggingSelection,
-    canvasRef,
-  ]);
-};
-```
----
 ```src/components/Toolbar.tsx
 import React from "react";
 import {
@@ -651,7 +85,6 @@ export const Toolbar = ({
     <TooltipProvider delayDuration={100}>
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
         <ButtonGroup className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-1.5">
-          {/* File Group */}
           <ButtonGroup>
             <DropdownMenu>
               <Tooltip>
@@ -707,7 +140,6 @@ export const Toolbar = ({
 
           <ButtonGroupSeparator />
 
-          {/* Tools Group */}
           <ButtonGroup>
             {tools.map((t) => (
               <Tooltip key={t.name}>
@@ -730,7 +162,6 @@ export const Toolbar = ({
 
           <ButtonGroupSeparator />
 
-          {/* History Group */}
           <ButtonGroup>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -772,43 +203,674 @@ export const Toolbar = ({
 };
 ```
 ---
-```src/layout.tsx
-import React from "react";
-import { Toaster } from "./components/ui/sonner";
+```src/components/AsciiCanvas/index.tsx
+import { useRef, useMemo, useEffect } from "react";
+import { useSize, useEventListener } from "ahooks";
+import { useCanvasStore } from "../../store/canvasStore";
+import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
+import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
+import { gridToScreen, toKey } from "../../utils/math";
+import { exportSelectionToString } from "../../utils/export";
+import { toast } from "sonner";
 
-interface AppLayoutProps {
-  statusBar: React.ReactNode;
-  canvas: React.ReactNode;
-  children: React.ReactNode;
+interface AsciiCanvasProps {
+  onUndo: () => void;
+  onRedo: () => void;
 }
 
-export const AppLayout = ({ statusBar, canvas, children }: AppLayoutProps) => {
+export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isComposing = useRef(false);
+
+  const size = useSize(containerRef);
+  const store = useCanvasStore();
+  const {
+    textCursor,
+    writeTextString,
+    backspaceText,
+    newlineText,
+    moveTextCursor,
+    setTextCursor,
+    selections,
+    deleteSelection,
+    grid,
+    erasePoints,
+  } = store;
+
+  const { draggingSelection } = useCanvasInteraction(store, containerRef);
+  useCanvasRenderer(canvasRef, size, store, draggingSelection);
+
+  useEffect(() => {
+    if (textCursor && textareaRef.current) {
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
+    } else if (textareaRef.current) {
+      textareaRef.current.blur();
+    }
+  }, [textCursor]);
+
+  const handleCopy = (e: ClipboardEvent) => {
+    if (selections.length > 0) {
+      e.preventDefault();
+      const selectedText = exportSelectionToString(grid, selections);
+      navigator.clipboard.writeText(selectedText).then(() => {
+        toast.success("Copied!", {
+          description: "Selection copied to clipboard.",
+        });
+      });
+      return;
+    }
+
+    if (textCursor) {
+      e.preventDefault();
+      const key = toKey(textCursor.x, textCursor.y);
+      const char = grid.get(key) || " ";
+      navigator.clipboard.writeText(char).then(() => {
+        toast.success("Copied Char!", {
+          description: `Character '${char}' copied.`,
+        });
+      });
+    }
+  };
+  useEventListener("copy", handleCopy);
+
+  const handleCut = (e: ClipboardEvent) => {
+    if (selections.length > 0) {
+      e.preventDefault();
+
+      const selectedText = exportSelectionToString(grid, selections);
+      navigator.clipboard.writeText(selectedText).then(() => {
+        deleteSelection();
+        toast.success("Cut!", {
+          description: "Selection moved to clipboard and deleted.",
+        });
+      });
+      return;
+    }
+
+    if (textCursor) {
+      e.preventDefault();
+      const key = toKey(textCursor.x, textCursor.y);
+      const char = grid.get(key) || " ";
+      navigator.clipboard.writeText(char).then(() => {
+        erasePoints([textCursor]);
+        toast.success("Cut Char!", {
+          description: "Character moved to clipboard.",
+        });
+      });
+    }
+  };
+  useEventListener("cut", handleCut);
+
+  const handlePaste = (e: ClipboardEvent) => {
+    if (isComposing.current) return;
+
+    e.preventDefault();
+    const text = e.clipboardData?.getData("text");
+    if (!text) return;
+
+    let pasteStartPos = textCursor;
+
+    if (!pasteStartPos && selections.length > 0) {
+      const firstSelection = selections[0];
+      pasteStartPos = {
+        x: Math.min(firstSelection.start.x, firstSelection.end.x),
+        y: Math.min(firstSelection.start.y, firstSelection.end.y),
+      };
+    }
+
+    if (pasteStartPos) {
+      writeTextString(text, pasteStartPos);
+      toast.success("Pasted!", {
+        description: "Content inserted from clipboard.",
+      });
+    } else {
+      toast.warning("Where to paste?", {
+        description: "Please select an area or click to place cursor first.",
+      });
+    }
+  };
+  useEventListener("paste", handlePaste);
+
+  const textareaStyle: React.CSSProperties = useMemo(() => {
+    if (!textCursor || !size) return { display: "none" };
+
+    const { x, y } = gridToScreen(
+      textCursor.x,
+      textCursor.y,
+      store.offset.x,
+      store.offset.y,
+      store.zoom
+    );
+
+    return {
+      position: "absolute",
+      left: `${x}px`,
+      top: `${y}px`,
+      width: "1px",
+      height: "1px",
+      opacity: 0,
+      pointerEvents: "none",
+      zIndex: -1,
+    };
+  }, [textCursor, store.offset, store.zoom, size]);
+
+  const handleCompositionStart = () => {
+    isComposing.current = true;
+  };
+
+  const handleCompositionEnd = (
+    e: React.CompositionEvent<HTMLTextAreaElement>
+  ) => {
+    isComposing.current = false;
+    const value = e.data;
+    if (value) {
+      writeTextString(value);
+      if (textareaRef.current) textareaRef.current.value = "";
+    }
+  };
+
+  const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    if (isComposing.current) return;
+    const textarea = e.currentTarget;
+    const value = textarea.value;
+    if (value) {
+      writeTextString(value);
+      textarea.value = "";
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    e.stopPropagation();
+    if (isComposing.current) return;
+
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+
+    if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      onUndo();
+      return;
+    }
+    if (
+      (isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === "z") ||
+      (isCtrlOrMeta && e.key.toLowerCase() === "y")
+    ) {
+      e.preventDefault();
+      onRedo();
+      return;
+    }
+
+    if (e.key === "Delete") {
+      if (selections.length > 0) {
+        e.preventDefault();
+        deleteSelection();
+        return;
+      }
+    }
+
+    if (e.key === "Backspace") {
+      if (selections.length > 0 && !textCursor) {
+        e.preventDefault();
+        deleteSelection();
+        return;
+      }
+      if (textCursor) {
+        e.preventDefault();
+        backspaceText();
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      newlineText();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveTextCursor(0, -1);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      moveTextCursor(0, 1);
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      moveTextCursor(-1, 0);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      moveTextCursor(1, 0);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setTextCursor(null);
+    }
+  };
+
+  useEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Delete" || e.key === "Backspace") {
+      const activeTag = document.activeElement?.tagName.toLowerCase();
+      if (
+        activeTag !== "input" &&
+        activeTag !== "textarea" &&
+        selections.length > 0
+      ) {
+        e.preventDefault();
+        deleteSelection();
+      }
+    }
+  });
+
   return (
-    <div className="w-screen h-screen flex flex-col bg-gray-50 relative overflow-hidden">
-      <main className="flex-1 relative z-0">{canvas}</main>
-
-      <footer className="absolute bottom-4 left-4 z-10">{statusBar}</footer>
-
-      {/* 广播塔安装完毕 */}
-      <Toaster />
-
-      {children}
+    <div
+      ref={containerRef}
+      style={{ touchAction: "none" }}
+      className="w-full h-full overflow-hidden bg-gray-50 touch-none select-none cursor-default"
+    >
+      <canvas ref={canvasRef} />
+      <textarea
+        ref={textareaRef}
+        style={textareaStyle}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        autoCapitalize="off"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck="false"
+      />
     </div>
   );
 };
 ```
 ---
-```src/main.tsx
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App.tsx";
-import "./index.css";
+```src/components/AsciiCanvas/hooks/useCanvasInteraction.ts
+import { useRef, useState } from "react";
+import { useGesture } from "@use-gesture/react";
+import { useCreation, useThrottleFn } from "ahooks";
+import { screenToGrid, toKey } from "../../../utils/math";
+import { getBoxPoints, getOrthogonalLinePoints } from "../../../utils/shapes";
+import type { Point, SelectionArea, GridMap } from "../../../types";
+import { type CanvasState } from "../../../store/canvasStore";
+import { forceHistorySave } from "../../../lib/yjs-setup";
+import bresenham from "bresenham";
+import { isWideChar } from "../../../utils/char";
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+const adjustGridForWideChars = (pos: Point, grid: GridMap): Point => {
+  const charBefore = grid.get(toKey(pos.x - 1, pos.y));
+  if (charBefore && isWideChar(charBefore)) {
+    return { ...pos, x: pos.x - 1 };
+  }
+  return pos;
+};
+
+export const useCanvasInteraction = (
+  store: CanvasState,
+  containerRef: React.RefObject<HTMLDivElement | null>
+) => {
+  const {
+    tool,
+    brushChar,
+    setOffset,
+    setZoom,
+    setScratchLayer,
+    addScratchPoints,
+    commitScratch,
+    setTextCursor,
+    addSelection,
+    clearSelections,
+    fillSelections,
+    erasePoints,
+    offset,
+    zoom,
+    grid,
+  } = store;
+
+  const dragStartGrid = useRef<Point | null>(null);
+  const lastGrid = useRef<Point | null>(null);
+  const isPanningRef = useRef(false);
+  const lineAxisRef = useRef<"vertical" | "horizontal" | null>(null);
+  const [draggingSelection, setDraggingSelection] =
+    useState<SelectionArea | null>(null);
+
+  const handleDrawing = useCreation(
+    () => (currentGrid: Point) => {
+      if (!lastGrid.current) return;
+      const points = bresenham(
+        lastGrid.current.x,
+        lastGrid.current.y,
+        currentGrid.x,
+        currentGrid.y
+      ).map((p) => ({ x: p.x, y: p.y }));
+
+      if (tool === "brush") {
+        const pointsWithChar = points.map((p) => ({ ...p, char: brushChar }));
+        addScratchPoints(pointsWithChar);
+      } else if (tool === "eraser") {
+        erasePoints(points);
+      }
+      lastGrid.current = currentGrid;
+    },
+    [tool, brushChar, addScratchPoints, erasePoints]
+  );
+
+  const { run: throttledDraw } = useThrottleFn(handleDrawing, {
+    wait: 16,
+    trailing: true,
+  });
+
+  const bind = useGesture(
+    {
+      onDragStart: ({ xy: [x, y], event }) => {
+        const mouseEvent = event as MouseEvent;
+        const isMiddleClick = mouseEvent.button === 1;
+        const isCtrlPan = mouseEvent.ctrlKey || mouseEvent.metaKey;
+        const isPanStart = isMiddleClick || isCtrlPan;
+
+        if (isPanStart) {
+          isPanningRef.current = true;
+          document.body.style.cursor = "grabbing";
+          return;
+        }
+
+        const isLeftClick = mouseEvent.button === 0;
+        const isMultiSelect = mouseEvent.shiftKey;
+        const rect = containerRef.current?.getBoundingClientRect();
+
+        if (isLeftClick && rect) {
+          const rawStart = screenToGrid(
+            x - rect.left,
+            y - rect.top,
+            offset.x,
+            offset.y,
+            zoom
+          );
+
+          const start = adjustGridForWideChars(rawStart, grid);
+
+          if (tool === "select") {
+            event.preventDefault();
+            if (!isMultiSelect) clearSelections();
+            setDraggingSelection({ start, end: start });
+            dragStartGrid.current = start;
+            setTextCursor(null);
+            return;
+          }
+
+          if (tool === "fill") {
+            if (store.selections.length > 0) fillSelections();
+            return;
+          }
+
+          clearSelections();
+          setTextCursor(null);
+          dragStartGrid.current = start;
+          lastGrid.current = start;
+          lineAxisRef.current = null;
+
+          if (tool === "brush") {
+            addScratchPoints([{ ...start, char: brushChar }]);
+          } else if (tool === "eraser") {
+            erasePoints([start]);
+          }
+        }
+      },
+      onDrag: ({ xy: [x, y], delta: [dx, dy], event }) => {
+        const mouseEvent = event as MouseEvent;
+        const isPanGesture =
+          mouseEvent.buttons === 4 || mouseEvent.ctrlKey || mouseEvent.metaKey;
+
+        if (isPanningRef.current || isPanGesture) {
+          setOffset((prev: Point) => ({ x: prev.x + dx, y: prev.y + dy }));
+          return;
+        }
+
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect && dragStartGrid.current) {
+          const rawEnd = screenToGrid(
+            x - rect.left,
+            y - rect.top,
+            offset.x,
+            offset.y,
+            zoom
+          );
+
+          const currentGrid = adjustGridForWideChars(rawEnd, grid);
+
+          if (tool === "select") {
+            setDraggingSelection({
+              start: dragStartGrid.current,
+              end: currentGrid,
+            });
+            return;
+          }
+
+          if (tool === "brush" || tool === "eraser") {
+            throttledDraw(currentGrid);
+          } else if (tool === "box") {
+            const points = getBoxPoints(dragStartGrid.current, currentGrid);
+            setScratchLayer(points);
+          } else if (tool === "line") {
+            if (!lineAxisRef.current) {
+              const absDx = Math.abs(currentGrid.x - dragStartGrid.current.x);
+              const absDy = Math.abs(currentGrid.y - dragStartGrid.current.y);
+              if (absDx > 0 || absDy > 0) {
+                lineAxisRef.current = absDy > absDx ? "vertical" : "horizontal";
+              }
+            }
+            const isVerticalFirst = lineAxisRef.current === "vertical";
+            const points = getOrthogonalLinePoints(
+              dragStartGrid.current,
+              currentGrid,
+              isVerticalFirst
+            );
+            setScratchLayer(points);
+          }
+        }
+      },
+      onDragEnd: ({ event }) => {
+        const mouseEvent = event as MouseEvent;
+        const isLeftClick = mouseEvent.button === 0;
+
+        if (isPanningRef.current) {
+          isPanningRef.current = false;
+          document.body.style.cursor = "auto";
+          return;
+        }
+
+        if (isLeftClick) {
+          if (tool === "select" && draggingSelection) {
+            const { start, end } = draggingSelection;
+            const isClick = start.x === end.x && start.y === end.y;
+
+            if (isClick) {
+              const clickPos = adjustGridForWideChars(start, grid);
+              setTextCursor(clickPos);
+              setDraggingSelection(null);
+            } else {
+              addSelection(draggingSelection);
+              setDraggingSelection(null);
+            }
+          } else if (tool !== "fill" && tool !== "eraser") {
+            commitScratch();
+          } else if (tool === "eraser") {
+            forceHistorySave();
+          }
+          dragStartGrid.current = null;
+          lastGrid.current = null;
+          lineAxisRef.current = null;
+        }
+        document.body.style.cursor = "auto";
+      },
+      onWheel: ({ delta: [, dy], event }) => {
+        if (event.ctrlKey || event.metaKey) {
+          event.preventDefault();
+          setZoom((prev: number) => prev * (1 - dy * 0.002));
+        } else {
+          setOffset((prev: Point) => ({
+            x: prev.x - event.deltaX,
+            y: prev.y - event.deltaY,
+          }));
+        }
+      },
+    },
+    { target: containerRef, eventOptions: { passive: false } }
+  );
+
+  return { bind, draggingSelection };
+};
+```
+---
+```src/components/AsciiCanvas/hooks/useCanvasRenderer.ts
+import { useEffect } from "react";
+import {
+  BACKGROUND_COLOR,
+  CELL_HEIGHT,
+  CELL_WIDTH,
+  COLOR_ORIGIN_MARKER,
+  COLOR_PRIMARY_TEXT,
+  COLOR_SCRATCH_LAYER,
+  COLOR_SELECTION_BG,
+  COLOR_SELECTION_BORDER,
+  COLOR_TEXT_CURSOR_BG,
+  COLOR_TEXT_CURSOR_FG,
+  FONT_SIZE,
+  GRID_COLOR,
+} from "../../../lib/constants";
+import { type CanvasState } from "../../../store/canvasStore";
+import { gridToScreen, toKey } from "../../../utils/math";
+import type { SelectionArea } from "../../../types";
+import { isWideChar } from "../../../utils/char";
+
+export const useCanvasRenderer = (
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  size: { width: number; height: number } | undefined,
+  store: CanvasState,
+  draggingSelection: SelectionArea | null
+) => {
+  const { offset, zoom, grid, scratchLayer, textCursor, selections } = store;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx || !size || size.width === 0 || size.height === 0)
+      return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size.width * dpr;
+    canvas.height = size.height * dpr;
+    ctx.resetTransform();
+    ctx.scale(dpr, dpr);
+    canvas.style.width = `${size.width}px`;
+    canvas.style.height = `${size.height}px`;
+
+    ctx.fillStyle = BACKGROUND_COLOR;
+    ctx.fillRect(0, 0, size.width, size.height);
+
+    ctx.beginPath();
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.lineWidth = 1;
+
+    const scaledCellW = CELL_WIDTH * zoom;
+    const scaledCellH = CELL_HEIGHT * zoom;
+    const startCol = Math.floor(-offset.x / scaledCellW);
+    const endCol = startCol + Math.ceil(size.width / scaledCellW) + 1;
+    const startRow = Math.floor(-offset.y / scaledCellH);
+    const endRow = startRow + Math.ceil(size.height / scaledCellH) + 1;
+
+    for (let col = startCol; col <= endCol; col++) {
+      const x = Math.floor(col * scaledCellW + offset.x);
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, size.height);
+    }
+    for (let row = startRow; row <= endRow; row++) {
+      const y = Math.floor(row * scaledCellH + offset.y);
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(size.width, y + 0.5);
+    }
+    ctx.stroke();
+
+    ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono CN', monospace`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+
+    const renderLayer = (layer: Map<string, string>, color: string) => {
+      ctx.fillStyle = color;
+      for (let y = startRow; y <= endRow; y++) {
+        for (let x = startCol; x <= endCol; x++) {
+          const char = layer.get(toKey(x, y));
+          if (!char || char === " ") continue;
+
+          const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
+          const wide = isWideChar(char);
+          const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
+          const centerY = screenPos.y + scaledCellH / 2;
+
+          ctx.fillText(char, centerX, centerY);
+
+          if (wide) {
+            x++;
+          }
+        }
+      }
+    };
+
+    renderLayer(grid, COLOR_PRIMARY_TEXT);
+    if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
+
+    const renderSelection = (area: SelectionArea) => {
+      const minX = Math.min(area.start.x, area.end.x);
+      const maxX = Math.max(area.start.x, area.end.x);
+      const minY = Math.min(area.start.y, area.end.y);
+      const maxY = Math.max(area.start.y, area.end.y);
+
+      const screenStart = gridToScreen(minX, minY, offset.x, offset.y, zoom);
+      const width = (maxX - minX + 1) * scaledCellW;
+      const height = (maxY - minY + 1) * scaledCellH;
+
+      ctx.fillStyle = COLOR_SELECTION_BG;
+      ctx.fillRect(screenStart.x, screenStart.y, width, height);
+
+      if (COLOR_SELECTION_BORDER !== "transparent") {
+        ctx.strokeStyle = COLOR_SELECTION_BORDER;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(screenStart.x, screenStart.y, width, height);
+      }
+    };
+
+    selections.forEach(renderSelection);
+    if (draggingSelection) renderSelection(draggingSelection);
+
+    if (textCursor) {
+      const { x, y } = textCursor;
+      const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
+      const charUnderCursor = grid.get(toKey(x, y));
+      const wide = charUnderCursor ? isWideChar(charUnderCursor) : false;
+      const cursorWidth = wide ? scaledCellW * 2 : scaledCellW;
+
+      ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
+      ctx.fillRect(screenPos.x, screenPos.y, cursorWidth, scaledCellH);
+
+      if (charUnderCursor) {
+        ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
+        const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
+        ctx.fillText(charUnderCursor, centerX, screenPos.y + scaledCellH / 2);
+      }
+    }
+
+    const originX = offset.x;
+    const originY = offset.y;
+    ctx.fillStyle = COLOR_ORIGIN_MARKER;
+    ctx.fillRect(originX - 2, originY - 10, 4, 20);
+    ctx.fillRect(originX - 10, originY - 2, 20, 4);
+  }, [
+    offset,
+    zoom,
+    size,
+    grid,
+    scratchLayer,
+    textCursor,
+    selections,
+    draggingSelection,
+    canvasRef,
+  ]);
+};
 ```
 ---
 ```src/lib/constants.ts
@@ -828,20 +890,19 @@ export const COLOR_TEXT_CURSOR_BG = "rgba(0, 0, 0, 0.5)";
 export const COLOR_TEXT_CURSOR_FG = "#ffffff";
 export const COLOR_ORIGIN_MARKER = "red";
 
-export const COLOR_SELECTION_BG = "rgba(59, 130, 246, 0.2)";
-export const COLOR_SELECTION_BORDER = "#3b82f6";
+export const COLOR_SELECTION_BG = "rgba(0, 0, 0, 0.2)";
+export const COLOR_SELECTION_BORDER = "transparent";
 
-export const UNDO_LIMIT = 100;
 export const EXPORT_PADDING = 1;
 
 export const BOX_CHARS = {
-  TOP_LEFT: "┌",
-  TOP_RIGHT: "┐",
-  BOTTOM_LEFT: "└",
-  BOTTOM_RIGHT: "┘",
+  TOP_LEFT: "╭",
+  TOP_RIGHT: "╮",
+  BOTTOM_LEFT: "╰",
+  BOTTOM_RIGHT: "╯",
   HORIZONTAL: "─",
   VERTICAL: "│",
-  CROSS: "+",
+  CROSS: "┼",
 };
 ```
 ---
@@ -854,39 +915,53 @@ export function cn(...inputs: ClassValue[]) {
 }
 ```
 ---
-```src/store/canvasStore.ts
-import { create, type StateCreator } from "zustand";
-import { immer } from "zustand/middleware/immer";
-import { temporal } from "zundo";
-import { enableMapSet } from "immer";
-import { MIN_ZOOM, MAX_ZOOM, UNDO_LIMIT } from "../lib/constants";
-import { toKey } from "../utils/math";
-import { isWideChar } from "../utils/char";
-import {
-  PointSchema,
-  GridMapSchema,
-  ToolTypeSchema,
-  SelectionAreaSchema,
-} from "../types";
-import type { Point, GridPoint, ToolType, SelectionArea } from "../types";
-import { z } from "zod";
+```src/lib/yjs-setup.ts
+import * as Y from "yjs";
 
-enableMapSet();
+const yDoc = new Y.Doc();
 
-const CanvasStateSchema = z.object({
-  offset: PointSchema,
-  zoom: z.number(),
-  grid: GridMapSchema,
-  scratchLayer: GridMapSchema.nullable(),
-  tool: ToolTypeSchema,
-  brushChar: z.string().max(1),
-  textCursor: PointSchema.nullable(),
-  selections: z.array(SelectionAreaSchema),
+export const yGrid = yDoc.getMap<string>("grid");
+
+export const undoManager = new Y.UndoManager(yGrid, {
+  captureTimeout: 500,
+  trackedOrigins: new Set([null]),
 });
 
-type CanvasStateData = z.infer<typeof CanvasStateSchema>;
+export const performTransaction = (fn: () => void) => {
+  yDoc.transact(() => {
+    fn();
+  });
+};
 
-export interface CanvasState extends CanvasStateData {
+export const forceHistorySave = () => {
+  undoManager.stopCapturing();
+};
+```
+---
+```src/store/canvasStore.ts
+import { create } from "zustand";
+import { MIN_ZOOM, MAX_ZOOM } from "../lib/constants";
+import { toKey } from "../utils/math";
+import { isWideChar } from "../utils/char";
+import type {
+  Point,
+  GridPoint,
+  ToolType,
+  SelectionArea,
+  GridMap,
+} from "../types";
+import { yGrid, performTransaction, forceHistorySave } from "../lib/yjs-setup";
+
+export interface CanvasState {
+  offset: Point;
+  zoom: number;
+  tool: ToolType;
+  brushChar: string;
+  textCursor: Point | null;
+  selections: SelectionArea[];
+  scratchLayer: GridMap | null;
+  grid: GridMap;
+
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
   setTool: (tool: ToolType) => void;
@@ -897,226 +972,262 @@ export interface CanvasState extends CanvasStateData {
   clearScratch: () => void;
   clearCanvas: () => void;
   setTextCursor: (pos: Point | null) => void;
-  writeTextChar: (char: string) => void;
-  writeTextString: (str: string) => void;
+  writeTextString: (str: string, startPos?: Point) => void;
   moveTextCursor: (dx: number, dy: number) => void;
   backspaceText: () => void;
   newlineText: () => void;
   addSelection: (area: SelectionArea) => void;
   clearSelections: () => void;
+  deleteSelection: () => void;
   fillSelections: () => void;
+  fillSelectionsWithChar: (char: string) => void;
   erasePoints: (points: Point[]) => void;
 }
 
-const zodValidator =
-  <TState extends object>(
-    config: StateCreator<TState, [["zustand/immer", never]], []>,
-    schema: z.ZodSchema<Partial<TState>>
-  ): StateCreator<TState, [["zustand/immer", never]], []> =>
-  (set, get, api) =>
-    config(
-      (args) => {
-        set(args);
-        const result = schema.safeParse(get());
-        if (!result.success) {
-          console.error(
-            "Zod validation failed!",
-            result.error.flatten().fieldErrors
-          );
-        }
-      },
-      get,
-      api
-    );
+export const useCanvasStore = create<CanvasState>((set, get) => {
+  yGrid.observe(() => {
+    const newGrid = new Map<string, string>();
+    yGrid.forEach((value, key) => {
+      newGrid.set(key, value);
+    });
+    set({ grid: newGrid });
+  });
 
-const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
-  set
-) => ({
-  offset: { x: 0, y: 0 },
-  zoom: 1,
-  grid: new Map(),
-  scratchLayer: null,
-  tool: "brush",
-  brushChar: "#",
-  textCursor: null,
-  selections: [],
+  return {
+    offset: { x: 0, y: 0 },
+    zoom: 1,
+    grid: new Map(),
+    scratchLayer: null,
+    tool: "select",
+    brushChar: "#",
+    textCursor: null,
+    selections: [],
 
-  setOffset: (updater) =>
-    set((state) => {
-      state.offset = updater(state.offset);
-    }),
-  setZoom: (updater) =>
-    set((state) => {
-      state.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, updater(state.zoom)));
-    }),
+    setOffset: (updater) => set((state) => ({ offset: updater(state.offset) })),
+    setZoom: (updater) =>
+      set((state) => ({
+        zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, updater(state.zoom))),
+      })),
+    setTool: (tool) => set({ tool, textCursor: null }),
+    setBrushChar: (char) => set({ brushChar: char }),
+    setScratchLayer: (points) => {
+      const layer = new Map<string, string>();
+      points.forEach((p) => layer.set(toKey(p.x, p.y), p.char));
+      set({ scratchLayer: layer });
+    },
+    addScratchPoints: (points) => {
+      set((state) => {
+        const layer = new Map(state.scratchLayer || []);
+        points.forEach((p) => layer.set(toKey(p.x, p.y), p.char));
+        return { scratchLayer: layer };
+      });
+    },
 
-  setTool: (tool) =>
-    set((state) => {
-      state.tool = tool;
-      state.textCursor = null;
-    }),
-  setBrushChar: (char) => set({ brushChar: char }),
+    commitScratch: () => {
+      const { scratchLayer } = get();
+      if (!scratchLayer) return;
 
-  setScratchLayer: (points) =>
-    set((state) => {
-      state.scratchLayer = new Map();
-      points.forEach((p) => state.scratchLayer!.set(toKey(p.x, p.y), p.char));
-    }),
-
-  addScratchPoints: (points) =>
-    set((state) => {
-      if (!state.scratchLayer) state.scratchLayer = new Map();
-      points.forEach((p) => state.scratchLayer!.set(toKey(p.x, p.y), p.char));
-    }),
-
-  commitScratch: () =>
-    set((state) => {
-      if (state.scratchLayer) {
-        state.scratchLayer.forEach((value, key) => {
+      performTransaction(() => {
+        scratchLayer.forEach((value, key) => {
           if (value === " ") {
-            state.grid.delete(key);
+            yGrid.delete(key);
           } else {
-            state.grid.set(key, value);
+            yGrid.set(key, value);
           }
         });
-        state.scratchLayer = null;
-      }
-    }),
+      });
 
-  clearScratch: () =>
-    set((state) => {
-      state.scratchLayer = null;
-    }),
-  clearCanvas: () =>
-    set((state) => {
-      state.grid.clear();
-      state.selections = [];
-    }),
+      forceHistorySave();
+      set({ scratchLayer: null });
+    },
 
-  setTextCursor: (pos) =>
-    set((state) => {
-      state.textCursor = pos;
-      state.selections = [];
-    }),
+    clearScratch: () => set({ scratchLayer: null }),
 
-  writeTextChar: (char) =>
-    set((state) => {
-      if (state.textCursor) {
-        const { x, y } = state.textCursor;
-        state.grid.set(toKey(x, y), char);
-        state.textCursor.x += 1;
-      }
-    }),
+    clearCanvas: () => {
+      performTransaction(() => {
+        yGrid.clear();
+      });
+      forceHistorySave();
+      set({ selections: [] });
+    },
 
-  writeTextString: (str) =>
-    set((state) => {
-      if (state.textCursor) {
+    setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
+
+    writeTextString: (str, startPos) => {
+      const { textCursor } = get();
+      const cursor = startPos
+        ? { ...startPos }
+        : textCursor
+        ? { ...textCursor }
+        : null;
+      if (!cursor) return;
+
+      const startX = cursor.x;
+      const isPaste = str.length > 1;
+
+      performTransaction(() => {
         for (const char of str) {
-          const { x, y } = state.textCursor;
+          if (char === "\n") {
+            cursor.y += 1;
+            cursor.x = startX;
+            continue;
+          }
+
+          const { x, y } = cursor;
           const wide = isWideChar(char);
 
-          state.grid.set(toKey(x, y), char);
+          yGrid.set(toKey(x, y), char);
 
           if (wide) {
-            state.grid.delete(toKey(x + 1, y));
-
-            state.textCursor.x += 2;
+            yGrid.delete(toKey(x + 1, y));
+            cursor.x += 2;
           } else {
-            state.textCursor.x += 1;
+            cursor.x += 1;
           }
         }
+      });
+
+      if (isPaste) {
+        forceHistorySave();
       }
-    }),
 
-  moveTextCursor: (dx, dy) =>
-    set((state) => {
-      if (state.textCursor) {
-        state.textCursor.x += dx;
-        state.textCursor.y += dy;
+      if (get().textCursor) {
+        set({ textCursor: { x: cursor.x, y: cursor.y } });
       }
-    }),
+    },
 
-  backspaceText: () =>
-    set((state) => {
-      if (state.textCursor) {
-        const { x, y } = state.textCursor;
+    moveTextCursor: (dx, dy) => {
+      const { textCursor, grid } = get();
+      if (!textCursor) return;
 
-        const prevKey = toKey(x - 1, y);
-        const prevChar = state.grid.get(prevKey);
+      let newX = textCursor.x;
+      let newY = textCursor.y;
 
-        if (prevChar) {
-          state.grid.delete(prevKey);
-          state.textCursor.x -= 1;
-        } else {
-          const prevPrevKey = toKey(x - 2, y);
-          const prevPrevChar = state.grid.get(prevPrevKey);
+      if (dy !== 0) {
+        newY += dy;
+      }
 
-          if (prevPrevChar && isWideChar(prevPrevChar)) {
-            state.grid.delete(prevPrevKey);
-            state.textCursor.x -= 2;
-          } else {
-            state.textCursor.x -= 1;
+      if (dx > 0) {
+        const char = grid.get(toKey(newX, newY));
+        newX += char && isWideChar(char) ? 2 : 1;
+      } else if (dx < 0) {
+        const char = grid.get(toKey(newX - 2, newY));
+        newX -= char && isWideChar(char) ? 2 : 1;
+      }
+
+      set({ textCursor: { x: newX, y: newY } });
+    },
+
+    backspaceText: () => {
+      const { textCursor, grid } = get();
+      if (!textCursor) return;
+
+      const targetX = textCursor.x;
+      const charBefore = grid.get(toKey(targetX - 2, textCursor.y));
+
+      const isPrevWide = charBefore && isWideChar(charBefore);
+      const deleteFromX = isPrevWide ? targetX - 2 : targetX - 1;
+      const newCursorX = deleteFromX;
+
+      if (deleteFromX < textCursor.x) {
+        performTransaction(() => {
+          yGrid.delete(toKey(deleteFromX, textCursor.y));
+
+          if (isPrevWide) {
+            yGrid.delete(toKey(deleteFromX + 1, textCursor.y));
           }
+        });
+        set({ textCursor: { x: newCursorX, y: textCursor.y } });
+      }
+    },
+
+    newlineText: () =>
+      set((state) => {
+        if (state.textCursor) {
+          return {
+            textCursor: { ...state.textCursor, y: state.textCursor.y + 1 },
+          };
         }
-      }
-    }),
+        return {};
+      }),
 
-  newlineText: () =>
-    set((state) => {
-      if (state.textCursor) {
-        state.textCursor.y += 1;
-      }
-    }),
+    addSelection: (area) =>
+      set((state) => ({ selections: [...state.selections, area] })),
+    clearSelections: () => set({ selections: [] }),
 
-  addSelection: (area) =>
-    set((state) => {
-      state.selections.push(area);
-    }),
+    deleteSelection: () => {
+      const { selections } = get();
+      if (selections.length === 0) return;
 
-  clearSelections: () =>
-    set((state) => {
-      state.selections = [];
-    }),
+      performTransaction(() => {
+        selections.forEach((area) => {
+          const minX = Math.min(area.start.x, area.end.x);
+          const maxX = Math.max(area.start.x, area.end.x);
+          const minY = Math.min(area.start.y, area.end.y);
+          const maxY = Math.max(area.start.y, area.end.y);
 
-  fillSelections: () =>
-    set((state) => {
-      if (state.selections.length === 0) return;
+          for (let x = minX; x <= maxX; x++) {
+            for (let y = minY; y <= maxY; y++) {
+              yGrid.delete(toKey(x, y));
+            }
+          }
+        });
+      });
+      forceHistorySave();
+    },
 
-      state.selections.forEach((area) => {
-        const minX = Math.min(area.start.x, area.end.x);
-        const maxX = Math.max(area.start.x, area.end.x);
-        const minY = Math.min(area.start.y, area.end.y);
-        const maxY = Math.max(area.start.y, area.end.y);
+    fillSelections: () => {
+      const { selections, brushChar } = get();
+      if (selections.length === 0) return;
+      get().fillSelectionsWithChar(brushChar);
+    },
 
-        for (let x = minX; x <= maxX; x++) {
+    fillSelectionsWithChar: (char: string) => {
+      const { selections } = get();
+      if (selections.length === 0) return;
+
+      const wide = isWideChar(char);
+
+      performTransaction(() => {
+        selections.forEach((area) => {
+          const minX = Math.min(area.start.x, area.end.x);
+          const maxX = Math.max(area.start.x, area.end.x);
+          const minY = Math.min(area.start.y, area.end.y);
+          const maxY = Math.max(area.start.y, area.end.y);
+
           for (let y = minY; y <= maxY; y++) {
-            state.grid.set(toKey(x, y), state.brushChar);
+            for (let x = minX; x <= maxX; x++) {
+              yGrid.set(toKey(x, y), char);
+              if (wide) {
+                if (x + 1 <= maxX) {
+                  yGrid.delete(toKey(x + 1, y));
+                }
+                x++;
+              }
+            }
           }
-        }
+        });
       });
-    }),
+      forceHistorySave();
+    },
 
-  erasePoints: (points) =>
-    set((state) => {
-      points.forEach((p) => {
-        state.grid.delete(toKey(p.x, p.y));
+    erasePoints: (points) => {
+      performTransaction(() => {
+        points.forEach((p) => {
+          const char = yGrid.get(toKey(p.x, p.y));
+          yGrid.delete(toKey(p.x, p.y));
+          if (char && isWideChar(char)) {
+            yGrid.delete(toKey(p.x + 1, p.y));
+          }
+        });
       });
-    }),
+    },
+  };
 });
-
-export const useCanvasStore = create<CanvasState>()(
-  temporal(immer(zodValidator(creator, CanvasStateSchema)), {
-    partialize: (state) => ({ grid: state.grid }),
-    limit: UNDO_LIMIT,
-  })
-);
 ```
 ---
 ```src/types/index.ts
 import { z } from "zod";
-import type { StoreApi, UseBoundStore } from "zustand";
-import type { TemporalState } from "zundo";
-import type { CanvasState } from "../store/canvasStore";
 
 export const PointSchema = z.object({
   x: z.number(),
@@ -1128,50 +1239,25 @@ export const SelectionAreaSchema = z.object({
   end: PointSchema,
 });
 
-export const GridPointSchema = PointSchema.extend({
-  char: z.string(),
-});
-
-export const GridMapSchema = z.map(z.string(), z.string());
-
-export const ToolTypeSchema = z.enum([
-  "select",
-  "fill",
-  "brush",
-  "eraser",
-  "box",
-  "line",
-]);
-
-export type GridMap = z.infer<typeof GridMapSchema>;
-export type ToolType = z.infer<typeof ToolTypeSchema>;
+export type GridMap = Map<string, string>;
+export type ToolType = "select" | "fill" | "brush" | "eraser" | "box" | "line";
 export type Point = z.infer<typeof PointSchema>;
 export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
-export type GridPoint = z.infer<typeof GridPointSchema>;
-
-type TrackedState = {
-  grid: GridMap;
-};
-
-type TemporalStoreState = TemporalState<TrackedState>;
-
-type TemporalStore = StoreApi<TemporalStoreState>;
-
-export type CanvasStoreWithTemporal = UseBoundStore<StoreApi<CanvasState>> & {
-  temporal: TemporalStore;
+export type GridPoint = Point & {
+  char: string;
 };
 ```
 ---
 ```src/utils/char.ts
 export const isWideChar = (char: string) => {
-  // eslint-disable-next-line no-control-regex
-  return /[^\x00-\xff]/.test(char);
+  return /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(char);
 };
 ```
 ---
 ```src/utils/export.ts
 import { EXPORT_PADDING } from "../lib/constants";
 import type { GridMap, SelectionArea } from "../types";
+import { isWideChar } from "./char";
 import { fromKey, toKey } from "./math";
 
 export const exportToString = (grid: Map<string, string>) => {
@@ -1182,32 +1268,32 @@ export const exportToString = (grid: Map<string, string>) => {
   let minY = Infinity,
     maxY = -Infinity;
 
-  grid.forEach((_, key) => {
-    const { x, y } = fromKey(key);
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  });
-
-  const padding = EXPORT_PADDING;
-  const width = maxX - minX + 1 + padding * 2;
-  const height = maxY - minY + 1 + padding * 2;
-
-  const lines: string[] = [];
-  for (let y = 0; y < height; y++) {
-    lines.push(" ".repeat(width));
-  }
-
   grid.forEach((char, key) => {
     const { x, y } = fromKey(key);
-    const localX = x - minX + padding;
-    const localY = y - minY + padding;
-
-    const line = lines[localY];
-    lines[localY] =
-      line.substring(0, localX) + char + line.substring(localX + 1);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
   });
+
+  const lines: string[] = [];
+
+  for (let y = minY - EXPORT_PADDING; y <= maxY + EXPORT_PADDING; y++) {
+    let line = "";
+    for (let x = minX - EXPORT_PADDING; x <= maxX + EXPORT_PADDING; x++) {
+      const char = grid.get(toKey(x, y));
+      if (char) {
+        line += char;
+
+        if (isWideChar(char)) {
+          x++;
+        }
+      } else {
+        line += " ";
+      }
+    }
+    lines.push(line);
+  }
 
   return lines.join("\n");
 };
@@ -1231,10 +1317,20 @@ export const exportSelectionToString = (
   });
 
   const lines: string[] = [];
+
   for (let y = minY; y <= maxY; y++) {
     let line = "";
     for (let x = minX; x <= maxX; x++) {
-      line += grid.get(toKey(x, y)) || " ";
+      const char = grid.get(toKey(x, y));
+      if (char) {
+        line += char;
+
+        if (isWideChar(char)) {
+          x++;
+        }
+      } else {
+        line += " ";
+      }
     }
     lines.push(line);
   }
@@ -1284,9 +1380,75 @@ import bresenham from "bresenham";
 import { BOX_CHARS } from "../lib/constants";
 import type { Point, GridPoint } from "../types";
 
-export function getLinePoints(start: Point, end: Point): Point[] {
+function getLinePoints(start: Point, end: Point): Point[] {
   const points = bresenham(start.x, start.y, end.x, end.y);
   return points.map(({ x, y }) => ({ x, y }));
+}
+
+export function getOrthogonalLinePoints(
+  start: Point,
+  end: Point,
+  isVerticalFirst: boolean
+): GridPoint[] {
+  const points: GridPoint[] = [];
+
+  if (start.x === end.x) {
+    return getLinePoints(start, end).map((p) => ({
+      ...p,
+      char: BOX_CHARS.VERTICAL,
+    }));
+  }
+  if (start.y === end.y) {
+    return getLinePoints(start, end).map((p) => ({
+      ...p,
+      char: BOX_CHARS.HORIZONTAL,
+    }));
+  }
+
+  const junction: Point = isVerticalFirst
+    ? { x: start.x, y: end.y }
+    : { x: end.x, y: start.y };
+
+  const segment1 = getLinePoints(start, junction);
+  segment1.pop();
+  points.push(
+    ...segment1.map((p) => ({
+      ...p,
+      char: isVerticalFirst ? BOX_CHARS.VERTICAL : BOX_CHARS.HORIZONTAL,
+    }))
+  );
+
+  const segment2 = getLinePoints(junction, end);
+  segment2.shift();
+  points.push(
+    ...segment2.map((p) => ({
+      ...p,
+      char: isVerticalFirst ? BOX_CHARS.HORIZONTAL : BOX_CHARS.VERTICAL,
+    }))
+  );
+
+  let cornerChar = "";
+
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+
+  if (isVerticalFirst) {
+    if (dy > 0) {
+      cornerChar = dx > 0 ? BOX_CHARS.BOTTOM_LEFT : BOX_CHARS.BOTTOM_RIGHT;
+    } else {
+      cornerChar = dx > 0 ? BOX_CHARS.TOP_LEFT : BOX_CHARS.TOP_RIGHT;
+    }
+  } else {
+    if (dx > 0) {
+      cornerChar = dy > 0 ? BOX_CHARS.TOP_RIGHT : BOX_CHARS.BOTTOM_RIGHT;
+    } else {
+      cornerChar = dy > 0 ? BOX_CHARS.TOP_LEFT : BOX_CHARS.BOTTOM_LEFT;
+    }
+  }
+
+  points.push({ ...junction, char: cornerChar });
+
+  return points;
 }
 
 export function getBoxPoints(start: Point, end: Point): GridPoint[] {
@@ -1326,24 +1488,125 @@ export function getBoxPoints(start: Point, end: Point): GridPoint[] {
 ```
 ---
 ```src/App.tsx
-import React from "react";
-import { useStore } from "zustand";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
-import { exportToString } from "./utils/export";
-import type { CanvasStoreWithTemporal } from "./types";
+import { exportToString, exportSelectionToString } from "./utils/export";
 import { AppLayout } from "./layout";
 import { Toolbar } from "./components/Toolbar";
+import { undoManager } from "./lib/yjs-setup";
 
 function App() {
-  const { zoom, offset, tool, grid, textCursor, setTool, clearCanvas } =
-    useCanvasStore();
+  const {
+    zoom,
+    offset,
+    tool,
+    grid,
+    textCursor,
+    setTool,
+    clearCanvas,
+    fillSelectionsWithChar,
+    deleteSelection,
+  } = useCanvasStore();
 
-  const temporalStore = (useCanvasStore as CanvasStoreWithTemporal).temporal;
-  const { undo, redo } = temporalStore.getState();
-  const pastStates = useStore(temporalStore, (state) => state.pastStates);
-  const futureStates = useStore(temporalStore, (state) => state.futureStates);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  useEffect(() => {
+    const updateStackStatus = () => {
+      setCanUndo(undoManager.undoStack.length > 0);
+      setCanRedo(undoManager.redoStack.length > 0);
+    };
+
+    undoManager.on("stack-item-added", updateStackStatus);
+    undoManager.on("stack-item-popped", updateStackStatus);
+
+    return () => {
+      undoManager.off("stack-item-added", updateStackStatus);
+      undoManager.off("stack-item-popped", updateStackStatus);
+    };
+  }, []);
+
+  const handleUndo = () => {
+    undoManager.undo();
+    toast.dismiss();
+  };
+
+  const handleRedo = () => {
+    undoManager.redo();
+  };
+
+  const handleCopySelection = () => {
+    const { grid, selections } = useCanvasStore.getState();
+    if (selections.length === 0) return;
+
+    const selectedText = exportSelectionToString(grid, selections);
+    navigator.clipboard.writeText(selectedText).then(() => {
+      toast.success("Copied!", {
+        description: "Selection copied to clipboard.",
+      });
+    });
+  };
+
+  const handleCutSelection = () => {
+    const { grid, selections } = useCanvasStore.getState();
+    if (selections.length === 0) return;
+
+    const selectedText = exportSelectionToString(grid, selections);
+    navigator.clipboard.writeText(selectedText).then(() => {
+      deleteSelection();
+      toast.success("Cut!", {
+        description: "Selection moved to clipboard and deleted.",
+      });
+    });
+  };
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+      const isAlt = e.altKey;
+
+      if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+      if (
+        (isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === "z") ||
+        (isCtrlOrMeta && e.key.toLowerCase() === "y")
+      ) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      if (isCtrlOrMeta && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        handleCopySelection();
+        return;
+      }
+      if (isCtrlOrMeta && e.key.toLowerCase() === "x") {
+        e.preventDefault();
+        handleCutSelection();
+        return;
+      }
+
+      const { selections, textCursor } = useCanvasStore.getState();
+      if (
+        !isCtrlOrMeta &&
+        !isAlt &&
+        e.key.length === 1 &&
+        selections.length > 0 &&
+        !textCursor
+      ) {
+        e.preventDefault();
+        fillSelectionsWithChar(e.key);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [fillSelectionsWithChar, deleteSelection]);
 
   const handleExport = () => {
     const text = exportToString(grid);
@@ -1372,7 +1635,6 @@ function App() {
       Pos: {offset.x.toFixed(0)}, {offset.y.toFixed(0)} | Zoom:{" "}
       {(zoom * 100).toFixed(0)}% <br />
       Objects: {grid.size} <br />
-      {/* 修正：不再检查 tool === 'text'，而是检查是否有光标 */}
       {!!textCursor && (
         <span className="text-blue-600 font-bold animate-pulse">
           Mode: Text Input (Click to focus)
@@ -1382,14 +1644,17 @@ function App() {
   );
 
   return (
-    <AppLayout statusBar={statusBar} canvas={<AsciiCanvas />}>
+    <AppLayout
+      statusBar={statusBar}
+      canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
+    >
       <Toolbar
         tool={tool}
         setTool={setTool}
-        onUndo={() => undo()}
-        onRedo={() => redo()}
-        canUndo={pastStates.length > 0}
-        canRedo={futureStates.length > 0}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
         onExport={handleExport}
         onClear={handleClear}
       />
@@ -1536,4 +1801,42 @@ body,
     font-family: "Maple Mono CN", monospace;
   }
 }
+```
+---
+```src/layout.tsx
+import React from "react";
+import { Toaster } from "./components/ui/sonner";
+
+interface AppLayoutProps {
+  statusBar: React.ReactNode;
+  canvas: React.ReactNode;
+  children: React.ReactNode;
+}
+
+export const AppLayout = ({ statusBar, canvas, children }: AppLayoutProps) => {
+  return (
+    <div className="w-screen h-screen flex flex-col bg-gray-50 relative overflow-hidden">
+      <main className="flex-1 relative z-0">{canvas}</main>
+
+      <footer className="absolute bottom-4 left-4 z-10">{statusBar}</footer>
+
+      <Toaster />
+
+      {children}
+    </div>
+  );
+};
+```
+---
+```src/main.tsx
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.tsx";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
 ```

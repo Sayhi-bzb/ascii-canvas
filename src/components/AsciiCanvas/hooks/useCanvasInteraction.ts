@@ -1,21 +1,14 @@
 import { useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
 import { useCreation, useThrottleFn } from "ahooks";
-import { screenToGrid, toKey } from "../../../utils/math";
+import { screenToGrid } from "../../../utils/math";
 import { getBoxPoints, getOrthogonalLinePoints } from "../../../utils/shapes";
-import type { Point, SelectionArea, GridMap } from "../../../types";
+import type { Point, SelectionArea } from "../../../types";
 import { type CanvasState } from "../../../store/canvasStore";
 import { forceHistorySave } from "../../../lib/yjs-setup";
 import bresenham from "bresenham";
-import { isWideChar } from "../../../utils/char";
-
-const adjustGridForWideChars = (pos: Point, grid: GridMap): Point => {
-  const charBefore = grid.get(toKey(pos.x - 1, pos.y));
-  if (charBefore && isWideChar(charBefore)) {
-    return { ...pos, x: pos.x - 1 };
-  }
-  return pos;
-};
+import { snapToCharStart } from "../../../utils/grid";
+import { isCtrlOrMeta } from "../../../utils/event";
 
 export const useCanvasInteraction = (
   store: CanvasState,
@@ -77,8 +70,7 @@ export const useCanvasInteraction = (
       onDragStart: ({ xy: [x, y], event }) => {
         const mouseEvent = event as MouseEvent;
         const isMiddleClick = mouseEvent.button === 1;
-        const isCtrlPan = mouseEvent.ctrlKey || mouseEvent.metaKey;
-        const isPanStart = isMiddleClick || isCtrlPan;
+        const isPanStart = isMiddleClick || isCtrlOrMeta(mouseEvent);
 
         if (isPanStart) {
           isPanningRef.current = true;
@@ -99,7 +91,7 @@ export const useCanvasInteraction = (
             zoom
           );
 
-          const start = adjustGridForWideChars(rawStart, grid);
+          const start = snapToCharStart(rawStart, grid);
 
           if (tool === "select") {
             event.preventDefault();
@@ -131,7 +123,7 @@ export const useCanvasInteraction = (
       onDrag: ({ xy: [x, y], delta: [dx, dy], event }) => {
         const mouseEvent = event as MouseEvent;
         const isPanGesture =
-          mouseEvent.buttons === 4 || mouseEvent.ctrlKey || mouseEvent.metaKey;
+          mouseEvent.buttons === 4 || isCtrlOrMeta(mouseEvent);
 
         if (isPanningRef.current || isPanGesture) {
           setOffset((prev: Point) => ({ x: prev.x + dx, y: prev.y + dy }));
@@ -148,7 +140,7 @@ export const useCanvasInteraction = (
             zoom
           );
 
-          const currentGrid = adjustGridForWideChars(rawEnd, grid);
+          const currentGrid = snapToCharStart(rawEnd, grid);
 
           if (tool === "select") {
             setDraggingSelection({
@@ -197,7 +189,7 @@ export const useCanvasInteraction = (
             const isClick = start.x === end.x && start.y === end.y;
 
             if (isClick) {
-              const clickPos = adjustGridForWideChars(start, grid);
+              const clickPos = snapToCharStart(start, grid);
               setTextCursor(clickPos);
               setDraggingSelection(null);
             } else {
@@ -216,7 +208,7 @@ export const useCanvasInteraction = (
         document.body.style.cursor = "auto";
       },
       onWheel: ({ delta: [, dy], event }) => {
-        if (event.ctrlKey || event.metaKey) {
+        if (isCtrlOrMeta(event)) {
           event.preventDefault();
           setZoom((prev: number) => prev * (1 - dy * 0.002));
         } else {

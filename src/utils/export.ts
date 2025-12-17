@@ -2,6 +2,7 @@ import { EXPORT_PADDING } from "../lib/constants";
 import type { GridMap, SelectionArea } from "../types";
 import { isWideChar } from "./char";
 import { fromKey, toKey } from "./math";
+import { getSelectionsBoundingBox } from "./selection";
 
 export const exportToString = (grid: Map<string, string>) => {
   if (grid.size === 0) return "";
@@ -47,17 +48,7 @@ export const exportSelectionToString = (
 ) => {
   if (selections.length === 0) return "";
 
-  let minX = Infinity,
-    maxX = -Infinity;
-  let minY = Infinity,
-    maxY = -Infinity;
-
-  selections.forEach((area) => {
-    minX = Math.min(minX, area.start.x, area.end.x);
-    maxX = Math.max(maxX, area.start.x, area.end.x);
-    minY = Math.min(minY, area.start.y, area.end.y);
-    maxY = Math.max(maxY, area.start.y, area.end.y);
-  });
+  const { minX, maxX, minY, maxY } = getSelectionsBoundingBox(selections);
 
   const lines: string[] = [];
 

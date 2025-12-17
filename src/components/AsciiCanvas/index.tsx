@@ -6,6 +6,7 @@ import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
 import { gridToScreen, toKey } from "../../utils/math";
 import { exportSelectionToString } from "../../utils/export";
 import { toast } from "sonner";
+import { isCtrlOrMeta } from "../../utils/event";
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -181,17 +182,18 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     e.stopPropagation();
     if (isComposing.current) return;
 
-    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+    const isUndo =
+      isCtrlOrMeta(e) && !e.shiftKey && e.key.toLowerCase() === "z";
+    const isRedo =
+      (isCtrlOrMeta(e) && e.shiftKey && e.key.toLowerCase() === "z") ||
+      (isCtrlOrMeta(e) && e.key.toLowerCase() === "y");
 
-    if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === "z") {
+    if (isUndo) {
       e.preventDefault();
       onUndo();
       return;
     }
-    if (
-      (isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === "z") ||
-      (isCtrlOrMeta && e.key.toLowerCase() === "y")
-    ) {
+    if (isRedo) {
       e.preventDefault();
       onRedo();
       return;
