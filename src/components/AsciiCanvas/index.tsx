@@ -4,7 +4,6 @@ import { useCanvasStore } from "../../store/canvasStore";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
 import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
 import { gridToScreen, toKey } from "../../utils/math";
-import { exportSelectionToString } from "../../utils/export";
 import { toast } from "sonner";
 import { isCtrlOrMeta } from "../../utils/event";
 
@@ -32,6 +31,8 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     deleteSelection,
     grid,
     erasePoints,
+    copySelectionToClipboard,
+    cutSelectionToClipboard,
   } = store;
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
@@ -50,12 +51,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const handleCopy = (e: ClipboardEvent) => {
     if (selections.length > 0) {
       e.preventDefault();
-      const selectedText = exportSelectionToString(grid, selections);
-      navigator.clipboard.writeText(selectedText).then(() => {
-        toast.success("Copied!", {
-          description: "Selection copied to clipboard.",
-        });
-      });
+      copySelectionToClipboard();
       return;
     }
 
@@ -75,14 +71,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const handleCut = (e: ClipboardEvent) => {
     if (selections.length > 0) {
       e.preventDefault();
-
-      const selectedText = exportSelectionToString(grid, selections);
-      navigator.clipboard.writeText(selectedText).then(() => {
-        deleteSelection();
-        toast.success("Cut!", {
-          description: "Selection moved to clipboard and deleted.",
-        });
-      });
+      cutSelectionToClipboard();
       return;
     }
 

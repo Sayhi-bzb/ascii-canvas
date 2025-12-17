@@ -1,8 +1,5 @@
 import type { SelectionArea } from "../types";
 
-/**
- * “城市测绘局”的核心职能：计算单个地块（选区）的精确四至边界。
- */
 export const getSelectionBounds = (area: SelectionArea) => {
   const minX = Math.min(area.start.x, area.end.x);
   const maxX = Math.max(area.start.x, area.end.x);
@@ -11,9 +8,6 @@ export const getSelectionBounds = (area: SelectionArea) => {
   return { minX, maxX, minY, maxY };
 };
 
-/**
- * “城市测绘局”的批量处理服务：计算多个地块（选区数组）合并后的总边界。
- */
 export const getSelectionsBoundingBox = (selections: SelectionArea[]) => {
   if (selections.length === 0) {
     return { minX: 0, maxX: 0, minY: 0, maxY: 0 };

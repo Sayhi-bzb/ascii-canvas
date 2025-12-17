@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useKeyPress } from "ahooks";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
-import { exportToString, exportSelectionToString } from "./utils/export";
+import { exportToString } from "./utils/export";
 import { AppLayout } from "./layout";
 import { Toolbar } from "./components/Toolbar";
 import { undoManager } from "./lib/yjs-setup";
@@ -19,7 +19,8 @@ function App() {
     setTool,
     clearCanvas,
     fillSelectionsWithChar,
-    deleteSelection,
+    copySelectionToClipboard,
+    cutSelectionToClipboard,
   } = useCanvasStore();
 
   const [canUndo, setCanUndo] = useState(false);
@@ -49,31 +50,6 @@ function App() {
     undoManager.redo();
   };
 
-  const handleCopySelection = () => {
-    const { grid, selections } = useCanvasStore.getState();
-    if (selections.length === 0) return;
-
-    const selectedText = exportSelectionToString(grid, selections);
-    navigator.clipboard.writeText(selectedText).then(() => {
-      toast.success("Copied!", {
-        description: "Selection copied to clipboard.",
-      });
-    });
-  };
-
-  const handleCutSelection = () => {
-    const { grid, selections } = useCanvasStore.getState();
-    if (selections.length === 0) return;
-
-    const selectedText = exportSelectionToString(grid, selections);
-    navigator.clipboard.writeText(selectedText).then(() => {
-      deleteSelection();
-      toast.success("Cut!", {
-        description: "Selection moved to clipboard and deleted.",
-      });
-    });
-  };
-
   useKeyPress(["meta.z", "ctrl.z"], (e) => {
     e.preventDefault();
     handleUndo();
@@ -86,12 +62,12 @@ function App() {
 
   useKeyPress(["meta.c", "ctrl.c"], (e) => {
     e.preventDefault();
-    handleCopySelection();
+    copySelectionToClipboard();
   });
 
   useKeyPress(["meta.x", "ctrl.x"], (e) => {
     e.preventDefault();
-    handleCutSelection();
+    cutSelectionToClipboard();
   });
 
   useKeyPress(

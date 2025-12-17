@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toast } from "sonner";
 import { MIN_ZOOM, MAX_ZOOM } from "../lib/constants";
 import { toKey } from "../utils/math";
 import { isWideChar } from "../utils/char";
@@ -11,6 +12,7 @@ import type {
 } from "../types";
 import { yGrid, performTransaction, forceHistorySave } from "../lib/yjs-setup";
 import { getSelectionBounds } from "../utils/selection";
+import { exportSelectionToString } from "../utils/export";
 
 export interface CanvasState {
   offset: Point;
@@ -42,6 +44,8 @@ export interface CanvasState {
   fillSelections: () => void;
   fillSelectionsWithChar: (char: string) => void;
   erasePoints: (points: Point[]) => void;
+  copySelectionToClipboard: () => void;
+  cutSelectionToClipboard: () => void;
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => {
@@ -273,6 +277,31 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           if (char && isWideChar(char)) {
             yGrid.delete(toKey(p.x + 1, p.y));
           }
+        });
+      });
+    },
+
+    copySelectionToClipboard: () => {
+      const { grid, selections } = get();
+      if (selections.length === 0) return;
+
+      const selectedText = exportSelectionToString(grid, selections);
+      navigator.clipboard.writeText(selectedText).then(() => {
+        toast.success("Copied!", {
+          description: "Selection copied to clipboard.",
+        });
+      });
+    },
+
+    cutSelectionToClipboard: () => {
+      const { grid, selections, deleteSelection } = get();
+      if (selections.length === 0) return;
+
+      const selectedText = exportSelectionToString(grid, selections);
+      navigator.clipboard.writeText(selectedText).then(() => {
+        deleteSelection();
+        toast.success("Cut!", {
+          description: "Selection moved to clipboard and deleted.",
         });
       });
     },
