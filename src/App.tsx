@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useKeyPress } from "ahooks";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
 import { exportToString, exportSelectionToString } from "./utils/export";
@@ -73,51 +74,39 @@ function App() {
     });
   };
 
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      const isAlt = e.altKey;
-      const hasModifier = isCtrlOrMeta(e);
+  useKeyPress(["meta.z", "ctrl.z"], (e) => {
+    e.preventDefault();
+    handleUndo();
+  });
 
-      if (hasModifier && !e.shiftKey && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        handleUndo();
-        return;
-      }
-      if (
-        (hasModifier && e.shiftKey && e.key.toLowerCase() === "z") ||
-        (hasModifier && e.key.toLowerCase() === "y")
-      ) {
-        e.preventDefault();
-        handleRedo();
-        return;
-      }
+  useKeyPress(["meta.shift.z", "ctrl.shift.z", "meta.y", "ctrl.y"], (e) => {
+    e.preventDefault();
+    handleRedo();
+  });
 
-      if (hasModifier && e.key.toLowerCase() === "c") {
-        e.preventDefault();
-        handleCopySelection();
-        return;
-      }
-      if (hasModifier && e.key.toLowerCase() === "x") {
-        e.preventDefault();
-        handleCutSelection();
-        return;
-      }
+  useKeyPress(["meta.c", "ctrl.c"], (e) => {
+    e.preventDefault();
+    handleCopySelection();
+  });
 
+  useKeyPress(["meta.x", "ctrl.x"], (e) => {
+    e.preventDefault();
+    handleCutSelection();
+  });
+
+  useKeyPress(
+    (event) => !isCtrlOrMeta(event) && !event.altKey && event.key.length === 1,
+    (event) => {
       const { selections, textCursor } = useCanvasStore.getState();
-      if (
-        !hasModifier &&
-        !isAlt &&
-        e.key.length === 1 &&
-        selections.length > 0 &&
-        !textCursor
-      ) {
-        e.preventDefault();
-        fillSelectionsWithChar(e.key);
+      if (selections.length > 0 && !textCursor) {
+        event.preventDefault();
+        fillSelectionsWithChar(event.key);
       }
-    };
-    window.addEventListener("keydown", handleGlobalKeyDown);
-    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [fillSelectionsWithChar, deleteSelection]);
+    },
+    {
+      events: ["keydown"],
+    }
+  );
 
   const handleExport = () => {
     const text = exportToString(grid);
