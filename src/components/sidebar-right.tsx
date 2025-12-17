@@ -1,28 +1,48 @@
 import * as React from "react";
+import { X } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Button } from "./ui/button";
 
 export function SidebarRight({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
-  // TODO: 后续接入 store 状态
+  // 获取当前(右侧)上下文的 toggle 方法
+  const { toggleSidebar } = useSidebar();
   const hasSelection = false;
 
   return (
     <Sidebar
-      collapsible="none"
-      className="sticky top-0 hidden h-svh border-l lg:flex"
+      collapsible="offcanvas"
+      side="right"
+      variant="sidebar"
+      // 关键样式：
+      // 1. h-full: 填满父容器高度
+      // 2. pointer-events-auto: 恢复鼠标交互（因为父容器是 none）
+      // 3. border-l: 左边框
+      className="h-full border-l bg-sidebar pointer-events-auto"
       {...props}
     >
-      <SidebarHeader className="h-14 border-b justify-center px-4">
+      <SidebarHeader className="h-14 border-b flex flex-row items-center justify-between px-4">
         <div className="text-sm font-semibold tracking-tight">Properties</div>
+        {/* 关闭按钮 */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 -mr-2"
+          onClick={toggleSidebar}
+        >
+          <X className="h-4 w-4" />
+        </Button>
       </SidebarHeader>
+
       <SidebarContent className="p-4">
         {hasSelection ? (
           <div className="flex flex-col gap-6">

@@ -11,18 +11,8 @@ import { isCtrlOrMeta } from "./utils/event";
 
 import { SidebarLeft } from "./components/sidebar-left";
 import { SidebarRight } from "./components/sidebar-right";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "./components/ui/breadcrumb";
-import { Separator } from "./components/ui/separator";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "./components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
+import { SiteHeader } from "./components/site-header";
 
 function App() {
   const {
@@ -40,6 +30,9 @@ function App() {
 
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+
+  // 新增：右侧边栏的独立状态
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
   useEffect(() => {
     const updateStackStatus = () => {
@@ -135,29 +128,17 @@ function App() {
   );
 
   return (
-    <SidebarProvider>
-      <SidebarLeft />
-      <SidebarInset>
-        <div className="flex flex-col h-full w-full">
-          <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2 border-b">
-            <div className="flex flex-1 items-center gap-2 px-3">
-              <SidebarTrigger />
-              <Separator
-                orientation="vertical"
-                className="mr-2 data-[orientation=vertical]:h-4"
-              />
-              <Breadcrumb>
-                <BreadcrumbList>
-                  <BreadcrumbItem>
-                    <BreadcrumbPage className="line-clamp-1">
-                      ASCII Art Canvas
-                    </BreadcrumbPage>
-                  </BreadcrumbItem>
-                </BreadcrumbList>
-              </Breadcrumb>
-            </div>
-          </header>
-          <div className="flex-1 relative">
+    <div className="[--header-height:3.5rem] h-full w-full">
+      {/* 主 Context (控制左侧边栏) */}
+      <SidebarProvider className="flex flex-col h-full">
+        <SiteHeader
+          isRightOpen={isRightPanelOpen}
+          onToggleRight={() => setIsRightPanelOpen(!isRightPanelOpen)}
+        />
+        <div className="flex flex-1 overflow-hidden relative">
+          <SidebarLeft />
+
+          <SidebarInset className="h-full w-full">
             <AppLayout
               statusBar={statusBar}
               canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
@@ -173,11 +154,23 @@ function App() {
                 onClear={handleClear}
               />
             </AppLayout>
-          </div>
+          </SidebarInset>
+
+          {/* 独立 Context (控制右侧边栏) */}
+          {/* 
+            pointer-events-none: 确保透明区域不拦截鼠标
+            min-h-0: 覆盖默认的 min-h-svh，防止撑开页面 
+          */}
+          <SidebarProvider
+            open={isRightPanelOpen}
+            onOpenChange={setIsRightPanelOpen}
+            className="absolute right-0 top-0 h-full w-auto min-h-0 z-50 pointer-events-none"
+          >
+            <SidebarRight />
+          </SidebarProvider>
         </div>
-      </SidebarInset>
-      <SidebarRight />
-    </SidebarProvider>
+      </SidebarProvider>
+    </div>
   );
 }
 

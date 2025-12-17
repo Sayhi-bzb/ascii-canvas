@@ -20,11 +20,21 @@ export function SidebarLeft({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar className="border-r-0" {...props}>
+    <Sidebar
+      // 关键修改：
+      // 1. absolute: 绝对定位，脱离文档流
+      // 2. left-0 top-0: 紧贴左上角（相对于父容器，即 Header 下方的那个 relative div）
+      // 3. h-full: 填满高度
+      // 4. z-40: 确保在画布之上
+      // 5. border-r: 恢复右边框，视觉分隔
+      className="absolute left-0 top-0 h-full border-r bg-sidebar z-40"
+      {...props}
+    >
       <SidebarHeader className="h-14 border-b justify-center px-4">
-        {/* 使用标准的文本样式来替代不存在的组件 */}
         <div className="text-sm font-semibold tracking-tight">ASCII Studio</div>
       </SidebarHeader>
+
+      {/* 内容部分保持不变 */}
       <SidebarContent>
         <SidebarMenu className="p-2">
           <SidebarMenuItem>

@@ -134,3 +134,13 @@ body,
     font-weight: normal;
   }
 }
+
+/* 
+  -- 新增的《空间规划法》 --
+  市长批示：为了保证核心城区（画布）的稳定性，
+  侧边栏的占位区块（sidebar-gap）宽度应始终为零，
+  使其不再挤压主内容区，实现悬浮效果。
+*/
+[data-slot="sidebar-gap"] {
+  width: 0 !important;
+}
