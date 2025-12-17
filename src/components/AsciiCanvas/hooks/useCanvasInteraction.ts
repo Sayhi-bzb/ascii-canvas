@@ -4,7 +4,7 @@ import { useCreation, useThrottleFn } from "ahooks";
 import { screenToGrid } from "../../../utils/math";
 import { getBoxPoints, getOrthogonalLinePoints } from "../../../utils/shapes";
 import type { Point, SelectionArea } from "../../../types";
-import type { CanvasState } from "../../../store/canvasStore";
+import { type CanvasState } from "../../../store/canvasStore";
 import { forceHistorySave } from "../../../lib/yjs-setup";
 import bresenham from "bresenham";
 
@@ -27,7 +27,6 @@ export const useCanvasInteraction = (
     erasePoints,
     offset,
     zoom,
-    selections,
   } = store;
 
   const dragStartGrid = useRef<Point | null>(null);
@@ -72,7 +71,6 @@ export const useCanvasInteraction = (
     {
       onDragStart: ({ xy: [x, y], event }) => {
         const mouseEvent = event as MouseEvent;
-        // 平移判定：中键(button 1) 或 Ctrl/Meta键按下
         const isMiddleClick = mouseEvent.button === 1;
         const isCtrlPan = mouseEvent.ctrlKey || mouseEvent.metaKey;
         const isPanStart = isMiddleClick || isCtrlPan;
@@ -84,7 +82,6 @@ export const useCanvasInteraction = (
         }
 
         const isLeftClick = mouseEvent.button === 0;
-        // 多选判定：Shift键
         const isMultiSelect = mouseEvent.shiftKey;
         const rect = containerRef.current?.getBoundingClientRect();
 
@@ -107,7 +104,7 @@ export const useCanvasInteraction = (
           }
 
           if (tool === "fill") {
-            if (selections.length > 0) fillSelections();
+            if (store.selections.length > 0) fillSelections();
             return;
           }
 
@@ -128,12 +125,12 @@ export const useCanvasInteraction = (
       },
       onDrag: ({ xy: [x, y], delta: [dx, dy], event }) => {
         const mouseEvent = event as MouseEvent;
-        // 持续检测平移状态
         const isPanGesture =
           mouseEvent.buttons === 4 || mouseEvent.ctrlKey || mouseEvent.metaKey;
 
         if (isPanningRef.current || isPanGesture) {
-          setOffset((prev) => ({
+          // ✨ 修正：明确指令参数类型
+          setOffset((prev: Point) => ({
             x: prev.x + dx,
             y: prev.y + dy,
           }));
@@ -207,12 +204,8 @@ export const useCanvasInteraction = (
               setDraggingSelection(null);
             }
           } else if (tool !== "fill" && tool !== "eraser") {
-            // Brush, Line, Box: 提交草稿
-            // 注意：commitScratch 内部我们已经加了 forceHistorySave()
             commitScratch();
           } else if (tool === "eraser") {
-            // Eraser: 实时擦除结束，强制封存历史记录
-            // 避免连续擦除被合并，或与后续操作混淆
             forceHistorySave();
           }
           dragStartGrid.current = null;
@@ -224,9 +217,11 @@ export const useCanvasInteraction = (
       onWheel: ({ delta: [, dy], event }) => {
         if (event.ctrlKey || event.metaKey) {
           event.preventDefault();
-          setZoom((prev) => prev * (1 - dy * 0.002));
+          // ✨ 修正：明确指令参数类型
+          setZoom((prev: number) => prev * (1 - dy * 0.002));
         } else {
-          setOffset((prev) => ({
+          // ✨ 修正：明确指令参数类型
+          setOffset((prev: Point) => ({
             x: prev.x - event.deltaX,
             y: prev.y - event.deltaY,
           }));

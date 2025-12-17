@@ -13,7 +13,7 @@ import {
   FONT_SIZE,
   GRID_COLOR,
 } from "../../../lib/constants";
-import type { CanvasState } from "../../../store/canvasStore";
+import { type CanvasState } from "../../../store/canvasStore";
 import { fromKey, gridToScreen, toKey } from "../../../utils/math";
 import type { SelectionArea } from "../../../types";
 import { isWideChar } from "../../../utils/char";

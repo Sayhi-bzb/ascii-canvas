@@ -9,9 +9,10 @@ import type {
   SelectionArea,
   GridMap,
 } from "../types";
-import { yGrid, performTransaction, forceHistorySave } from "../lib/yjs-setup"; // 👈 引入 forceHistorySave
+import { yGrid, performTransaction, forceHistorySave } from "../lib/yjs-setup";
 
-interface CanvasState {
+// ✨ 修正：公开 CanvasState 蓝图，以便全局引用
+export interface CanvasState {
   offset: Point;
   zoom: number;
   tool: ToolType;
@@ -39,11 +40,11 @@ interface CanvasState {
   clearSelections: () => void;
   deleteSelection: () => void;
   fillSelections: () => void;
+  fillSelectionsWithChar: (char: string) => void;
   erasePoints: (points: Point[]) => void;
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => {
-  // 订阅 Y.js 数据变化
   yGrid.observe(() => {
     const newGrid = new Map<string, string>();
     yGrid.forEach((value, key) => {
@@ -57,7 +58,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
     zoom: 1,
     grid: new Map(),
     scratchLayer: null,
-    tool: "brush",
+    tool: "select",
     brushChar: "#",
     textCursor: null,
     selections: [],
@@ -82,7 +83,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       });
     },
 
-    // 🔴 关键修改 1：绘图结束（松开鼠标）
     commitScratch: () => {
       const { scratchLayer } = get();
       if (!scratchLayer) return;
@@ -97,9 +97,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
         });
       });
 
-      // ✨ 强制存档！告诉 UndoManager 这是一笔独立的画，别和下一笔合并
       forceHistorySave();
-
       set({ scratchLayer: null });
     },
 
@@ -109,14 +107,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       performTransaction(() => {
         yGrid.clear();
       });
-      // ✨ 清空也是个大动作，必须强制存档
       forceHistorySave();
       set({ selections: [] });
     },
 
     setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
 
-    // 🔴 关键修改 2：文本输入 & 粘贴
     writeTextString: (str, startPos) => {
       const { textCursor } = get();
       const cursor = startPos
@@ -127,7 +123,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       if (!cursor) return;
 
       const startX = cursor.x;
-      const isPaste = str.length > 1; // 判断是否为粘贴（一次输入多个字符）
+      const isPaste = str.length > 1;
 
       performTransaction(() => {
         for (const char of str) {
@@ -151,8 +147,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
         }
       });
 
-      // ✨ 如果是粘贴操作，强制存档！
-      // 如果只是打字（str.length === 1），我们不强制存档，允许 UndoManager 把 continuous typing 合并
       if (isPaste) {
         forceHistorySave();
       }
@@ -193,7 +187,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           }
         }
       });
-      // Backspace 不需要强制存档，让它利用超时机制合并连续删除
 
       set((state) => {
         if (!state.textCursor) return {};
@@ -237,7 +230,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           }
         });
       });
-      // ✨ 删除选区是重要操作，强制存档
       forceHistorySave();
     },
 
@@ -259,7 +251,27 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           }
         });
       });
-      // ✨ 填充是重要操作，强制存档
+      forceHistorySave();
+    },
+
+    fillSelectionsWithChar: (char: string) => {
+      const { selections } = get();
+      if (selections.length === 0) return;
+
+      performTransaction(() => {
+        selections.forEach((area) => {
+          const minX = Math.min(area.start.x, area.end.x);
+          const maxX = Math.max(area.start.x, area.end.x);
+          const minY = Math.min(area.start.y, area.end.y);
+          const maxY = Math.max(area.start.y, area.end.y);
+
+          for (let x = minX; x <= maxX; x++) {
+            for (let y = minY; y <= maxY; y++) {
+              yGrid.set(toKey(x, y), char);
+            }
+          }
+        });
+      });
       forceHistorySave();
     },
 
@@ -269,18 +281,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           yGrid.delete(toKey(p.x, p.y));
         });
       });
-      // 注意：如果 erasePoints 是在拖拽过程中每帧调用的，不要在这里加 forceHistorySave。
-      // 应该在 onDragEnd 调用的地方处理，或者如果这是一个“单击擦除”操作，则可以加。
-      // 根据之前的代码，erasePoints 在 dragging 中被 throttledDraw 调用，
-      // 所以我们 **不在这里** 加 forceHistorySave，而应该依赖 useCanvasInteraction 里的 onDragEnd 逻辑？
-      // 实际上，之前的 interaction hook 在 tool==='eraser' 时是实时调用的 erasePoints。
-      // 这会导致撤销变成一个个像素点。
-
-      // 💡 优化建议：橡皮擦逻辑应该像 brush 一样，先放到 scratchLayer 或者临时 buffer，
-      // 然后在 onDragEnd 一次性提交。
-      // 但既然我们现在没有 Eraser 的 ScratchLayer，我们暂时不改动架构，
-      // 而是让 UndoManager 的 500ms timeout 来处理连续擦除的合并。
-      // 或者，在 interaction hook 的 onDragEnd 里手动调用一次 forceHistorySave。
     },
   };
 });

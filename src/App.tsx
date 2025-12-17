@@ -5,14 +5,21 @@ import { useCanvasStore } from "./store/canvasStore";
 import { exportToString } from "./utils/export";
 import { AppLayout } from "./layout";
 import { Toolbar } from "./components/Toolbar";
-import { undoManager } from "./lib/yjs-setup"; // 引入我们的新档案管理员
+import { undoManager } from "./lib/yjs-setup";
 
 function App() {
-  const { zoom, offset, tool, grid, textCursor, setTool, clearCanvas } =
-    useCanvasStore();
+  const {
+    zoom,
+    offset,
+    tool,
+    grid,
+    textCursor,
+    setTool,
+    clearCanvas,
+    // ✨ 获取新指令
+    fillSelectionsWithChar,
+  } = useCanvasStore();
 
-  // 使用本地状态来强制刷新 Undo/Redo 按钮的可用状态
-  // 因为 UndoManager 的变化不会自动触发 React 更新，我们需要监听它
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -22,7 +29,6 @@ function App() {
       setCanRedo(undoManager.redoStack.length > 0);
     };
 
-    // 监听历史记录栈的变化
     undoManager.on("stack-item-added", updateStackStatus);
     undoManager.on("stack-item-popped", updateStackStatus);
 
@@ -34,31 +40,50 @@ function App() {
 
   const handleUndo = () => {
     undoManager.undo();
-    toast.dismiss(); // 清理可能堆积的提示
+    toast.dismiss();
   };
 
   const handleRedo = () => {
     undoManager.redo();
   };
 
-  // 全局快捷键
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+      const isAlt = e.altKey;
+
+      // 处理撤销/重做
       if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === "z") {
         e.preventDefault();
         handleUndo();
-      } else if (
+        return; // 处理完就返回
+      }
+      if (
         (isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === "z") ||
         (isCtrlOrMeta && e.key.toLowerCase() === "y")
       ) {
         e.preventDefault();
         handleRedo();
+        return; // 处理完就返回
+      }
+
+      // ✨ 新增：处理选区内输入
+      // 条件：1. 按键是单个字符 2. 没有按下Ctrl/Meta/Alt 3. 有选区 4. 当前没有文本光标
+      const { selections, textCursor } = useCanvasStore.getState();
+      if (
+        !isCtrlOrMeta &&
+        !isAlt &&
+        e.key.length === 1 &&
+        selections.length > 0 &&
+        !textCursor
+      ) {
+        e.preventDefault();
+        fillSelectionsWithChar(e.key);
       }
     };
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, []);
+  }, [fillSelectionsWithChar]); // 添加依赖
 
   const handleExport = () => {
     const text = exportToString(grid);
@@ -96,7 +121,10 @@ function App() {
   );
 
   return (
-    <AppLayout statusBar={statusBar} canvas={<AsciiCanvas />}>
+    <AppLayout
+      statusBar={statusBar}
+      canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
+    >
       <Toolbar
         tool={tool}
         setTool={setTool}

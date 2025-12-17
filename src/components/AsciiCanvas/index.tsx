@@ -7,7 +7,12 @@ import { gridToScreen } from "../../utils/math";
 import { exportSelectionToString } from "../../utils/export";
 import { toast } from "sonner";
 
-export const AsciiCanvas = () => {
+interface AsciiCanvasProps {
+  onUndo: () => void;
+  onRedo: () => void;
+}
+
+export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -149,6 +154,23 @@ export const AsciiCanvas = () => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
     if (isComposing.current) return;
+
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+
+    // ✨ 新增：在 textarea 内部直接处理撤销/重做快捷键
+    if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      onUndo();
+      return;
+    }
+    if (
+      (isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === "z") ||
+      (isCtrlOrMeta && e.key.toLowerCase() === "y")
+    ) {
+      e.preventDefault();
+      onRedo();
+      return;
+    }
 
     if (e.key === "Delete") {
       if (selections.length > 0) {
