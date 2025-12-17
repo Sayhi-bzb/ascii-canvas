@@ -84,7 +84,6 @@ export const Toolbar = ({
     <TooltipProvider delayDuration={100}>
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
         <ButtonGroup className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-1.5">
-          {/* File Group */}
           <ButtonGroup>
             <DropdownMenu>
               <Tooltip>
@@ -140,7 +139,6 @@ export const Toolbar = ({
 
           <ButtonGroupSeparator />
 
-          {/* Tools Group */}
           <ButtonGroup>
             {tools.map((t) => (
               <Tooltip key={t.name}>
@@ -163,7 +161,6 @@ export const Toolbar = ({
 
           <ButtonGroupSeparator />
 
-          {/* History Group */}
           <ButtonGroup>
             <Tooltip>
               <TooltipTrigger asChild>

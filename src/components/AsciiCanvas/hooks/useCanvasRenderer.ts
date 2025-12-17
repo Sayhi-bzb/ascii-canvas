@@ -70,7 +70,6 @@ export const useCanvasRenderer = (
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
 
-    // ✨ 重构：使用传统 for 循环以控制渲染跳跃
     const renderLayer = (layer: Map<string, string>, color: string) => {
       ctx.fillStyle = color;
       for (let y = startRow; y <= endRow; y++) {
@@ -86,7 +85,7 @@ export const useCanvasRenderer = (
           ctx.fillText(char, centerX, centerY);
 
           if (wide) {
-            x++; // 核心：渲染完宽字符后，强制跳过下一个 x 坐标
+            x++;
           }
         }
       }

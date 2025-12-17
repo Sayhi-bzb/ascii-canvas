@@ -14,7 +14,6 @@ export const AppLayout = ({ statusBar, canvas, children }: AppLayoutProps) => {
 
       <footer className="absolute bottom-4 left-4 z-10">{statusBar}</footer>
 
-      {/* 广播塔安装完毕 */}
       <Toaster />
 
       {children}

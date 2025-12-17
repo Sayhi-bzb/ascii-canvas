@@ -112,7 +112,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
 
     setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
 
-    // ✨ 重构：写入逻辑 - 实施“积木”规则
     writeTextString: (str, startPos) => {
       const { textCursor } = get();
       const cursor = startPos
@@ -139,9 +138,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           yGrid.set(toKey(x, y), char);
 
           if (wide) {
-            // 核心规则：宽字符占领 (x,y) 并清空 (x+1,y)
             yGrid.delete(toKey(x + 1, y));
-            cursor.x += 2; // 光标跳过整个积木
+            cursor.x += 2;
           } else {
             cursor.x += 1;
           }
@@ -157,7 +155,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       }
     },
 
-    // ✨ 重构：光标移动逻辑 - 实现“积木跳跃”
     moveTextCursor: (dx, dy) => {
       const { textCursor, grid } = get();
       if (!textCursor) return;
@@ -170,11 +167,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       }
 
       if (dx > 0) {
-        // 向右移动
         const char = grid.get(toKey(newX, newY));
         newX += char && isWideChar(char) ? 2 : 1;
       } else if (dx < 0) {
-        // 向左移动
         const char = grid.get(toKey(newX - 2, newY));
         newX -= char && isWideChar(char) ? 2 : 1;
       }
@@ -182,7 +177,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       set({ textCursor: { x: newX, y: newY } });
     },
 
-    // ✨ 重构：退格逻辑 - 实现“积木删除”
     backspaceText: () => {
       const { textCursor, grid } = get();
       if (!textCursor) return;
@@ -190,7 +184,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       const targetX = textCursor.x;
       const charBefore = grid.get(toKey(targetX - 2, textCursor.y));
 
-      // 判断光标前是宽字符还是窄字符
       const isPrevWide = charBefore && isWideChar(charBefore);
       const deleteFromX = isPrevWide ? targetX - 2 : targetX - 1;
       const newCursorX = deleteFromX;
@@ -198,7 +191,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       if (deleteFromX < textCursor.x) {
         performTransaction(() => {
           yGrid.delete(toKey(deleteFromX, textCursor.y));
-          // 如果是宽字符，它的幽灵地块理论上已经是空的，但为保险起见可以再删一次
+
           if (isPrevWide) {
             yGrid.delete(toKey(deleteFromX + 1, textCursor.y));
           }
@@ -248,7 +241,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       get().fillSelectionsWithChar(brushChar);
     },
 
-    // ✨ 重构：填充逻辑 - 遵循“积木”规则
     fillSelectionsWithChar: (char: string) => {
       const { selections } = get();
       if (selections.length === 0) return;
@@ -269,7 +261,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
                 if (x + 1 <= maxX) {
                   yGrid.delete(toKey(x + 1, y));
                 }
-                x++; // 跳过下一个单元格
+                x++;
               }
             }
           }

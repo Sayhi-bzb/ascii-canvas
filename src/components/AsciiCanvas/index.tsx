@@ -3,7 +3,7 @@ import { useSize, useEventListener } from "ahooks";
 import { useCanvasStore } from "../../store/canvasStore";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
 import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
-import { gridToScreen, toKey } from "../../utils/math"; // ✨ 引入 toKey
+import { gridToScreen, toKey } from "../../utils/math";
 import { exportSelectionToString } from "../../utils/export";
 import { toast } from "sonner";
 
@@ -30,7 +30,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     selections,
     deleteSelection,
     grid,
-    erasePoints, // ✨ 引入 erasePoints 用于单个字符剪切
+    erasePoints,
   } = store;
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
@@ -47,7 +47,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   }, [textCursor]);
 
   const handleCopy = (e: ClipboardEvent) => {
-    // 情况 1: 存在选区 -> 复制选区内容
     if (selections.length > 0) {
       e.preventDefault();
       const selectedText = exportSelectionToString(grid, selections);
@@ -59,7 +58,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       return;
     }
 
-    // ✨ 情况 2: 没有选区，但有光标 -> 复制光标下的单个字符
     if (textCursor) {
       e.preventDefault();
       const key = toKey(textCursor.x, textCursor.y);
@@ -74,7 +72,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   useEventListener("copy", handleCopy);
 
   const handleCut = (e: ClipboardEvent) => {
-    // 情况 1: 存在选区 -> 剪切选区
     if (selections.length > 0) {
       e.preventDefault();
 
@@ -88,13 +85,11 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       return;
     }
 
-    // ✨ 情况 2: 没有选区，但有光标 -> 剪切光标下的单个字符
     if (textCursor) {
       e.preventDefault();
       const key = toKey(textCursor.x, textCursor.y);
       const char = grid.get(key) || " ";
       navigator.clipboard.writeText(char).then(() => {
-        // 剪切 = 复制 + 删除
         erasePoints([textCursor]);
         toast.success("Cut Char!", {
           description: "Character moved to clipboard.",

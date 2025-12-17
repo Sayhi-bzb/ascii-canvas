@@ -9,12 +9,9 @@ import { forceHistorySave } from "../../../lib/yjs-setup";
 import bresenham from "bresenham";
 import { isWideChar } from "../../../utils/char";
 
-// ✨ 新增：《建筑物完整性保护法》
-// 这个函数负责检查一个坐标点是否落在了宽字符的右半边，如果是，就将其“吸附”到左半边。
 const adjustGridForWideChars = (pos: Point, grid: GridMap): Point => {
   const charBefore = grid.get(toKey(pos.x - 1, pos.y));
   if (charBefore && isWideChar(charBefore)) {
-    // 如果左边的字符是宽字符，意味着当前位置是“幽灵地块”，需要向左吸附
     return { ...pos, x: pos.x - 1 };
   }
   return pos;
@@ -101,7 +98,7 @@ export const useCanvasInteraction = (
             offset.y,
             zoom
           );
-          // ✨ 勘测员必须遵守新法！
+
           const start = adjustGridForWideChars(rawStart, grid);
 
           if (tool === "select") {
@@ -150,7 +147,7 @@ export const useCanvasInteraction = (
             offset.y,
             zoom
           );
-          // ✨ 勘测员在拖拽过程中也必须遵守新法！
+
           const currentGrid = adjustGridForWideChars(rawEnd, grid);
 
           if (tool === "select") {
@@ -200,7 +197,6 @@ export const useCanvasInteraction = (
             const isClick = start.x === end.x && start.y === end.y;
 
             if (isClick) {
-              // ✨ 勘测结束，放置光标时同样要遵守新法！
               const clickPos = adjustGridForWideChars(start, grid);
               setTextCursor(clickPos);
               setDraggingSelection(null);

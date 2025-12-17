@@ -47,7 +47,6 @@ function App() {
     undoManager.redo();
   };
 
-  // ✨ 新增：处理复制选区的指令
   const handleCopySelection = () => {
     const { grid, selections } = useCanvasStore.getState();
     if (selections.length === 0) return;
@@ -60,14 +59,13 @@ function App() {
     });
   };
 
-  // ✨ 新增：处理剪切选区的指令
   const handleCutSelection = () => {
     const { grid, selections } = useCanvasStore.getState();
     if (selections.length === 0) return;
 
     const selectedText = exportSelectionToString(grid, selections);
     navigator.clipboard.writeText(selectedText).then(() => {
-      deleteSelection(); // 执行删除
+      deleteSelection();
       toast.success("Cut!", {
         description: "Selection moved to clipboard and deleted.",
       });
@@ -93,7 +91,6 @@ function App() {
         return;
       }
 
-      // ✨ 新增：建立 Ctrl+C 和 Ctrl+X 的指挥专线
       if (isCtrlOrMeta && e.key.toLowerCase() === "c") {
         e.preventDefault();
         handleCopySelection();
@@ -119,7 +116,7 @@ function App() {
     };
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [fillSelectionsWithChar, deleteSelection]); // 依赖项更新
+  }, [fillSelectionsWithChar, deleteSelection]);
 
   const handleExport = () => {
     const text = exportToString(grid);

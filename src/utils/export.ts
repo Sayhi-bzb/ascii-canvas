@@ -21,14 +21,13 @@ export const exportToString = (grid: Map<string, string>) => {
 
   const lines: string[] = [];
 
-  // ✨ 重构：使用智能扫描仪
   for (let y = minY - EXPORT_PADDING; y <= maxY + EXPORT_PADDING; y++) {
     let line = "";
     for (let x = minX - EXPORT_PADDING; x <= maxX + EXPORT_PADDING; x++) {
       const char = grid.get(toKey(x, y));
       if (char) {
         line += char;
-        // 如果是宽字符，跳过下一个 x 坐标
+
         if (isWideChar(char)) {
           x++;
         }
@@ -61,14 +60,14 @@ export const exportSelectionToString = (
   });
 
   const lines: string[] = [];
-  // ✨ 重构：使用智能扫描仪
+
   for (let y = minY; y <= maxY; y++) {
     let line = "";
     for (let x = minX; x <= maxX; x++) {
       const char = grid.get(toKey(x, y));
       if (char) {
         line += char;
-        // 如果是宽字符，跳过下一个 x 坐标
+
         if (isWideChar(char)) {
           x++;
         }

@@ -30,5 +30,3 @@ export type ToolType = z.infer<typeof ToolTypeSchema>;
 export type Point = z.infer<typeof PointSchema>;
 export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
 export type GridPoint = z.infer<typeof GridPointSchema>;
-
-// 移除了复杂的 Zundo/Temporal 类型，现在状态更纯粹
