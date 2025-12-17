@@ -12,7 +12,7 @@ export const exportToString = (grid: Map<string, string>) => {
   let minY = Infinity,
     maxY = -Infinity;
 
-  grid.forEach((char, key) => {
+  grid.forEach((_char, key) => {
     const { x, y } = fromKey(key);
     minX = Math.min(minX, x);
     maxX = Math.max(maxX, x);

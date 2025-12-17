@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useKeyPress } from "ahooks";
 import { AsciiCanvas } from "./components/AsciiCanvas";
