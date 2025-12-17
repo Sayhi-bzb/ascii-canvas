@@ -67,7 +67,7 @@ export const useCanvasRenderer = (
     }
     ctx.stroke();
 
-    ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono CN', monospace`;
+    ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
 
