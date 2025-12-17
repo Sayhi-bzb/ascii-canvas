@@ -1,35 +1,26 @@
-import { create, type StateCreator } from "zustand";
-import { immer } from "zustand/middleware/immer";
-import { temporal } from "zundo";
-import { enableMapSet } from "immer";
-import { MIN_ZOOM, MAX_ZOOM, UNDO_LIMIT } from "../lib/constants";
+import { create } from "zustand";
+import { MIN_ZOOM, MAX_ZOOM } from "../lib/constants";
 import { toKey } from "../utils/math";
 import { isWideChar } from "../utils/char";
-import {
-  PointSchema,
-  GridMapSchema,
-  ToolTypeSchema,
-  SelectionAreaSchema,
+import type {
+  Point,
+  GridPoint,
+  ToolType,
+  SelectionArea,
+  GridMap,
 } from "../types";
-import type { Point, GridPoint, ToolType, SelectionArea } from "../types";
-import { z } from "zod";
+import { yGrid, performTransaction, forceHistorySave } from "../lib/yjs-setup"; // 👈 引入 forceHistorySave
 
-enableMapSet();
+interface CanvasState {
+  offset: Point;
+  zoom: number;
+  tool: ToolType;
+  brushChar: string;
+  textCursor: Point | null;
+  selections: SelectionArea[];
+  scratchLayer: GridMap | null;
+  grid: GridMap;
 
-const CanvasStateSchema = z.object({
-  offset: PointSchema,
-  zoom: z.number(),
-  grid: GridMapSchema,
-  scratchLayer: GridMapSchema.nullable(),
-  tool: ToolTypeSchema,
-  brushChar: z.string().max(1),
-  textCursor: PointSchema.nullable(),
-  selections: z.array(SelectionAreaSchema),
-});
-
-type CanvasStateData = z.infer<typeof CanvasStateSchema>;
-
-export interface CanvasState extends CanvasStateData {
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
   setTool: (tool: ToolType) => void;
@@ -40,7 +31,6 @@ export interface CanvasState extends CanvasStateData {
   clearScratch: () => void;
   clearCanvas: () => void;
   setTextCursor: (pos: Point | null) => void;
-  writeTextChar: (char: string) => void;
   writeTextString: (str: string, startPos?: Point) => void;
   moveTextCursor: (dx: number, dy: number) => void;
   backspaceText: () => void;
@@ -52,236 +42,245 @@ export interface CanvasState extends CanvasStateData {
   erasePoints: (points: Point[]) => void;
 }
 
-const zodValidator =
-  <TState extends object>(
-    config: StateCreator<TState, [["zustand/immer", never]], []>,
-    schema: z.ZodSchema<Partial<TState>>
-  ): StateCreator<TState, [["zustand/immer", never]], []> =>
-  (set, get, api) =>
-    config(
-      (args) => {
-        set(args);
-        const result = schema.safeParse(get());
-        if (!result.success) {
-          console.error(
-            "Zod validation failed!",
-            result.error.flatten().fieldErrors
-          );
-        }
-      },
-      get,
-      api
-    );
+export const useCanvasStore = create<CanvasState>((set, get) => {
+  // 订阅 Y.js 数据变化
+  yGrid.observe(() => {
+    const newGrid = new Map<string, string>();
+    yGrid.forEach((value, key) => {
+      newGrid.set(key, value);
+    });
+    set({ grid: newGrid });
+  });
 
-const creator: StateCreator<CanvasState, [["zustand/immer", never]], []> = (
-  set
-) => ({
-  offset: { x: 0, y: 0 },
-  zoom: 1,
-  grid: new Map(),
-  scratchLayer: null,
-  tool: "brush",
-  brushChar: "#",
-  textCursor: null,
-  selections: [],
+  return {
+    offset: { x: 0, y: 0 },
+    zoom: 1,
+    grid: new Map(),
+    scratchLayer: null,
+    tool: "brush",
+    brushChar: "#",
+    textCursor: null,
+    selections: [],
 
-  setOffset: (updater) =>
-    set((state) => {
-      state.offset = updater(state.offset);
-    }),
-  setZoom: (updater) =>
-    set((state) => {
-      state.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, updater(state.zoom)));
-    }),
+    setOffset: (updater) => set((state) => ({ offset: updater(state.offset) })),
+    setZoom: (updater) =>
+      set((state) => ({
+        zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, updater(state.zoom))),
+      })),
+    setTool: (tool) => set({ tool, textCursor: null }),
+    setBrushChar: (char) => set({ brushChar: char }),
+    setScratchLayer: (points) => {
+      const layer = new Map<string, string>();
+      points.forEach((p) => layer.set(toKey(p.x, p.y), p.char));
+      set({ scratchLayer: layer });
+    },
+    addScratchPoints: (points) => {
+      set((state) => {
+        const layer = new Map(state.scratchLayer || []);
+        points.forEach((p) => layer.set(toKey(p.x, p.y), p.char));
+        return { scratchLayer: layer };
+      });
+    },
 
-  setTool: (tool) =>
-    set((state) => {
-      state.tool = tool;
-      state.textCursor = null;
-    }),
-  setBrushChar: (char) => set({ brushChar: char }),
+    // 🔴 关键修改 1：绘图结束（松开鼠标）
+    commitScratch: () => {
+      const { scratchLayer } = get();
+      if (!scratchLayer) return;
 
-  setScratchLayer: (points) =>
-    set((state) => {
-      state.scratchLayer = new Map();
-      points.forEach((p) => state.scratchLayer!.set(toKey(p.x, p.y), p.char));
-    }),
-
-  addScratchPoints: (points) =>
-    set((state) => {
-      if (!state.scratchLayer) state.scratchLayer = new Map();
-      points.forEach((p) => state.scratchLayer!.set(toKey(p.x, p.y), p.char));
-    }),
-
-  commitScratch: () =>
-    set((state) => {
-      if (state.scratchLayer) {
-        state.scratchLayer.forEach((value, key) => {
+      performTransaction(() => {
+        scratchLayer.forEach((value, key) => {
           if (value === " ") {
-            state.grid.delete(key);
+            yGrid.delete(key);
           } else {
-            state.grid.set(key, value);
+            yGrid.set(key, value);
           }
         });
-        state.scratchLayer = null;
-      }
-    }),
+      });
 
-  clearScratch: () =>
-    set((state) => {
-      state.scratchLayer = null;
-    }),
-  clearCanvas: () =>
-    set((state) => {
-      state.grid.clear();
-      state.selections = [];
-    }),
+      // ✨ 强制存档！告诉 UndoManager 这是一笔独立的画，别和下一笔合并
+      forceHistorySave();
 
-  setTextCursor: (pos) =>
-    set((state) => {
-      state.textCursor = pos;
-      state.selections = [];
-    }),
+      set({ scratchLayer: null });
+    },
 
-  writeTextChar: (char) =>
-    set((state) => {
-      if (state.textCursor) {
-        const { x, y } = state.textCursor;
-        state.grid.set(toKey(x, y), char);
-        state.textCursor.x += 1;
-      }
-    }),
+    clearScratch: () => set({ scratchLayer: null }),
 
-  writeTextString: (str, startPos) =>
-    set((state) => {
-      const cursor = startPos ? { ...startPos } : state.textCursor;
+    clearCanvas: () => {
+      performTransaction(() => {
+        yGrid.clear();
+      });
+      // ✨ 清空也是个大动作，必须强制存档
+      forceHistorySave();
+      set({ selections: [] });
+    },
+
+    setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
+
+    // 🔴 关键修改 2：文本输入 & 粘贴
+    writeTextString: (str, startPos) => {
+      const { textCursor } = get();
+      const cursor = startPos
+        ? { ...startPos }
+        : textCursor
+        ? { ...textCursor }
+        : null;
       if (!cursor) return;
 
       const startX = cursor.x;
+      const isPaste = str.length > 1; // 判断是否为粘贴（一次输入多个字符）
 
-      for (const char of str) {
-        if (char === "\n") {
-          cursor.y += 1;
-          cursor.x = startX;
-          continue;
+      performTransaction(() => {
+        for (const char of str) {
+          if (char === "\n") {
+            cursor.y += 1;
+            cursor.x = startX;
+            continue;
+          }
+
+          const { x, y } = cursor;
+          const wide = isWideChar(char);
+
+          yGrid.set(toKey(x, y), char);
+
+          if (wide) {
+            yGrid.delete(toKey(x + 1, y));
+            cursor.x += 2;
+          } else {
+            cursor.x += 1;
+          }
         }
+      });
 
-        const { x, y } = cursor;
-        const wide = isWideChar(char);
+      // ✨ 如果是粘贴操作，强制存档！
+      // 如果只是打字（str.length === 1），我们不强制存档，允许 UndoManager 把 continuous typing 合并
+      if (isPaste) {
+        forceHistorySave();
+      }
 
-        state.grid.set(toKey(x, y), char);
+      if (get().textCursor) {
+        set({ textCursor: { x: cursor.x, y: cursor.y } });
+      }
+    },
 
-        if (wide) {
-          state.grid.delete(toKey(x + 1, y));
-          cursor.x += 2;
-        } else {
-          cursor.x += 1;
+    moveTextCursor: (dx, dy) =>
+      set((state) => {
+        if (state.textCursor) {
+          return {
+            textCursor: {
+              x: state.textCursor.x + dx,
+              y: state.textCursor.y + dy,
+            },
+          };
         }
-      }
+        return {};
+      }),
 
-      if (state.textCursor) {
-        state.textCursor.x = cursor.x;
-        state.textCursor.y = cursor.y;
-      }
-    }),
+    backspaceText: () => {
+      const { textCursor } = get();
+      if (!textCursor) return;
+      const { x, y } = textCursor;
+      const prevKey = toKey(x - 1, y);
+      const prevChar = yGrid.get(prevKey);
 
-  moveTextCursor: (dx, dy) =>
-    set((state) => {
-      if (state.textCursor) {
-        state.textCursor.x += dx;
-        state.textCursor.y += dy;
-      }
-    }),
-
-  backspaceText: () =>
-    set((state) => {
-      if (state.textCursor) {
-        const { x, y } = state.textCursor;
-
-        const prevKey = toKey(x - 1, y);
-        const prevChar = state.grid.get(prevKey);
-
+      performTransaction(() => {
         if (prevChar) {
-          state.grid.delete(prevKey);
-          state.textCursor.x -= 1;
+          yGrid.delete(prevKey);
         } else {
           const prevPrevKey = toKey(x - 2, y);
-          const prevPrevChar = state.grid.get(prevPrevKey);
-
+          const prevPrevChar = yGrid.get(prevPrevKey);
           if (prevPrevChar && isWideChar(prevPrevChar)) {
-            state.grid.delete(prevPrevKey);
-            state.textCursor.x -= 2;
-          } else {
-            state.textCursor.x -= 1;
-          }
-        }
-      }
-    }),
-
-  newlineText: () =>
-    set((state) => {
-      if (state.textCursor) {
-        state.textCursor.y += 1;
-      }
-    }),
-
-  addSelection: (area) =>
-    set((state) => {
-      state.selections.push(area);
-    }),
-
-  clearSelections: () =>
-    set((state) => {
-      state.selections = [];
-    }),
-
-  deleteSelection: () =>
-    set((state) => {
-      if (state.selections.length === 0) return;
-
-      state.selections.forEach((area) => {
-        const minX = Math.min(area.start.x, area.end.x);
-        const maxX = Math.max(area.start.x, area.end.x);
-        const minY = Math.min(area.start.y, area.end.y);
-        const maxY = Math.max(area.start.y, area.end.y);
-
-        for (let x = minX; x <= maxX; x++) {
-          for (let y = minY; y <= maxY; y++) {
-            state.grid.delete(toKey(x, y));
+            yGrid.delete(prevPrevKey);
           }
         }
       });
-    }),
+      // Backspace 不需要强制存档，让它利用超时机制合并连续删除
 
-  fillSelections: () =>
-    set((state) => {
-      if (state.selections.length === 0) return;
+      set((state) => {
+        if (!state.textCursor) return {};
+        const { x, y } = state.textCursor;
+        const newX = prevChar
+          ? x - 1
+          : x - (isWideChar(yGrid.get(toKey(x - 2, y)) || "") ? 2 : 1);
+        return { textCursor: { x: newX, y } };
+      });
+    },
 
-      state.selections.forEach((area) => {
-        const minX = Math.min(area.start.x, area.end.x);
-        const maxX = Math.max(area.start.x, area.end.x);
-        const minY = Math.min(area.start.y, area.end.y);
-        const maxY = Math.max(area.start.y, area.end.y);
-
-        for (let x = minX; x <= maxX; x++) {
-          for (let y = minY; y <= maxY; y++) {
-            state.grid.set(toKey(x, y), state.brushChar);
-          }
+    newlineText: () =>
+      set((state) => {
+        if (state.textCursor) {
+          return {
+            textCursor: { x: state.textCursor.x, y: state.textCursor.y + 1 },
+          };
         }
-      });
-    }),
+        return {};
+      }),
 
-  erasePoints: (points) =>
-    set((state) => {
-      points.forEach((p) => {
-        state.grid.delete(toKey(p.x, p.y));
+    addSelection: (area) =>
+      set((state) => ({ selections: [...state.selections, area] })),
+    clearSelections: () => set({ selections: [] }),
+
+    deleteSelection: () => {
+      const { selections } = get();
+      if (selections.length === 0) return;
+
+      performTransaction(() => {
+        selections.forEach((area) => {
+          const minX = Math.min(area.start.x, area.end.x);
+          const maxX = Math.max(area.start.x, area.end.x);
+          const minY = Math.min(area.start.y, area.end.y);
+          const maxY = Math.max(area.start.y, area.end.y);
+
+          for (let x = minX; x <= maxX; x++) {
+            for (let y = minY; y <= maxY; y++) {
+              yGrid.delete(toKey(x, y));
+            }
+          }
+        });
       });
-    }),
+      // ✨ 删除选区是重要操作，强制存档
+      forceHistorySave();
+    },
+
+    fillSelections: () => {
+      const { selections, brushChar } = get();
+      if (selections.length === 0) return;
+
+      performTransaction(() => {
+        selections.forEach((area) => {
+          const minX = Math.min(area.start.x, area.end.x);
+          const maxX = Math.max(area.start.x, area.end.x);
+          const minY = Math.min(area.start.y, area.end.y);
+          const maxY = Math.max(area.start.y, area.end.y);
+
+          for (let x = minX; x <= maxX; x++) {
+            for (let y = minY; y <= maxY; y++) {
+              yGrid.set(toKey(x, y), brushChar);
+            }
+          }
+        });
+      });
+      // ✨ 填充是重要操作，强制存档
+      forceHistorySave();
+    },
+
+    erasePoints: (points) => {
+      performTransaction(() => {
+        points.forEach((p) => {
+          yGrid.delete(toKey(p.x, p.y));
+        });
+      });
+      // 注意：如果 erasePoints 是在拖拽过程中每帧调用的，不要在这里加 forceHistorySave。
+      // 应该在 onDragEnd 调用的地方处理，或者如果这是一个“单击擦除”操作，则可以加。
+      // 根据之前的代码，erasePoints 在 dragging 中被 throttledDraw 调用，
+      // 所以我们 **不在这里** 加 forceHistorySave，而应该依赖 useCanvasInteraction 里的 onDragEnd 逻辑？
+      // 实际上，之前的 interaction hook 在 tool==='eraser' 时是实时调用的 erasePoints。
+      // 这会导致撤销变成一个个像素点。
+
+      // 💡 优化建议：橡皮擦逻辑应该像 brush 一样，先放到 scratchLayer 或者临时 buffer，
+      // 然后在 onDragEnd 一次性提交。
+      // 但既然我们现在没有 Eraser 的 ScratchLayer，我们暂时不改动架构，
+      // 而是让 UndoManager 的 500ms timeout 来处理连续擦除的合并。
+      // 或者，在 interaction hook 的 onDragEnd 里手动调用一次 forceHistorySave。
+    },
+  };
 });
-
-export const useCanvasStore = create<CanvasState>()(
-  temporal(immer(zodValidator(creator, CanvasStateSchema)), {
-    partialize: (state) => ({ grid: state.grid }),
-    limit: UNDO_LIMIT,
-  })
-);

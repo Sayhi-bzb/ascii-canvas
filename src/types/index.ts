@@ -1,7 +1,4 @@
 import { z } from "zod";
-import type { StoreApi, UseBoundStore } from "zustand";
-import type { TemporalState } from "zundo";
-import type { CanvasState } from "../store/canvasStore";
 
 export const PointSchema = z.object({
   x: z.number(),
@@ -34,14 +31,4 @@ export type Point = z.infer<typeof PointSchema>;
 export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
 export type GridPoint = z.infer<typeof GridPointSchema>;
 
-type TrackedState = {
-  grid: GridMap;
-};
-
-type TemporalStoreState = TemporalState<TrackedState>;
-
-type TemporalStore = StoreApi<TemporalStoreState>;
-
-export type CanvasStoreWithTemporal = UseBoundStore<StoreApi<CanvasState>> & {
-  temporal: TemporalStore;
-};
+// 移除了复杂的 Zundo/Temporal 类型，现在状态更纯粹

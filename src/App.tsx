@@ -1,21 +1,64 @@
-import React from "react";
-import { useStore } from "zustand";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
 import { exportToString } from "./utils/export";
-import type { CanvasStoreWithTemporal } from "./types";
 import { AppLayout } from "./layout";
 import { Toolbar } from "./components/Toolbar";
+import { undoManager } from "./lib/yjs-setup"; // 引入我们的新档案管理员
 
 function App() {
   const { zoom, offset, tool, grid, textCursor, setTool, clearCanvas } =
     useCanvasStore();
 
-  const temporalStore = (useCanvasStore as CanvasStoreWithTemporal).temporal;
-  const { undo, redo } = temporalStore.getState();
-  const pastStates = useStore(temporalStore, (state) => state.pastStates);
-  const futureStates = useStore(temporalStore, (state) => state.futureStates);
+  // 使用本地状态来强制刷新 Undo/Redo 按钮的可用状态
+  // 因为 UndoManager 的变化不会自动触发 React 更新，我们需要监听它
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  useEffect(() => {
+    const updateStackStatus = () => {
+      setCanUndo(undoManager.undoStack.length > 0);
+      setCanRedo(undoManager.redoStack.length > 0);
+    };
+
+    // 监听历史记录栈的变化
+    undoManager.on("stack-item-added", updateStackStatus);
+    undoManager.on("stack-item-popped", updateStackStatus);
+
+    return () => {
+      undoManager.off("stack-item-added", updateStackStatus);
+      undoManager.off("stack-item-popped", updateStackStatus);
+    };
+  }, []);
+
+  const handleUndo = () => {
+    undoManager.undo();
+    toast.dismiss(); // 清理可能堆积的提示
+  };
+
+  const handleRedo = () => {
+    undoManager.redo();
+  };
+
+  // 全局快捷键
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+      if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        handleUndo();
+      } else if (
+        (isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === "z") ||
+        (isCtrlOrMeta && e.key.toLowerCase() === "y")
+      ) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
 
   const handleExport = () => {
     const text = exportToString(grid);
@@ -44,7 +87,6 @@ function App() {
       Pos: {offset.x.toFixed(0)}, {offset.y.toFixed(0)} | Zoom:{" "}
       {(zoom * 100).toFixed(0)}% <br />
       Objects: {grid.size} <br />
-      {/* 修正：不再检查 tool === 'text'，而是检查是否有光标 */}
       {!!textCursor && (
         <span className="text-blue-600 font-bold animate-pulse">
           Mode: Text Input (Click to focus)
@@ -58,10 +100,10 @@ function App() {
       <Toolbar
         tool={tool}
         setTool={setTool}
-        onUndo={() => undo()}
-        onRedo={() => redo()}
-        canUndo={pastStates.length > 0}
-        canRedo={futureStates.length > 0}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
         onExport={handleExport}
         onClear={handleClear}
       />

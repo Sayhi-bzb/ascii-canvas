@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
-import { useEventListener, useThrottleFn, useCreation } from "ahooks";
+import { useCreation, useThrottleFn } from "ahooks";
 import { screenToGrid } from "../../../utils/math";
 import { getBoxPoints, getOrthogonalLinePoints } from "../../../utils/shapes";
 import type { Point, SelectionArea } from "../../../types";
 import type { CanvasState } from "../../../store/canvasStore";
+import { forceHistorySave } from "../../../lib/yjs-setup";
 import bresenham from "bresenham";
 
 export const useCanvasInteraction = (
@@ -31,6 +32,7 @@ export const useCanvasInteraction = (
 
   const dragStartGrid = useRef<Point | null>(null);
   const lastGrid = useRef<Point | null>(null);
+  const isPanningRef = useRef(false);
 
   const lineAxisRef = useRef<"vertical" | "horizontal" | null>(null);
 
@@ -69,13 +71,24 @@ export const useCanvasInteraction = (
   const bind = useGesture(
     {
       onDragStart: ({ xy: [x, y], event }) => {
-        const isLeftClick = (event as MouseEvent).button === 0;
-        const isMiddleClickPan = (event as MouseEvent).buttons === 4;
-        const isMultiSelect =
-          (event as MouseEvent).ctrlKey || (event as MouseEvent).metaKey;
+        const mouseEvent = event as MouseEvent;
+        // 平移判定：中键(button 1) 或 Ctrl/Meta键按下
+        const isMiddleClick = mouseEvent.button === 1;
+        const isCtrlPan = mouseEvent.ctrlKey || mouseEvent.metaKey;
+        const isPanStart = isMiddleClick || isCtrlPan;
+
+        if (isPanStart) {
+          isPanningRef.current = true;
+          document.body.style.cursor = "grabbing";
+          return;
+        }
+
+        const isLeftClick = mouseEvent.button === 0;
+        // 多选判定：Shift键
+        const isMultiSelect = mouseEvent.shiftKey;
         const rect = containerRef.current?.getBoundingClientRect();
 
-        if (isLeftClick && !isMiddleClickPan && rect) {
+        if (isLeftClick && rect) {
           const start = screenToGrid(
             x - rect.left,
             y - rect.top,
@@ -113,62 +126,75 @@ export const useCanvasInteraction = (
           }
         }
       },
-      onDrag: ({ xy: [x, y], event }) => {
+      onDrag: ({ xy: [x, y], delta: [dx, dy], event }) => {
         const mouseEvent = event as MouseEvent;
-        const isPan = mouseEvent.buttons === 4;
+        // 持续检测平移状态
+        const isPanGesture =
+          mouseEvent.buttons === 4 || mouseEvent.ctrlKey || mouseEvent.metaKey;
 
-        if (isPan) {
-        } else {
-          const rect = containerRef.current?.getBoundingClientRect();
-          if (rect && dragStartGrid.current) {
-            const currentGrid = screenToGrid(
-              x - rect.left,
-              y - rect.top,
-              offset.x,
-              offset.y,
-              zoom
-            );
+        if (isPanningRef.current || isPanGesture) {
+          setOffset((prev) => ({
+            x: prev.x + dx,
+            y: prev.y + dy,
+          }));
+          return;
+        }
 
-            if (tool === "select") {
-              setDraggingSelection({
-                start: dragStartGrid.current,
-                end: currentGrid,
-              });
-              return;
-            }
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect && dragStartGrid.current) {
+          const currentGrid = screenToGrid(
+            x - rect.left,
+            y - rect.top,
+            offset.x,
+            offset.y,
+            zoom
+          );
 
-            if (tool === "brush" || tool === "eraser") {
-              throttledDraw(currentGrid);
-            } else if (tool === "box") {
-              const points = getBoxPoints(dragStartGrid.current, currentGrid);
-              setScratchLayer(points);
-            } else if (tool === "line") {
-              if (!lineAxisRef.current) {
-                const dx = Math.abs(currentGrid.x - dragStartGrid.current.x);
-                const dy = Math.abs(currentGrid.y - dragStartGrid.current.y);
+          if (tool === "select") {
+            setDraggingSelection({
+              start: dragStartGrid.current,
+              end: currentGrid,
+            });
+            return;
+          }
 
-                if (dx > 0 || dy > 0) {
-                  lineAxisRef.current = dy > dx ? "vertical" : "horizontal";
-                }
+          if (tool === "brush" || tool === "eraser") {
+            throttledDraw(currentGrid);
+          } else if (tool === "box") {
+            const points = getBoxPoints(dragStartGrid.current, currentGrid);
+            setScratchLayer(points);
+          } else if (tool === "line") {
+            if (!lineAxisRef.current) {
+              const absDx = Math.abs(currentGrid.x - dragStartGrid.current.x);
+              const absDy = Math.abs(currentGrid.y - dragStartGrid.current.y);
+
+              if (absDx > 0 || absDy > 0) {
+                lineAxisRef.current = absDy > absDx ? "vertical" : "horizontal";
               }
-
-              const isVerticalFirst = lineAxisRef.current === "vertical";
-
-              const points = getOrthogonalLinePoints(
-                dragStartGrid.current,
-                currentGrid,
-                isVerticalFirst
-              );
-              setScratchLayer(points);
             }
+
+            const isVerticalFirst = lineAxisRef.current === "vertical";
+
+            const points = getOrthogonalLinePoints(
+              dragStartGrid.current,
+              currentGrid,
+              isVerticalFirst
+            );
+            setScratchLayer(points);
           }
         }
       },
       onDragEnd: ({ event }) => {
-        const isLeftClick = (event as MouseEvent).button === 0;
-        const isMiddleClickPan = (event as MouseEvent).buttons === 4;
+        const mouseEvent = event as MouseEvent;
+        const isLeftClick = mouseEvent.button === 0;
 
-        if (isLeftClick && !isMiddleClickPan) {
+        if (isPanningRef.current) {
+          isPanningRef.current = false;
+          document.body.style.cursor = "auto";
+          return;
+        }
+
+        if (isLeftClick) {
           if (tool === "select" && draggingSelection) {
             const { start, end } = draggingSelection;
             const isClick = start.x === end.x && start.y === end.y;
@@ -181,7 +207,13 @@ export const useCanvasInteraction = (
               setDraggingSelection(null);
             }
           } else if (tool !== "fill" && tool !== "eraser") {
+            // Brush, Line, Box: 提交草稿
+            // 注意：commitScratch 内部我们已经加了 forceHistorySave()
             commitScratch();
+          } else if (tool === "eraser") {
+            // Eraser: 实时擦除结束，强制封存历史记录
+            // 避免连续擦除被合并，或与后续操作混淆
+            forceHistorySave();
           }
           dragStartGrid.current = null;
           lastGrid.current = null;
