@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
-import { exportToString } from "./utils/export";
+import { exportToString, exportSelectionToString } from "./utils/export";
 import { AppLayout } from "./layout";
 import { Toolbar } from "./components/Toolbar";
 import { undoManager } from "./lib/yjs-setup";
@@ -16,8 +16,8 @@ function App() {
     textCursor,
     setTool,
     clearCanvas,
-    // ✨ 获取新指令
     fillSelectionsWithChar,
+    deleteSelection,
   } = useCanvasStore();
 
   const [canUndo, setCanUndo] = useState(false);
@@ -47,16 +47,42 @@ function App() {
     undoManager.redo();
   };
 
+  // ✨ 新增：处理复制选区的指令
+  const handleCopySelection = () => {
+    const { grid, selections } = useCanvasStore.getState();
+    if (selections.length === 0) return;
+
+    const selectedText = exportSelectionToString(grid, selections);
+    navigator.clipboard.writeText(selectedText).then(() => {
+      toast.success("Copied!", {
+        description: "Selection copied to clipboard.",
+      });
+    });
+  };
+
+  // ✨ 新增：处理剪切选区的指令
+  const handleCutSelection = () => {
+    const { grid, selections } = useCanvasStore.getState();
+    if (selections.length === 0) return;
+
+    const selectedText = exportSelectionToString(grid, selections);
+    navigator.clipboard.writeText(selectedText).then(() => {
+      deleteSelection(); // 执行删除
+      toast.success("Cut!", {
+        description: "Selection moved to clipboard and deleted.",
+      });
+    });
+  };
+
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
       const isAlt = e.altKey;
 
-      // 处理撤销/重做
       if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === "z") {
         e.preventDefault();
         handleUndo();
-        return; // 处理完就返回
+        return;
       }
       if (
         (isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === "z") ||
@@ -64,11 +90,21 @@ function App() {
       ) {
         e.preventDefault();
         handleRedo();
-        return; // 处理完就返回
+        return;
       }
 
-      // ✨ 新增：处理选区内输入
-      // 条件：1. 按键是单个字符 2. 没有按下Ctrl/Meta/Alt 3. 有选区 4. 当前没有文本光标
+      // ✨ 新增：建立 Ctrl+C 和 Ctrl+X 的指挥专线
+      if (isCtrlOrMeta && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        handleCopySelection();
+        return;
+      }
+      if (isCtrlOrMeta && e.key.toLowerCase() === "x") {
+        e.preventDefault();
+        handleCutSelection();
+        return;
+      }
+
       const { selections, textCursor } = useCanvasStore.getState();
       if (
         !isCtrlOrMeta &&
@@ -83,7 +119,7 @@ function App() {
     };
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [fillSelectionsWithChar]); // 添加依赖
+  }, [fillSelectionsWithChar, deleteSelection]); // 依赖项更新
 
   const handleExport = () => {
     const text = exportToString(grid);

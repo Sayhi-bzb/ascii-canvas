@@ -3,7 +3,7 @@ import { useSize, useEventListener } from "ahooks";
 import { useCanvasStore } from "../../store/canvasStore";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
 import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
-import { gridToScreen } from "../../utils/math";
+import { gridToScreen, toKey } from "../../utils/math"; // ✨ 引入 toKey
 import { exportSelectionToString } from "../../utils/export";
 import { toast } from "sonner";
 
@@ -30,6 +30,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     selections,
     deleteSelection,
     grid,
+    erasePoints, // ✨ 引入 erasePoints 用于单个字符剪切
   } = store;
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
@@ -46,6 +47,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   }, [textCursor]);
 
   const handleCopy = (e: ClipboardEvent) => {
+    // 情况 1: 存在选区 -> 复制选区内容
     if (selections.length > 0) {
       e.preventDefault();
       const selectedText = exportSelectionToString(grid, selections);
@@ -54,11 +56,25 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
           description: "Selection copied to clipboard.",
         });
       });
+      return;
+    }
+
+    // ✨ 情况 2: 没有选区，但有光标 -> 复制光标下的单个字符
+    if (textCursor) {
+      e.preventDefault();
+      const key = toKey(textCursor.x, textCursor.y);
+      const char = grid.get(key) || " ";
+      navigator.clipboard.writeText(char).then(() => {
+        toast.success("Copied Char!", {
+          description: `Character '${char}' copied.`,
+        });
+      });
     }
   };
   useEventListener("copy", handleCopy);
 
   const handleCut = (e: ClipboardEvent) => {
+    // 情况 1: 存在选区 -> 剪切选区
     if (selections.length > 0) {
       e.preventDefault();
 
@@ -67,6 +83,21 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
         deleteSelection();
         toast.success("Cut!", {
           description: "Selection moved to clipboard and deleted.",
+        });
+      });
+      return;
+    }
+
+    // ✨ 情况 2: 没有选区，但有光标 -> 剪切光标下的单个字符
+    if (textCursor) {
+      e.preventDefault();
+      const key = toKey(textCursor.x, textCursor.y);
+      const char = grid.get(key) || " ";
+      navigator.clipboard.writeText(char).then(() => {
+        // 剪切 = 复制 + 删除
+        erasePoints([textCursor]);
+        toast.success("Cut Char!", {
+          description: "Character moved to clipboard.",
         });
       });
     }
@@ -157,7 +188,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 
     const isCtrlOrMeta = e.ctrlKey || e.metaKey;
 
-    // ✨ 新增：在 textarea 内部直接处理撤销/重做快捷键
     if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === "z") {
       e.preventDefault();
       onUndo();
