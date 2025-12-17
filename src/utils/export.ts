@@ -1,5 +1,6 @@
 import { EXPORT_PADDING } from "../lib/constants";
 import type { GridMap, SelectionArea } from "../types";
+import { isWideChar } from "./char";
 import { fromKey, toKey } from "./math";
 
 export const exportToString = (grid: Map<string, string>) => {
@@ -10,32 +11,33 @@ export const exportToString = (grid: Map<string, string>) => {
   let minY = Infinity,
     maxY = -Infinity;
 
-  grid.forEach((_, key) => {
-    const { x, y } = fromKey(key);
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  });
-
-  const padding = EXPORT_PADDING;
-  const width = maxX - minX + 1 + padding * 2;
-  const height = maxY - minY + 1 + padding * 2;
-
-  const lines: string[] = [];
-  for (let y = 0; y < height; y++) {
-    lines.push(" ".repeat(width));
-  }
-
   grid.forEach((char, key) => {
     const { x, y } = fromKey(key);
-    const localX = x - minX + padding;
-    const localY = y - minY + padding;
-
-    const line = lines[localY];
-    lines[localY] =
-      line.substring(0, localX) + char + line.substring(localX + 1);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
   });
+
+  const lines: string[] = [];
+
+  // ✨ 重构：使用智能扫描仪
+  for (let y = minY - EXPORT_PADDING; y <= maxY + EXPORT_PADDING; y++) {
+    let line = "";
+    for (let x = minX - EXPORT_PADDING; x <= maxX + EXPORT_PADDING; x++) {
+      const char = grid.get(toKey(x, y));
+      if (char) {
+        line += char;
+        // 如果是宽字符，跳过下一个 x 坐标
+        if (isWideChar(char)) {
+          x++;
+        }
+      } else {
+        line += " ";
+      }
+    }
+    lines.push(line);
+  }
 
   return lines.join("\n");
 };
@@ -59,10 +61,20 @@ export const exportSelectionToString = (
   });
 
   const lines: string[] = [];
+  // ✨ 重构：使用智能扫描仪
   for (let y = minY; y <= maxY; y++) {
     let line = "";
     for (let x = minX; x <= maxX; x++) {
-      line += grid.get(toKey(x, y)) || " ";
+      const char = grid.get(toKey(x, y));
+      if (char) {
+        line += char;
+        // 如果是宽字符，跳过下一个 x 坐标
+        if (isWideChar(char)) {
+          x++;
+        }
+      } else {
+        line += " ";
+      }
     }
     lines.push(line);
   }

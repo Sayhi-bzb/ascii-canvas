@@ -11,7 +11,6 @@ import type {
 } from "../types";
 import { yGrid, performTransaction, forceHistorySave } from "../lib/yjs-setup";
 
-// ✨ 修正：公开 CanvasState 蓝图，以便全局引用
 export interface CanvasState {
   offset: Point;
   zoom: number;
@@ -113,6 +112,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
 
     setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
 
+    // ✨ 重构：写入逻辑 - 实施“积木”规则
     writeTextString: (str, startPos) => {
       const { textCursor } = get();
       const cursor = startPos
@@ -139,8 +139,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           yGrid.set(toKey(x, y), char);
 
           if (wide) {
+            // 核心规则：宽字符占领 (x,y) 并清空 (x+1,y)
             yGrid.delete(toKey(x + 1, y));
-            cursor.x += 2;
+            cursor.x += 2; // 光标跳过整个积木
           } else {
             cursor.x += 1;
           }
@@ -156,53 +157,61 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       }
     },
 
-    moveTextCursor: (dx, dy) =>
-      set((state) => {
-        if (state.textCursor) {
-          return {
-            textCursor: {
-              x: state.textCursor.x + dx,
-              y: state.textCursor.y + dy,
-            },
-          };
-        }
-        return {};
-      }),
-
-    backspaceText: () => {
-      const { textCursor } = get();
+    // ✨ 重构：光标移动逻辑 - 实现“积木跳跃”
+    moveTextCursor: (dx, dy) => {
+      const { textCursor, grid } = get();
       if (!textCursor) return;
-      const { x, y } = textCursor;
-      const prevKey = toKey(x - 1, y);
-      const prevChar = yGrid.get(prevKey);
 
-      performTransaction(() => {
-        if (prevChar) {
-          yGrid.delete(prevKey);
-        } else {
-          const prevPrevKey = toKey(x - 2, y);
-          const prevPrevChar = yGrid.get(prevPrevKey);
-          if (prevPrevChar && isWideChar(prevPrevChar)) {
-            yGrid.delete(prevPrevKey);
+      let newX = textCursor.x;
+      let newY = textCursor.y;
+
+      if (dy !== 0) {
+        newY += dy;
+      }
+
+      if (dx > 0) {
+        // 向右移动
+        const char = grid.get(toKey(newX, newY));
+        newX += char && isWideChar(char) ? 2 : 1;
+      } else if (dx < 0) {
+        // 向左移动
+        const char = grid.get(toKey(newX - 2, newY));
+        newX -= char && isWideChar(char) ? 2 : 1;
+      }
+
+      set({ textCursor: { x: newX, y: newY } });
+    },
+
+    // ✨ 重构：退格逻辑 - 实现“积木删除”
+    backspaceText: () => {
+      const { textCursor, grid } = get();
+      if (!textCursor) return;
+
+      const targetX = textCursor.x;
+      const charBefore = grid.get(toKey(targetX - 2, textCursor.y));
+
+      // 判断光标前是宽字符还是窄字符
+      const isPrevWide = charBefore && isWideChar(charBefore);
+      const deleteFromX = isPrevWide ? targetX - 2 : targetX - 1;
+      const newCursorX = deleteFromX;
+
+      if (deleteFromX < textCursor.x) {
+        performTransaction(() => {
+          yGrid.delete(toKey(deleteFromX, textCursor.y));
+          // 如果是宽字符，它的幽灵地块理论上已经是空的，但为保险起见可以再删一次
+          if (isPrevWide) {
+            yGrid.delete(toKey(deleteFromX + 1, textCursor.y));
           }
-        }
-      });
-
-      set((state) => {
-        if (!state.textCursor) return {};
-        const { x, y } = state.textCursor;
-        const newX = prevChar
-          ? x - 1
-          : x - (isWideChar(yGrid.get(toKey(x - 2, y)) || "") ? 2 : 1);
-        return { textCursor: { x: newX, y } };
-      });
+        });
+        set({ textCursor: { x: newCursorX, y: textCursor.y } });
+      }
     },
 
     newlineText: () =>
       set((state) => {
         if (state.textCursor) {
           return {
-            textCursor: { x: state.textCursor.x, y: state.textCursor.y + 1 },
+            textCursor: { ...state.textCursor, y: state.textCursor.y + 1 },
           };
         }
         return {};
@@ -236,28 +245,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
     fillSelections: () => {
       const { selections, brushChar } = get();
       if (selections.length === 0) return;
-
-      performTransaction(() => {
-        selections.forEach((area) => {
-          const minX = Math.min(area.start.x, area.end.x);
-          const maxX = Math.max(area.start.x, area.end.x);
-          const minY = Math.min(area.start.y, area.end.y);
-          const maxY = Math.max(area.start.y, area.end.y);
-
-          for (let x = minX; x <= maxX; x++) {
-            for (let y = minY; y <= maxY; y++) {
-              yGrid.set(toKey(x, y), brushChar);
-            }
-          }
-        });
-      });
-      forceHistorySave();
+      get().fillSelectionsWithChar(brushChar);
     },
 
+    // ✨ 重构：填充逻辑 - 遵循“积木”规则
     fillSelectionsWithChar: (char: string) => {
       const { selections } = get();
       if (selections.length === 0) return;
 
+      const wide = isWideChar(char);
+
       performTransaction(() => {
         selections.forEach((area) => {
           const minX = Math.min(area.start.x, area.end.x);
@@ -265,9 +262,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           const minY = Math.min(area.start.y, area.end.y);
           const maxY = Math.max(area.start.y, area.end.y);
 
-          for (let x = minX; x <= maxX; x++) {
-            for (let y = minY; y <= maxY; y++) {
+          for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
               yGrid.set(toKey(x, y), char);
+              if (wide) {
+                if (x + 1 <= maxX) {
+                  yGrid.delete(toKey(x + 1, y));
+                }
+                x++; // 跳过下一个单元格
+              }
             }
           }
         });
@@ -278,7 +281,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
     erasePoints: (points) => {
       performTransaction(() => {
         points.forEach((p) => {
+          const char = yGrid.get(toKey(p.x, p.y));
           yGrid.delete(toKey(p.x, p.y));
+          if (char && isWideChar(char)) {
+            yGrid.delete(toKey(p.x + 1, p.y));
+          }
         });
       });
     },

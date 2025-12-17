@@ -14,7 +14,7 @@ import {
   GRID_COLOR,
 } from "../../../lib/constants";
 import { type CanvasState } from "../../../store/canvasStore";
-import { fromKey, gridToScreen, toKey } from "../../../utils/math";
+import { gridToScreen, toKey } from "../../../utils/math";
 import type { SelectionArea } from "../../../types";
 import { isWideChar } from "../../../utils/char";
 
@@ -24,8 +24,7 @@ export const useCanvasRenderer = (
   store: CanvasState,
   draggingSelection: SelectionArea | null
 ) => {
-  const { offset, zoom, grid, scratchLayer, tool, textCursor, selections } =
-    store;
+  const { offset, zoom, grid, scratchLayer, textCursor, selections } = store;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -51,9 +50,9 @@ export const useCanvasRenderer = (
     const scaledCellW = CELL_WIDTH * zoom;
     const scaledCellH = CELL_HEIGHT * zoom;
     const startCol = Math.floor(-offset.x / scaledCellW);
-    const endCol = startCol + size.width / scaledCellW + 1;
+    const endCol = startCol + Math.ceil(size.width / scaledCellW) + 1;
     const startRow = Math.floor(-offset.y / scaledCellH);
-    const endRow = startRow + size.height / scaledCellH + 1;
+    const endRow = startRow + Math.ceil(size.height / scaledCellH) + 1;
 
     for (let col = startCol; col <= endCol; col++) {
       const x = Math.floor(col * scaledCellW + offset.x);
@@ -71,29 +70,26 @@ export const useCanvasRenderer = (
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
 
+    // ✨ 重构：使用传统 for 循环以控制渲染跳跃
     const renderLayer = (layer: Map<string, string>, color: string) => {
       ctx.fillStyle = color;
-      layer.forEach((char, key) => {
-        const { x, y } = fromKey(key);
-        if (
-          x >= startCol - 1 &&
-          x <= endCol &&
-          y >= startRow - 1 &&
-          y <= endRow
-        ) {
-          const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
+      for (let y = startRow; y <= endRow; y++) {
+        for (let x = startCol; x <= endCol; x++) {
+          const char = layer.get(toKey(x, y));
+          if (!char || char === " ") continue;
 
-          if (char === " ") {
-            return;
-          } else {
-            const wide = isWideChar(char);
-            const centerX =
-              screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
-            const centerY = screenPos.y + scaledCellH / 2;
-            ctx.fillText(char, centerX, centerY);
+          const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
+          const wide = isWideChar(char);
+          const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
+          const centerY = screenPos.y + scaledCellH / 2;
+
+          ctx.fillText(char, centerX, centerY);
+
+          if (wide) {
+            x++; // 核心：渲染完宽字符后，强制跳过下一个 x 坐标
           }
         }
-      });
+      }
     };
 
     renderLayer(grid, COLOR_PRIMARY_TEXT);
@@ -124,22 +120,18 @@ export const useCanvasRenderer = (
 
     if (textCursor) {
       const { x, y } = textCursor;
-      if (
-        x >= startCol - 1 &&
-        x <= endCol &&
-        y >= startRow - 1 &&
-        y <= endRow
-      ) {
-        const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
-        ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
-        ctx.fillRect(screenPos.x, screenPos.y, scaledCellW, scaledCellH);
-        const charUnderCursor = grid.get(toKey(x, y));
-        if (charUnderCursor) {
-          const wide = isWideChar(charUnderCursor);
-          ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-          const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
-          ctx.fillText(charUnderCursor, centerX, screenPos.y + scaledCellH / 2);
-        }
+      const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
+      const charUnderCursor = grid.get(toKey(x, y));
+      const wide = charUnderCursor ? isWideChar(charUnderCursor) : false;
+      const cursorWidth = wide ? scaledCellW * 2 : scaledCellW;
+
+      ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
+      ctx.fillRect(screenPos.x, screenPos.y, cursorWidth, scaledCellH);
+
+      if (charUnderCursor) {
+        ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
+        const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
+        ctx.fillText(charUnderCursor, centerX, screenPos.y + scaledCellH / 2);
       }
     }
 
@@ -155,7 +147,6 @@ export const useCanvasRenderer = (
     grid,
     scratchLayer,
     textCursor,
-    tool,
     selections,
     draggingSelection,
     canvasRef,
