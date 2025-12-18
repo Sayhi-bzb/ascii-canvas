@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import * as Y from "yjs";
 import type { CanvasState, TextSlice } from "../interfaces";
-import { performTransaction, forceHistorySave } from "../../lib/yjs-setup";
+import { transactWithHistory } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getActiveGridYMap } from "../utils";
 import { PointSchema } from "../../types";
@@ -23,7 +23,6 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
     if (!targetGrid) return;
 
     const startPos = rawStartPos ? PointSchema.parse(rawStartPos) : undefined;
-
     const cursor = startPos
       ? { ...startPos }
       : textCursor
@@ -32,7 +31,8 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
     if (!cursor) return;
 
     const startX = cursor.x;
-    performTransaction(() => {
+    // 只有当输入的字符串大于1个字符（如粘贴）时，才强制结束当前的捕捉，否则依赖 captureTimeout
+    transactWithHistory(() => {
       for (const char of str) {
         if (char === "\n") {
           cursor.y += 1;
@@ -53,8 +53,8 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
           cursor.x += 1;
         }
       }
-    });
-    if (str.length > 1) forceHistorySave();
+    }, str.length > 1);
+
     if (get().textCursor) set({ textCursor: { x: cursor.x, y: cursor.y } });
   },
 
@@ -93,7 +93,7 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
     if (!charAtMinus1 && charAtMinus2 && GridManager.isWideChar(charAtMinus2)) {
       deletePos = { x: x - 2, y };
     }
-    performTransaction(() => {
+    transactWithHistory(() => {
       targetGrid.delete(GridManager.toKey(deletePos.x, deletePos.y));
     });
     set({ textCursor: deletePos });

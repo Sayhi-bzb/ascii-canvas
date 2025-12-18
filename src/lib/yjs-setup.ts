@@ -61,3 +61,16 @@ export const performTransaction = (fn: () => void) => {
 export const forceHistorySave = () => {
   undoManager.stopCapturing();
 };
+
+/**
+ * 统一建设指挥部：封装事务与历史记录保存逻辑
+ */
+export const transactWithHistory = (
+  fn: () => void,
+  shouldSaveHistory = true
+) => {
+  performTransaction(fn);
+  if (shouldSaveHistory) {
+    forceHistorySave();
+  }
+};

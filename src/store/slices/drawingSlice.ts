@@ -3,7 +3,7 @@ import * as Y from "yjs";
 import { z } from "zod";
 import { toast } from "sonner";
 import type { CanvasState, DrawingSlice } from "../interfaces";
-import { performTransaction, forceHistorySave } from "../../lib/yjs-setup";
+import { transactWithHistory } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getActiveGridYMap } from "../utils";
 import { GridPointSchema } from "../../types";
@@ -18,7 +18,6 @@ export const createDrawingSlice: StateCreator<
 
   setScratchLayer: (rawPoints) => {
     const points = z.array(GridPointSchema).parse(rawPoints);
-
     const layer = new Map<string, string>();
     points.forEach((p) => layer.set(GridManager.toKey(p.x, p.y), p.char));
     set({ scratchLayer: layer });
@@ -26,7 +25,6 @@ export const createDrawingSlice: StateCreator<
 
   addScratchPoints: (rawPoints) => {
     const points = z.array(GridPointSchema).parse(rawPoints);
-
     set((state) => {
       const layer = new Map(state.scratchLayer || []);
       points.forEach((p) => layer.set(GridManager.toKey(p.x, p.y), p.char));
@@ -45,12 +43,14 @@ export const createDrawingSlice: StateCreator<
       });
       return;
     }
-    performTransaction(() => {
+
+    transactWithHistory(() => {
       scratchLayer.forEach((value, key) => {
         const { x, y } = GridManager.fromKey(key);
         const leftChar = targetGrid.get(GridManager.toKey(x - 1, y));
         if (leftChar && GridManager.isWideChar(leftChar))
           targetGrid.delete(GridManager.toKey(x - 1, y));
+
         if (value === " ") {
           targetGrid.delete(key);
         } else {
@@ -60,7 +60,6 @@ export const createDrawingSlice: StateCreator<
         }
       });
     });
-    forceHistorySave();
     set({ scratchLayer: null });
   },
 
@@ -71,8 +70,7 @@ export const createDrawingSlice: StateCreator<
       get().activeNodeId
     ) as Y.Map<string> | null;
     if (targetGrid) {
-      performTransaction(() => targetGrid.clear());
-      forceHistorySave();
+      transactWithHistory(() => targetGrid.clear());
     }
   },
 
@@ -80,7 +78,7 @@ export const createDrawingSlice: StateCreator<
     const { activeNodeId, grid } = get();
     const targetGrid = getActiveGridYMap(activeNodeId) as Y.Map<string> | null;
     if (!targetGrid) return;
-    performTransaction(() => {
+    transactWithHistory(() => {
       points.forEach((p) => {
         const head = GridManager.snapToCharStart(p, grid);
         targetGrid.delete(GridManager.toKey(head.x, head.y));

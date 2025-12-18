@@ -23,6 +23,7 @@ src
 │       ├── input.tsx
 │       ├── label.tsx
 │       ├── menu-dock.tsx
+│       ├── popover.tsx
 │       ├── separator.tsx
 │       ├── sheet.tsx
 │       ├── sidebar.tsx

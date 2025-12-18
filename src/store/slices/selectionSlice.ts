@@ -2,7 +2,7 @@ import type { StateCreator } from "zustand";
 import * as Y from "yjs";
 import { toast } from "sonner";
 import type { CanvasState, SelectionSlice } from "../interfaces";
-import { performTransaction, forceHistorySave } from "../../lib/yjs-setup";
+import { transactWithHistory } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
 import { exportSelectionToString } from "../../utils/export";
@@ -29,7 +29,7 @@ export const createSelectionSlice: StateCreator<
     const targetGrid = getActiveGridYMap(activeNodeId) as Y.Map<string> | null;
     if (!targetGrid) return;
 
-    performTransaction(() => {
+    transactWithHistory(() => {
       selections.forEach((area) => {
         const { minX, maxX, minY, maxY } = getSelectionBounds(area);
         for (let y = minY; y <= maxY; y++) {
@@ -40,7 +40,6 @@ export const createSelectionSlice: StateCreator<
         }
       });
     });
-    forceHistorySave();
   },
 
   fillSelections: () => {
@@ -54,7 +53,7 @@ export const createSelectionSlice: StateCreator<
     if (!targetGrid) return;
 
     const charWidth = GridManager.getCharWidth(char);
-    performTransaction(() => {
+    transactWithHistory(() => {
       selections.forEach((area) => {
         const { minX, maxX, minY, maxY } = getSelectionBounds(area);
         for (let y = minY; y <= maxY; y++) {
@@ -67,7 +66,6 @@ export const createSelectionSlice: StateCreator<
         }
       });
     });
-    forceHistorySave();
   },
 
   copySelectionToClipboard: () => {

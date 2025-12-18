@@ -2,11 +2,7 @@ import type { StateCreator } from "zustand";
 import * as Y from "yjs";
 import { toast } from "sonner";
 import type { CanvasState, NodeSlice } from "../interfaces";
-import {
-  ySceneRoot,
-  performTransaction,
-  forceHistorySave,
-} from "../../lib/yjs-setup";
+import { ySceneRoot, transactWithHistory } from "../../lib/yjs-setup";
 import { findNodeById } from "../../utils/scene";
 import { NodeTypeSchema } from "../../types";
 
@@ -17,23 +13,21 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
     const node = findNodeById(ySceneRoot, id);
     if (!node) return;
 
-    performTransaction(() => {
+    transactWithHistory(() => {
       Object.entries(updates).forEach(([key, value]) => {
         if (key === "children" || key === "content" || key === "id") return;
         node.set(key, value);
       });
     });
-    forceHistorySave();
   },
 
   addNode: (parentId, rawType, name) => {
     const type = NodeTypeSchema.parse(rawType);
-
     const parent = findNodeById(ySceneRoot, parentId);
     if (!parent) return;
     const children = parent.get("children") as Y.Array<Y.Map<unknown>>;
 
-    performTransaction(() => {
+    transactWithHistory(() => {
       const newNode = new Y.Map<unknown>();
       const id = crypto.randomUUID();
 
@@ -55,7 +49,6 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
       children.push([newNode]);
       set({ activeNodeId: id });
     });
-    forceHistorySave();
   },
 
   deleteNode: (id) => {
@@ -76,12 +69,11 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
       return false;
     };
 
-    performTransaction(() => {
+    transactWithHistory(() => {
       if (findAndRemove(ySceneRoot)) {
         set({ activeNodeId: "item-main" });
         toast.success("Node deleted");
       }
     });
-    forceHistorySave();
   },
 });
