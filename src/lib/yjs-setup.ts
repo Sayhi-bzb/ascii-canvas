@@ -2,7 +2,6 @@ import * as Y from "yjs";
 
 const yDoc = new Y.Doc();
 
-// 市长，我们移除了旧的 yGrid，现在全城统一使用 scene-root 及其子节点系统
 export const ySceneRoot = yDoc.getMap<unknown>("scene-root");
 
 const initializeScene = () => {

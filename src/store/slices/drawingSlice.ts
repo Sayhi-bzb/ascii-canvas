@@ -17,7 +17,6 @@ export const createDrawingSlice: StateCreator<
   scratchLayer: null,
 
   setScratchLayer: (rawPoints) => {
-    // Zod 执法点：验证临时涂层数据完整性
     const points = z.array(GridPointSchema).parse(rawPoints);
 
     const layer = new Map<string, string>();
@@ -26,7 +25,6 @@ export const createDrawingSlice: StateCreator<
   },
 
   addScratchPoints: (rawPoints) => {
-    // Zod 执法点：验证增量点数据
     const points = z.array(GridPointSchema).parse(rawPoints);
 
     set((state) => {

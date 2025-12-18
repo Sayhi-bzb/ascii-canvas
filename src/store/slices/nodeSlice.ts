@@ -17,8 +17,6 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
     const node = findNodeById(ySceneRoot, id);
     if (!node) return;
 
-    // 虽然 partial update 比较难用 schema 完全校验，
-    // 但我们可以确保这里不会意外传入 illegal keys
     performTransaction(() => {
       Object.entries(updates).forEach(([key, value]) => {
         if (key === "children" || key === "content" || key === "id") return;
@@ -29,7 +27,6 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
   },
 
   addNode: (parentId, rawType, name) => {
-    // Zod 执法点：确保用地性质合法
     const type = NodeTypeSchema.parse(rawType);
 
     const parent = findNodeById(ySceneRoot, parentId);
@@ -40,7 +37,6 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
       const newNode = new Y.Map<unknown>();
       const id = crypto.randomUUID();
 
-      // 这里构建的数据结构隐式符合 CanvasNodeSchema
       newNode.set("id", id);
       newNode.set("type", type);
       newNode.set("name", name);

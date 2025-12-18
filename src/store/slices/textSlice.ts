@@ -13,7 +13,6 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   textCursor: null,
 
   setTextCursor: (rawPos) => {
-    // Zod 执法点：确保光标坐标是合法的 Point
     const pos = rawPos ? PointSchema.parse(rawPos) : null;
     set({ textCursor: pos, selections: [] });
   },
@@ -23,7 +22,6 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
     const targetGrid = getActiveGridYMap(activeNodeId) as Y.Map<string> | null;
     if (!targetGrid) return;
 
-    // Zod 执法点：验证起始输入位置
     const startPos = rawStartPos ? PointSchema.parse(rawStartPos) : undefined;
 
     const cursor = startPos

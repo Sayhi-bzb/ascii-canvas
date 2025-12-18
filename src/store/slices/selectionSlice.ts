@@ -18,7 +18,6 @@ export const createSelectionSlice: StateCreator<
   selections: [],
 
   addSelection: (rawArea) => {
-    // Zod 执法点：确保选区结构符合法规
     const area = SelectionAreaSchema.parse(rawArea);
     set((s) => ({ selections: [...s.selections, area] }));
   },
