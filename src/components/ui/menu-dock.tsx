@@ -63,7 +63,6 @@ export const MenuDock: React.FC<MenuDockProps> = ({
     return internalActiveIndex;
   }, [activeId, finalItems, internalActiveIndex]);
 
-  // 存储下划线的物理参数
   const [indicatorStyle, setIndicatorStyle] = useState({
     width: 0,
     left: 0,
@@ -83,8 +82,6 @@ export const MenuDock: React.FC<MenuDockProps> = ({
         const containerRect = container.getBoundingClientRect();
 
         if (orientation === "horizontal") {
-          // 如果显示标签，下划线宽度等于按钮内文字/内容宽度（大约占 60%）
-          // 如果不显示标签，下划线固定为 24px (w-6)
           const width = showLabels ? btnRect.width * 0.6 : 24;
           const left =
             btnRect.left - containerRect.left + (btnRect.width - width) / 2;
@@ -92,17 +89,16 @@ export const MenuDock: React.FC<MenuDockProps> = ({
           setIndicatorStyle({
             width,
             left,
-            top: 0, // 水平模式下 top 由 CSS bottom 控制
-            height: 2, // h-0.5
+            top: 0,
+            height: 2,
           });
         } else {
-          // 垂直模式逻辑
-          const height = 24; // h-6
+          const height = 24;
           const top =
             btnRect.top - containerRect.top + (btnRect.height - height) / 2;
           setIndicatorStyle({
-            width: 4, // w-1
-            left: 4, // left-1
+            width: 4,
+            left: 4,
             top,
             height,
           });
@@ -110,9 +106,8 @@ export const MenuDock: React.FC<MenuDockProps> = ({
       }
     };
 
-    // 立即更新并监听
     updateIndicator();
-    const timer = setTimeout(updateIndicator, 50); // 确保容器渲染后的二次校准
+    const timer = setTimeout(updateIndicator, 50);
     window.addEventListener("resize", updateIndicator);
     return () => {
       window.removeEventListener("resize", updateIndicator);

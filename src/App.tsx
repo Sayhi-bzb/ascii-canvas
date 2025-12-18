@@ -23,10 +23,8 @@ function App() {
     cutSelectionToClipboard,
   } = useCanvasStore();
 
-  // 移除了空转的 canUndo 和 canRedo 状态监听
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
-  // handleUndo 和 handleRedo 依然保留，因为键盘快捷键和画布交互需要它们
   const handleUndo = () => {
     undoManager.undo();
     toast.dismiss();
@@ -84,8 +82,6 @@ function App() {
       });
     });
   };
-
-  // 移除了无人触发的 handleClear 行政预案
 
   return (
     <SidebarProvider className="flex h-full w-full overflow-hidden">

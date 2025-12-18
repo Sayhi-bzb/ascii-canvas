@@ -73,7 +73,6 @@ export const SceneTreeNode = ({
 
   const hasChildren = node.children && node.children.length > 0;
 
-  // 如果侧边栏收缩，只显示图标
   if (isSidebarCollapsed) {
     return (
       <Tooltip>

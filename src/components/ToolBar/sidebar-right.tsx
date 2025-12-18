@@ -64,7 +64,6 @@ export function SidebarRight({
       variant="floating"
       side="right"
       title="Properties"
-      // 关键修复：添加 pointer-events-auto 以恢复此组件的交互能力
       className="pointer-events-auto"
       icon={
         <div className="flex items-center justify-center rounded-lg bg-accent p-1.5 shrink-0">

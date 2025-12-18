@@ -19,11 +19,9 @@ interface ToolbarProps {
   setTool: (tool: ToolType) => void;
   onUndo: () => void;
   onExport: () => void;
-  // 移除了未使用的 onRedo, canUndo, canRedo, onClear 等合同条约
 }
 
 export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
-  // 精选 8 个核心功能位，确保下划线标线绝对对齐
   const menuItems: MenuDockItem[] = [
     {
       id: "select",
