@@ -1,8 +1,6 @@
 import * as React from "react";
 import {
   Layers,
-  Component,
-  Book,
   ChevronRight,
   Box,
   FileText,

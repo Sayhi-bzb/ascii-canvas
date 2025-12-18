@@ -2,9 +2,6 @@ import * as Y from "yjs";
 import { GridManager } from "./grid";
 import type { CanvasNode, GridMap, NodeType } from "../types";
 
-/**
- * 场景合成器 (The Compositor)
- */
 export const composeScene = (
   node: Y.Map<unknown>,
   globalOffsetX: number = 0,
@@ -38,7 +35,6 @@ export const composeScene = (
   if (children instanceof Y.Array) {
     children.forEach((childNode) => {
       if (childNode instanceof Y.Map) {
-        // 此处递归调用时显式断言，确保符合 Y.Map<unknown>
         composeScene(
           childNode as Y.Map<unknown>,
           currentGlobalX,
@@ -50,9 +46,6 @@ export const composeScene = (
   }
 };
 
-/**
- * 场景图解析器 (The Parser)
- */
 export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
   const id = node.get("id") as string;
   const type = node.get("type") as NodeType;
@@ -88,9 +81,6 @@ export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
   };
 };
 
-/**
- * 节点寻址器 (The Locator)
- */
 export const findNodeById = (
   root: Y.Map<unknown>,
   id: string
