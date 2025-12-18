@@ -55,6 +55,7 @@ export const CanvasNodeSchema: z.ZodType<CanvasNode> = z.lazy(() =>
 );
 
 export type GridMap = Map<string, string>;
+
 export type ToolType =
   | "select"
   | "fill"
@@ -62,4 +63,5 @@ export type ToolType =
   | "eraser"
   | "box"
   | "line"
-  | "stepline";
+  | "stepline"
+  | "circle";

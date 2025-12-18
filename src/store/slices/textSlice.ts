@@ -31,7 +31,6 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
     if (!cursor) return;
 
     const startX = cursor.x;
-    // 只有当输入的字符串大于1个字符（如粘贴）时，才强制结束当前的捕捉，否则依赖 captureTimeout
     transactWithHistory(() => {
       for (const char of str) {
         if (char === "\n") {

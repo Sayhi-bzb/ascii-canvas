@@ -6,6 +6,7 @@ import {
   getBoxPoints,
   getLShapeLinePoints,
   getStepLinePoints,
+  getCirclePoints,
 } from "../../../utils/shapes";
 import type { Point, SelectionArea } from "../../../types";
 import { type CanvasState } from "../../../store/canvasStore";
@@ -138,6 +139,10 @@ export const useCanvasInteraction = (
             throttledDraw(currentGrid);
           } else if (tool === "box") {
             setScratchLayer(getBoxPoints(dragStartGrid.current, currentGrid));
+          } else if (tool === "circle") {
+            setScratchLayer(
+              getCirclePoints(dragStartGrid.current, currentGrid, brushChar)
+            );
           } else if (tool === "line") {
             if (!lineAxisRef.current) {
               const adx = Math.abs(currentGrid.x - dragStartGrid.current.x);
@@ -180,6 +185,7 @@ export const useCanvasInteraction = (
           } else if (
             tool === "brush" ||
             tool === "box" ||
+            tool === "circle" ||
             tool === "line" ||
             tool === "stepline"
           ) {

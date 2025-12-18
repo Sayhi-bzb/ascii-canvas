@@ -73,15 +73,9 @@ export function getLShapeLinePoints(
     }
   };
 
-  if (isVerticalFirst) {
-    drawLine(start, junction);
-    points.pop();
-    drawLine(junction, end);
-  } else {
-    drawLine(start, junction);
-    points.pop();
-    drawLine(junction, end);
-  }
+  drawLine(start, junction);
+  points.pop();
+  drawLine(junction, end);
 
   const uniquePoints: Point[] = [];
   const seen = new Set();
@@ -146,4 +140,60 @@ export function getBoxPoints(start: Point, end: Point): GridPoint[] {
     }
   }
   return points;
+}
+
+export function getCirclePoints(center: Point, edge: Point): GridPoint[] {
+  const dx = edge.x - center.x;
+  const dy = edge.y - center.y;
+  const radius = Math.sqrt(dx * dx + dy * 2 * (dy * 2)) * 2;
+
+  if (radius < 1) return [{ x: center.x, y: center.y, char: "·" }];
+
+  const result: GridPoint[] = [];
+  const minX = Math.floor(center.x - radius / 2) - 1;
+  const maxX = Math.ceil(center.x + radius / 2) + 1;
+  const minY = Math.floor(center.y - radius / 4) - 1;
+  const maxY = Math.ceil(center.y + radius / 4) + 1;
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      let brailleCode = 0;
+
+      const dotMap = [
+        [0, 0, 0x01],
+        [0, 1, 0x02],
+        [0, 2, 0x04],
+        [1, 0, 0x08],
+        [1, 1, 0x10],
+        [1, 2, 0x20],
+        [0, 3, 0x40],
+        [1, 3, 0x80],
+      ];
+
+      dotMap.forEach(([dx_sub, dy_sub, bit]) => {
+        const subX = x * 2 + dx_sub;
+        const subY = y * 4 + dy_sub;
+        const centerX_sub = center.x * 2;
+        const centerY_sub = center.y * 4;
+
+        const dist = Math.sqrt(
+          Math.pow(subX - centerX_sub, 2) + Math.pow(subY - centerY_sub, 2)
+        );
+
+        if (Math.abs(dist - radius) < 0.8) {
+          brailleCode |= bit;
+        }
+      });
+
+      if (brailleCode > 0) {
+        result.push({
+          x,
+          y,
+          char: String.fromCharCode(0x2800 + brailleCode),
+        });
+      }
+    }
+  }
+
+  return result;
 }
