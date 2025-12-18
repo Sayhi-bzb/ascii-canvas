@@ -135,13 +135,6 @@ body,
   }
 }
 
-/* 
-  -- 空间规划法 2.0 --
-  市长批示：
-  1. 侧边栏的占位区块宽度永远为零。
-  2. 强制侧边栏内部容器 (sidebar-container) 使用绝对定位，
-     使其相对于父级 relative 容器进行滑动，解决折叠失效问题。
-*/
 [data-slot="sidebar-gap"] {
   width: 0 !important;
 }

@@ -116,10 +116,10 @@ function App() {
           isRightOpen={isRightPanelOpen}
           onToggleRight={() => setIsRightPanelOpen(!isRightPanelOpen)}
         />
-        <div className="flex flex-1 overflow-hidden relative">
+        <div className="flex flex-1 relative overflow-hidden">
           <SidebarLeft />
 
-          <SidebarInset className="h-full w-full overflow-hidden">
+          <SidebarInset className="h-full w-full">
             <AppLayout
               canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
             >

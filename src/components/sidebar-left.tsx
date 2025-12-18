@@ -23,14 +23,12 @@ export function SidebarLeft({
     <Sidebar
       collapsible="offcanvas"
       side="left"
-      className="absolute left-0 top-0 h-full z-40 border-r"
+      className="absolute left-0 top-0 z-40 border-r"
       {...props}
     >
       <SidebarHeader className="h-14 border-b justify-center px-4">
         <div className="text-sm font-semibold tracking-tight">ASCII Studio</div>
       </SidebarHeader>
-
-      {/* 修正点：增加 overflow-x-hidden 防止水平滚动条 */}
       <SidebarContent className="overflow-x-hidden">
         <SidebarMenu className="p-2">
           <SidebarMenuItem>

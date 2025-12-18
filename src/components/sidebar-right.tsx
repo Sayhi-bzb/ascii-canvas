@@ -21,7 +21,7 @@ export function SidebarRight({
     <Sidebar
       collapsible="offcanvas"
       side="right"
-      className="absolute right-0 top-0 h-full z-40 border-l bg-sidebar pointer-events-auto"
+      className="absolute right-0 top-0 z-40 border-l bg-sidebar pointer-events-auto"
       {...props}
     >
       <SidebarHeader className="h-14 border-b flex flex-row items-center justify-between px-4">
@@ -36,7 +36,6 @@ export function SidebarRight({
         </Button>
       </SidebarHeader>
 
-      {/* 修正点：增加 overflow-x-hidden 防止水平滚动条 */}
       <SidebarContent className="p-4 overflow-x-hidden">
         {hasSelection ? (
           <div className="flex flex-col gap-6">
