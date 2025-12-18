@@ -31,13 +31,23 @@ import { Button } from "@/components/ui/button";
 import { useCanvasStore } from "@/store/canvasStore";
 import type { CanvasNode } from "@/types";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface SceneTreeNodeProps {
   node: CanvasNode;
   depth?: number;
+  isSidebarCollapsed?: boolean;
 }
 
-export const SceneTreeNode = ({ node, depth = 0 }: SceneTreeNodeProps) => {
+export const SceneTreeNode = ({
+  node,
+  depth = 0,
+  isSidebarCollapsed,
+}: SceneTreeNodeProps) => {
   const { activeNodeId, setActiveNode, addNode, deleteNode, updateNode } =
     useCanvasStore();
 
@@ -46,24 +56,14 @@ export const SceneTreeNode = ({ node, depth = 0 }: SceneTreeNodeProps) => {
   const getIcon = () => {
     switch (node.type) {
       case "layer":
-        return <Layers className="size-3.5 text-blue-500" />;
+        return <Layers className="size-4 text-blue-500" />;
       case "group":
-        return <Folder className="size-3.5 text-yellow-500" />;
+        return <Folder className="size-4 text-yellow-500" />;
       case "item":
-        return <FileText className="size-3.5 text-gray-500" />;
+        return <FileText className="size-4 text-gray-500" />;
       default:
-        return <Box className="size-3.5" />;
+        return <Box className="size-4" />;
     }
-  };
-
-  const toggleVisibility = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    updateNode(node.id, { isVisible: !node.isVisible });
-  };
-
-  const toggleLock = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    updateNode(node.id, { isLocked: !node.isLocked });
   };
 
   const handleSelect = (e: React.MouseEvent) => {
@@ -72,6 +72,31 @@ export const SceneTreeNode = ({ node, depth = 0 }: SceneTreeNodeProps) => {
   };
 
   const hasChildren = node.children && node.children.length > 0;
+
+  // 如果侧边栏收缩，只显示图标
+  if (isSidebarCollapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className={cn(
+              "flex items-center justify-center size-9 rounded-md cursor-pointer transition-colors",
+              isActive
+                ? "bg-accent text-accent-foreground"
+                : "hover:bg-muted/50",
+              !node.isVisible && "opacity-50"
+            )}
+            onClick={handleSelect}
+          >
+            {getIcon()}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          <p>{node.name}</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   const nodeContent = (
     <div
@@ -109,8 +134,11 @@ export const SceneTreeNode = ({ node, depth = 0 }: SceneTreeNodeProps) => {
         <Button
           variant="ghost"
           size="icon"
-          className="size-6 h-6 w-6 text-muted-foreground hover:text-foreground"
-          onClick={toggleVisibility}
+          className="size-6 h-6 w-6 text-muted-foreground"
+          onClick={(e) => {
+            e.stopPropagation();
+            updateNode(node.id, { isVisible: !node.isVisible });
+          }}
         >
           {node.isVisible ? (
             <Eye className="size-3" />
@@ -121,8 +149,11 @@ export const SceneTreeNode = ({ node, depth = 0 }: SceneTreeNodeProps) => {
         <Button
           variant="ghost"
           size="icon"
-          className="size-6 h-6 w-6 text-muted-foreground hover:text-foreground"
-          onClick={toggleLock}
+          className="size-6 h-6 w-6 text-muted-foreground"
+          onClick={(e) => {
+            e.stopPropagation();
+            updateNode(node.id, { isLocked: !node.isLocked });
+          }}
         >
           {node.isLocked ? (
             <Lock className="size-3" />
@@ -138,7 +169,7 @@ export const SceneTreeNode = ({ node, depth = 0 }: SceneTreeNodeProps) => {
     <ContextMenu>
       <ContextMenuTrigger>
         {hasChildren ? (
-          <Collapsible defaultOpen className="w-full" data-state="open">
+          <Collapsible defaultOpen className="w-full">
             <CollapsibleTrigger asChild>{nodeContent}</CollapsibleTrigger>
             <CollapsibleContent>
               {node.children.map((child) => (

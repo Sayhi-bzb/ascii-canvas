@@ -1,24 +1,51 @@
-import { X } from "lucide-react";
+"use client";
+
+import { Settings2, X } from "lucide-react";
+import { motion } from "framer-motion";
 import {
   SidebarHeader as ShadcnSidebarHeader,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export const SidebarHeader = () => {
-  const { toggleSidebar } = useSidebar();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
 
   return (
-    <ShadcnSidebarHeader className="h-14 border-b flex flex-row items-center justify-between px-4">
-      <div className="text-sm font-semibold tracking-tight">Properties</div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 -mr-2"
-        onClick={toggleSidebar}
+    <ShadcnSidebarHeader
+      className={cn(
+        "flex py-4 transition-all duration-300",
+        isCollapsed
+          ? "flex-col items-center justify-center gap-y-4"
+          : "flex-row items-center justify-between px-4 border-b"
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center rounded-lg bg-accent p-1.5 shrink-0">
+          <Settings2 className="size-4 text-accent-foreground" />
+        </div>
+        {!isCollapsed && (
+          <motion.span
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="font-bold text-sm tracking-tight"
+          >
+            Properties
+          </motion.span>
+        )}
+      </div>
+
+      <motion.div
+        layout
+        className={cn(
+          "flex items-center gap-2",
+          isCollapsed ? "flex-col-reverse" : "flex-row"
+        )}
       >
-        <X className="h-4 w-4" />
-      </Button>
+        <SidebarTrigger />
+      </motion.div>
     </ShadcnSidebarHeader>
   );
 };

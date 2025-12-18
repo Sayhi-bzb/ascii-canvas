@@ -12,7 +12,6 @@ import { isCtrlOrMeta } from "./utils/event";
 import { SidebarLeft } from "./components/ToolBar/sidebar-left";
 import { SidebarRight } from "./components/ToolBar/sidebar-right";
 import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
-import { SiteHeader } from "./components/ToolBar/site-header";
 
 function App() {
   const {
@@ -110,42 +109,37 @@ function App() {
   };
 
   return (
-    <div className="[--header-height:3.5rem] h-full w-full">
-      <SidebarProvider className="flex flex-col h-full">
-        <SiteHeader
-          isRightOpen={isRightPanelOpen}
-          onToggleRight={() => setIsRightPanelOpen(!isRightPanelOpen)}
-        />
-        <div className="flex flex-1 relative overflow-hidden">
-          <SidebarLeft />
+    <SidebarProvider className="flex h-full w-full overflow-hidden">
+      <SidebarLeft />
 
-          <SidebarInset className="h-full w-full">
-            <AppLayout
-              canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
-            >
-              <Toolbar
-                tool={tool}
-                setTool={setTool}
-                onUndo={handleUndo}
-                onRedo={handleRedo}
-                canUndo={canUndo}
-                canRedo={canRedo}
-                onExport={handleExport}
-                onClear={handleClear}
-              />
-            </AppLayout>
-          </SidebarInset>
+      <SidebarInset className="relative flex flex-1 flex-col overflow-hidden">
+        <AppLayout
+          canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
+        >
+          <Toolbar
+            tool={tool}
+            setTool={setTool}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onExport={handleExport}
+            onClear={handleClear}
+          />
+        </AppLayout>
 
+        {/* 右侧侧边栏独立行政区 */}
+        <div className="absolute top-0 right-0 h-full pointer-events-none z-50">
           <SidebarProvider
             open={isRightPanelOpen}
             onOpenChange={setIsRightPanelOpen}
-            className="absolute top-0 right-0 h-full w-auto min-h-0 z-50 pointer-events-none"
+            className="h-full items-end"
           >
             <SidebarRight />
           </SidebarProvider>
         </div>
-      </SidebarProvider>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
 

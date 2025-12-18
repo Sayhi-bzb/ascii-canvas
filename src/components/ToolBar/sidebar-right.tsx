@@ -1,5 +1,16 @@
+"use client";
+
 import * as React from "react";
-import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
+import { Trash2, Share2 } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  useSidebar,
+} from "@/components/ui/sidebar";
 import { useCanvasStore } from "@/store/canvasStore";
 import type { CanvasNode } from "@/types";
 import { SidebarHeader } from "./right-sidebar/sidebar-header";
@@ -20,7 +31,9 @@ const findNodeInTree = (node: CanvasNode, id: string): CanvasNode | null => {
 export function SidebarRight({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
-  const { activeNodeId, sceneGraph } = useCanvasStore();
+  const { activeNodeId, sceneGraph, deleteNode } = useCanvasStore();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
 
   const activeNode = React.useMemo(() => {
     if (!activeNodeId || !sceneGraph) return null;
@@ -29,15 +42,44 @@ export function SidebarRight({
 
   return (
     <Sidebar
-      collapsible="offcanvas"
+      variant="floating"
+      collapsible="icon"
       side="right"
-      className="absolute right-0 top-0 z-40 border-l bg-sidebar pointer-events-auto"
+      // 关键修正：确保侧边栏及其内容恢复鼠标交互
+      className="z-40 pointer-events-auto"
       {...props}
     >
       <SidebarHeader />
+
       <SidebarContent className="p-4 overflow-x-hidden">
-        {activeNode ? <NodeProperties node={activeNode} /> : <EmptyState />}
+        {activeNode ? (
+          <NodeProperties node={activeNode} isCollapsed={isCollapsed} />
+        ) : (
+          <EmptyState />
+        )}
       </SidebarContent>
+
+      <SidebarFooter className="p-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Delete Selected"
+              disabled={!activeNode || activeNode.id === "root"}
+              onClick={() => activeNode && deleteNode(activeNode.id)}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="size-4" />
+              {!isCollapsed && <span>Delete Object</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Share Component" disabled={!activeNode}>
+              <Share2 className="size-4" />
+              {!isCollapsed && <span>Export Selection</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }

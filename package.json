@@ -26,6 +26,7 @@
     "bresenham": "^0.0.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.23.26",
     "immer": "^11.0.1",
     "knip": "^5.73.4",
     "lucide-react": "^0.561.0",
