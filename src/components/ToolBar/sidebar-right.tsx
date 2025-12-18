@@ -45,8 +45,8 @@ export function SidebarRight({
       variant="floating"
       collapsible="icon"
       side="right"
-      // 关键修正：确保侧边栏及其内容恢复鼠标交互
-      className="z-40 pointer-events-auto"
+      /* transition-none 强制宽度瞬间切换，不产生平滑缩放效果 */
+      className="z-40 pointer-events-auto transition-none"
       {...props}
     >
       <SidebarHeader />

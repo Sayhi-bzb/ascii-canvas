@@ -1,7 +1,6 @@
 "use client";
 
-import { Settings2, X } from "lucide-react";
-import { motion } from "framer-motion";
+import { Settings2 } from "lucide-react";
 import {
   SidebarHeader as ShadcnSidebarHeader,
   SidebarTrigger,
@@ -16,7 +15,7 @@ export const SidebarHeader = () => {
   return (
     <ShadcnSidebarHeader
       className={cn(
-        "flex py-4 transition-all duration-300",
+        "flex py-4",
         isCollapsed
           ? "flex-col items-center justify-center gap-y-4"
           : "flex-row items-center justify-between px-4 border-b"
@@ -27,25 +26,20 @@ export const SidebarHeader = () => {
           <Settings2 className="size-4 text-accent-foreground" />
         </div>
         {!isCollapsed && (
-          <motion.span
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="font-bold text-sm tracking-tight"
-          >
+          <span className="font-bold text-sm tracking-tight whitespace-nowrap">
             Properties
-          </motion.span>
+          </span>
         )}
       </div>
 
-      <motion.div
-        layout
+      <div
         className={cn(
           "flex items-center gap-2",
           isCollapsed ? "flex-col-reverse" : "flex-row"
         )}
       >
         <SidebarTrigger />
-      </motion.div>
+      </div>
     </ShadcnSidebarHeader>
   );
 };

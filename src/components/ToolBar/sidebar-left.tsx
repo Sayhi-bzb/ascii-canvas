@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { Plus, MoreHorizontal, Settings2 } from "lucide-react";
-import { motion } from "framer-motion";
 import {
   Sidebar,
   SidebarContent,
@@ -31,10 +30,14 @@ export function SidebarLeft() {
   const { sceneGraph, addNode } = useCanvasStore();
 
   return (
-    <Sidebar variant="floating" collapsible="icon" className="z-40">
+    <Sidebar
+      variant="floating"
+      collapsible="icon"
+      className="z-40 transition-none"
+    >
       <SidebarHeader
         className={cn(
-          "flex py-4 transition-all duration-300",
+          "flex py-4",
           isCollapsed
             ? "flex-col items-center justify-center gap-y-4"
             : "flex-row items-center justify-between px-4"
@@ -43,25 +46,20 @@ export function SidebarLeft() {
         <div className="flex items-center gap-2">
           <Logo className="h-8 w-8 shrink-0" />
           {!isCollapsed && (
-            <motion.span
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="font-bold text-sm tracking-tight"
-            >
+            <span className="font-bold text-sm tracking-tight whitespace-nowrap">
               ASCII Studio
-            </motion.span>
+            </span>
           )}
         </div>
 
-        <motion.div
-          layout
+        <div
           className={cn(
             "flex items-center gap-2",
             isCollapsed ? "flex-col-reverse" : "flex-row"
           )}
         >
           <SidebarTrigger />
-        </motion.div>
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="gap-2 px-2 py-2">
