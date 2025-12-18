@@ -20,7 +20,7 @@ export const SelectionAreaSchema = z.object({
 
 export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
 
-export const NodeTypeSchema = z.enum(["root", "layer", "group", "item"]);
+export const NodeTypeSchema = z.enum(["root", "layer"]);
 
 export type NodeType = z.infer<typeof NodeTypeSchema>;
 
@@ -35,7 +35,6 @@ export interface CanvasNode {
   isLocked: boolean;
   isCollapsed: boolean;
   children: CanvasNode[];
-  content?: Record<string, string>;
 }
 
 export const CanvasNodeSchema: z.ZodType<CanvasNode> = z.lazy(() =>
@@ -50,7 +49,6 @@ export const CanvasNodeSchema: z.ZodType<CanvasNode> = z.lazy(() =>
     isLocked: z.boolean().default(false),
     isCollapsed: z.boolean().default(false),
     children: z.array(CanvasNodeSchema),
-    content: z.record(z.string(), z.string()).optional(),
   })
 );
 

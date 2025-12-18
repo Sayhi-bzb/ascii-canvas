@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import type { CanvasState, NodeSlice } from "../interfaces";
 import { ySceneRoot, transactWithHistory } from "../../lib/yjs-setup";
 import { findNodeById } from "../../utils/scene";
-import { NodeTypeSchema } from "../../types";
 
 export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
   set
@@ -21,8 +20,7 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
     });
   },
 
-  addNode: (parentId, rawType, name) => {
-    const type = NodeTypeSchema.parse(rawType);
+  addNode: (parentId, _type, name) => {
     const parent = findNodeById(ySceneRoot, parentId);
     if (!parent) return;
     const children = parent.get("children") as Y.Array<Y.Map<unknown>>;
@@ -32,7 +30,7 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
       const id = crypto.randomUUID();
 
       newNode.set("id", id);
-      newNode.set("type", type);
+      newNode.set("type", "layer");
       newNode.set("name", name);
       newNode.set("x", 0);
       newNode.set("y", 0);
@@ -40,11 +38,9 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
       newNode.set("isLocked", false);
       newNode.set("isCollapsed", false);
 
-      if (type === "item") {
-        newNode.set("content", new Y.Map<string>());
-      } else {
-        newNode.set("children", new Y.Array<Y.Map<unknown>>());
-      }
+      // 每一个 Layer 既是容器也是画布
+      newNode.set("content", new Y.Map<string>());
+      newNode.set("children", new Y.Array<Y.Map<unknown>>());
 
       children.push([newNode]);
       set({ activeNodeId: id });
@@ -52,7 +48,7 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
   },
 
   deleteNode: (id) => {
-    if (id === "root") return;
+    if (id === "root" || id === "item-main") return;
 
     const findAndRemove = (current: Y.Map<unknown>): boolean => {
       const children = current.get("children") as Y.Array<Y.Map<unknown>>;
@@ -72,7 +68,7 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
     transactWithHistory(() => {
       if (findAndRemove(ySceneRoot)) {
         set({ activeNodeId: "item-main" });
-        toast.success("Node deleted");
+        toast.success("Layer deleted");
       }
     });
   },

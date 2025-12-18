@@ -2,9 +2,6 @@ import * as React from "react";
 import {
   Layers,
   ChevronRight,
-  Box,
-  FileText,
-  Folder,
   Plus,
   Trash2,
   Eye,
@@ -18,9 +15,6 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-  ContextMenuSub,
-  ContextMenuSubTrigger,
-  ContextMenuSubContent,
 } from "@/components/ui/context-menu";
 import {
   Collapsible,
@@ -52,26 +46,12 @@ export const SceneTreeNode = ({
     useCanvasStore();
 
   const isActive = activeNodeId === node.id;
-
-  const getIcon = () => {
-    switch (node.type) {
-      case "layer":
-        return <Layers className="size-4 text-blue-500" />;
-      case "group":
-        return <Folder className="size-4 text-yellow-500" />;
-      case "item":
-        return <FileText className="size-4 text-gray-500" />;
-      default:
-        return <Box className="size-4" />;
-    }
-  };
+  const hasChildren = node.children && node.children.length > 0;
 
   const handleSelect = (e: React.MouseEvent) => {
     e.stopPropagation();
     setActiveNode(node.id);
   };
-
-  const hasChildren = node.children && node.children.length > 0;
 
   if (isSidebarCollapsed) {
     return (
@@ -87,7 +67,12 @@ export const SceneTreeNode = ({
             )}
             onClick={handleSelect}
           >
-            {getIcon()}
+            <Layers
+              className={cn(
+                "size-4",
+                isActive ? "text-primary" : "text-muted-foreground"
+              )}
+            />
           </div>
         </TooltipTrigger>
         <TooltipContent side="right">
@@ -121,7 +106,12 @@ export const SceneTreeNode = ({
           </div>
         )}
         {!hasChildren && <div className="size-4" />}
-        {getIcon()}
+        <Layers
+          className={cn(
+            "size-4",
+            isActive ? "text-primary" : "text-muted-foreground"
+          )}
+        />
         <span
           className={cn("truncate", isActive ? "font-semibold" : "font-normal")}
         >
@@ -166,7 +156,7 @@ export const SceneTreeNode = ({
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger>
+      <ContextMenuTrigger className="w-full">
         {hasChildren ? (
           <Collapsible defaultOpen className="w-full">
             <CollapsibleTrigger asChild>{nodeContent}</CollapsibleTrigger>
@@ -182,29 +172,13 @@ export const SceneTreeNode = ({
       </ContextMenuTrigger>
 
       <ContextMenuContent className="w-48">
-        <ContextMenuSub>
-          <ContextMenuSubTrigger className="gap-2">
-            <Plus className="size-3.5" />
-            <span>Add Child</span>
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            <ContextMenuItem
-              onClick={() => addNode(node.id, "layer", "New Layer")}
-            >
-              Layer
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => addNode(node.id, "group", "New Group")}
-            >
-              Group
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => addNode(node.id, "item", "New Canvas")}
-            >
-              Canvas Item
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+        <ContextMenuItem
+          className="gap-2"
+          onClick={() => addNode(node.id, "layer", "New Layer")}
+        >
+          <Plus className="size-3.5" />
+          <span>Add Layer</span>
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
           variant="destructive"
@@ -213,7 +187,7 @@ export const SceneTreeNode = ({
           className="gap-2"
         >
           <Trash2 className="size-3.5" />
-          <span>Delete Node</span>
+          <span>Delete Layer</span>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

@@ -85,10 +85,10 @@ export function SidebarLeft() {
 
         <ContextMenuContent>
           <ContextMenuItem
-            onClick={() => addNode("root", "layer", "New Top Layer")}
+            onClick={() => addNode("root", "layer", "New Layer")}
           >
             <Plus className="mr-2 size-3.5" />
-            New Top Layer
+            New Layer
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
