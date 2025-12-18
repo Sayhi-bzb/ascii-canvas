@@ -1,13 +1,7 @@
-import { Lock, Eye, EyeOff, Unlock, Trash2, Copy } from "lucide-react";
-import {
-  SidebarSeparator,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-} from "@/components/ui/sidebar";
+import { Lock, Eye, EyeOff, Unlock } from "lucide-react";
+import { SidebarSeparator } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import type { CanvasNode } from "@/types";
 
 interface NodePropertiesProps {
@@ -45,7 +39,7 @@ export const NodeProperties = ({ node, isCollapsed }: NodePropertiesProps) => {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold truncate max-w-[140px]">
+        <span className="text-sm font-semibold truncate max-w-35">
           {node.name}
         </span>
       </div>
@@ -103,7 +97,7 @@ export const NodeProperties = ({ node, isCollapsed }: NodePropertiesProps) => {
           </div>
           <div className="flex justify-between text-xs items-center">
             <span className="text-muted-foreground">ID</span>
-            <span className="font-mono text-[10px] text-muted-foreground/60 truncate max-w-[100px]">
+            <span className="font-mono text-[10px] text-muted-foreground/60 truncate max-w-25">
               {node.id}
             </span>
           </div>

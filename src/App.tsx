@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useKeyPress } from "ahooks";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
 import { exportToString } from "./utils/export";
 import { AppLayout } from "./layout";
-import { Toolbar } from "./components/ToolBar/Toolbar";
+import { Toolbar } from "./components/ToolBar/dock";
 import { undoManager } from "./lib/yjs-setup";
 import { isCtrlOrMeta } from "./utils/event";
 
@@ -18,31 +18,15 @@ function App() {
     tool,
     grid,
     setTool,
-    clearCanvas,
     fillSelectionsWithChar,
     copySelectionToClipboard,
     cutSelectionToClipboard,
   } = useCanvasStore();
 
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
+  // 移除了空转的 canUndo 和 canRedo 状态监听
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
-  useEffect(() => {
-    const updateStackStatus = () => {
-      setCanUndo(undoManager.undoStack.length > 0);
-      setCanRedo(undoManager.redoStack.length > 0);
-    };
-
-    undoManager.on("stack-item-added", updateStackStatus);
-    undoManager.on("stack-item-popped", updateStackStatus);
-
-    return () => {
-      undoManager.off("stack-item-added", updateStackStatus);
-      undoManager.off("stack-item-popped", updateStackStatus);
-    };
-  }, []);
-
+  // handleUndo 和 handleRedo 依然保留，因为键盘快捷键和画布交互需要它们
   const handleUndo = () => {
     undoManager.undo();
     toast.dismiss();
@@ -101,12 +85,7 @@ function App() {
     });
   };
 
-  const handleClear = () => {
-    clearCanvas();
-    toast.success("Canvas Cleared", {
-      description: "Start fresh!",
-    });
-  };
+  // 移除了无人触发的 handleClear 行政预案
 
   return (
     <SidebarProvider className="flex h-full w-full overflow-hidden">
@@ -120,11 +99,7 @@ function App() {
             tool={tool}
             setTool={setTool}
             onUndo={handleUndo}
-            onRedo={handleRedo}
-            canUndo={canUndo}
-            canRedo={canRedo}
             onExport={handleExport}
-            onClear={handleClear}
           />
         </AppLayout>
 
