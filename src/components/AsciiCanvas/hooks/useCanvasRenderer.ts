@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import {
   BACKGROUND_COLOR,
   CELL_HEIGHT,
@@ -26,26 +26,6 @@ export const useCanvasRenderer = (
 ) => {
   const { offset, zoom, grid, scratchLayer, textCursor, selections } = store;
 
-  // 生成背景网格底纹，类似城市的草图坐标线
-  const gridPattern = useMemo(() => {
-    const sw = CELL_WIDTH * zoom;
-    const sh = CELL_HEIGHT * zoom;
-    const off = document.createElement("canvas");
-    off.width = sw;
-    off.height = sh;
-    const octx = off.getContext("2d");
-    if (octx) {
-      octx.strokeStyle = GRID_COLOR;
-      octx.lineWidth = 1;
-      octx.beginPath();
-      octx.moveTo(sw, 0);
-      octx.lineTo(0, 0);
-      octx.lineTo(0, sh);
-      octx.stroke();
-    }
-    return off;
-  }, [zoom]);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
@@ -58,55 +38,61 @@ export const useCanvasRenderer = (
     ctx.resetTransform();
     ctx.scale(dpr, dpr);
 
-    // 铺设城市地基
+    // 1. 清理背景
     ctx.fillStyle = BACKGROUND_COLOR;
     ctx.fillRect(0, 0, size.width, size.height);
 
-    // 绘制坐标参考线
-    const pattern = ctx.createPattern(gridPattern, "repeat");
-    if (pattern) {
-      ctx.save();
-      ctx.translate(
-        offset.x % (CELL_WIDTH * zoom),
-        offset.y % (CELL_HEIGHT * zoom)
-      );
-      ctx.fillStyle = pattern;
-      ctx.fillRect(
-        -(CELL_WIDTH * zoom),
-        -(CELL_HEIGHT * zoom),
-        size.width + CELL_WIDTH * zoom * 2,
-        size.height + CELL_HEIGHT * zoom * 2
-      );
-      ctx.restore();
-    }
-
     const sw = CELL_WIDTH * zoom;
     const sh = CELL_HEIGHT * zoom;
+
+    // 2. 绘制动态对齐网格 (视野内渲染)
+    // 计算当前视野内可见的格点范围
+    const startX = Math.floor(-offset.x / sw);
+    const endX = Math.ceil((size.width - offset.x) / sw);
+    const startY = Math.floor(-offset.y / sh);
+    const endY = Math.ceil((size.height - offset.y) / sh);
+
+    ctx.beginPath();
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.lineWidth = 1;
+
+    // 绘制垂直线
+    for (let x = startX; x <= endX; x++) {
+      const posX = Math.round(x * sw + offset.x);
+      ctx.moveTo(posX, 0);
+      ctx.lineTo(posX, size.height);
+    }
+
+    // 绘制水平线
+    for (let y = startY; y <= endY; y++) {
+      const posY = Math.round(y * sh + offset.y);
+      ctx.moveTo(0, posY);
+      ctx.lineTo(size.width, posY);
+    }
+    ctx.stroke();
+
+    // 3. 设置字体样式
     ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
 
-    // 渲染图层函数
+    // 4. 渲染数据层 (字符建筑)
     const renderLayer = (layer: GridMap, color: string) => {
       ctx.fillStyle = color;
-
-      // 这里的边界计算现在有了合法的 const 声明
-      const minX = -offset.x / sw - 1;
-      const maxX = (size.width - offset.x) / sw + 1;
-      const minY = -offset.y / sh - 1;
-      const maxY = (size.height - offset.y) / sh + 1;
 
       for (const [key, char] of layer.entries()) {
         if (!char || char === " ") continue;
         const { x, y } = GridManager.fromKey(key);
 
-        // 剔除不在“视野区”地块，节省计算资源
-        if (x < minX || x > maxX || y < minY || y > maxY) continue;
+        // 剔除不在视野范围内的地块
+        if (x < startX || x > endX || y < startY || y > endY) continue;
 
         const pos = GridManager.gridToScreen(x, y, offset.x, offset.y, zoom);
         const wide = GridManager.isWideChar(char);
-        const centerX = pos.x + (wide ? sw : sw / 2);
-        const centerY = pos.y + sh / 2;
+
+        // 使用与网格线一致的取整策略
+        const centerX = Math.round(pos.x + (wide ? sw : sw / 2));
+        const centerY = Math.round(pos.y + sh / 2);
 
         ctx.fillText(char, centerX, centerY);
       }
@@ -115,7 +101,7 @@ export const useCanvasRenderer = (
     renderLayer(grid, COLOR_PRIMARY_TEXT);
     if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
 
-    // 渲染选区高亮
+    // 5. 渲染选区
     const drawSel = (area: SelectionArea) => {
       const { minX, minY, maxX, maxY } = getSelectionBounds(area);
       const pos = GridManager.gridToScreen(
@@ -125,25 +111,33 @@ export const useCanvasRenderer = (
         offset.y,
         zoom
       );
-
-      // 修复了变量 h 的声明
       const w = (maxX - minX + 1) * sw;
       const h = (maxY - minY + 1) * sh;
 
       ctx.fillStyle = COLOR_SELECTION_BG;
-      ctx.fillRect(pos.x, pos.y, w, h);
+      ctx.fillRect(
+        Math.round(pos.x),
+        Math.round(pos.y),
+        Math.round(w),
+        Math.round(h)
+      );
 
       if (COLOR_SELECTION_BORDER !== "transparent") {
         ctx.strokeStyle = COLOR_SELECTION_BORDER;
         ctx.lineWidth = 1;
-        ctx.strokeRect(pos.x, pos.y, w, h);
+        ctx.strokeRect(
+          Math.round(pos.x),
+          Math.round(pos.y),
+          Math.round(w),
+          Math.round(h)
+        );
       }
     };
 
     selections.forEach(drawSel);
     if (draggingSelection) drawSel(draggingSelection);
 
-    // 渲染文字输入光标
+    // 6. 渲染输入光标
     if (textCursor) {
       const pos = GridManager.gridToScreen(
         textCursor.x,
@@ -157,19 +151,26 @@ export const useCanvasRenderer = (
       const cursorWidth = wide ? sw * 2 : sw;
 
       ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
-      ctx.fillRect(pos.x, pos.y, cursorWidth, sh);
+      ctx.fillRect(
+        Math.round(pos.x),
+        Math.round(pos.y),
+        Math.round(cursorWidth),
+        Math.round(sh)
+      );
 
       if (char) {
         ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-        const centerX = pos.x + (wide ? sw : sw / 2);
-        ctx.fillText(char, centerX, pos.y + sh / 2);
+        const centerX = Math.round(pos.x + (wide ? sw : sw / 2));
+        ctx.fillText(char, centerX, Math.round(pos.y + sh / 2));
       }
     }
 
-    // 绘制城市原点标记 (0,0)
+    // 7. 绘制城市原点标记 (0,0)
     ctx.fillStyle = COLOR_ORIGIN_MARKER;
-    ctx.fillRect(offset.x - 1, offset.y - 10, 2, 20);
-    ctx.fillRect(offset.x - 10, offset.y - 1, 20, 2);
+    const originX = Math.round(offset.x);
+    const originY = Math.round(offset.y);
+    ctx.fillRect(originX - 1, originY - 10, 2, 20);
+    ctx.fillRect(originX - 10, originY - 1, 20, 2);
   }, [
     offset,
     zoom,
@@ -179,7 +180,6 @@ export const useCanvasRenderer = (
     textCursor,
     selections,
     draggingSelection,
-    gridPattern,
     canvasRef,
   ]);
 };

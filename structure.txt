@@ -40,10 +40,8 @@ src
 ├── types
 │   └── index.ts
 └── utils
-    ├── char.ts
     ├── event.ts
     ├── export.ts
     ├── grid.ts
-    ├── math.ts
     ├── selection.ts
     └── shapes.ts

@@ -18,31 +18,30 @@ const generateStringFromBounds = (
       const char = grid.get(GridManager.toKey(x, y));
       if (char) {
         line += char;
-        if (GridManager.isWideChar(char)) {
-          x++;
-        }
+        const width = GridManager.getCharWidth(char);
+        if (width === 2) x++; // 跳过占用的影子地块
       } else {
         line += " ";
       }
     }
+    // 移除行尾无用的“空地”
     lines.push(line.replace(/\s+$/, ""));
   }
-
   return lines.join("\n");
 };
 
 export const exportToString = (grid: GridMap) => {
   if (grid.size === 0) return "";
-
   let minX = Infinity,
-    maxX = -Infinity;
-  let minY = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
     maxY = -Infinity;
 
   grid.forEach((_char, key) => {
     const { x, y } = GridManager.fromKey(key);
+    const width = GridManager.getCharWidth(_char);
     minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x);
+    maxX = Math.max(maxX, x + width - 1);
     minY = Math.min(minY, y);
     maxY = Math.max(maxY, y);
   });
@@ -61,8 +60,6 @@ export const exportSelectionToString = (
   selections: SelectionArea[]
 ) => {
   if (selections.length === 0) return "";
-
   const { minX, maxX, minY, maxY } = getSelectionsBoundingBox(selections);
-
   return generateStringFromBounds(grid, minX, maxX, minY, maxY);
 };

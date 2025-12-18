@@ -22,7 +22,6 @@ export interface CanvasState {
   selections: SelectionArea[];
   scratchLayer: GridMap | null;
   grid: GridMap;
-
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
   setTool: (tool: ToolType) => void;
@@ -73,11 +72,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       })),
     setTool: (tool) => set({ tool, textCursor: null }),
     setBrushChar: (char) => set({ brushChar: char }),
+
     setScratchLayer: (points) => {
       const layer = new Map<string, string>();
       points.forEach((p) => layer.set(GridManager.toKey(p.x, p.y), p.char));
       set({ scratchLayer: layer });
     },
+
     addScratchPoints: (points) => {
       set((state) => {
         const layer = new Map(state.scratchLayer || []);
@@ -85,28 +86,41 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
         return { scratchLayer: layer };
       });
     },
+
     commitScratch: () => {
       const { scratchLayer } = get();
       if (!scratchLayer) return;
       performTransaction(() => {
         scratchLayer.forEach((value, key) => {
+          const { x, y } = GridManager.fromKey(key);
+          // 放置前：清理左侧可能存在的 1x2 影子
+          const leftChar = yGrid.get(GridManager.toKey(x - 1, y));
+          if (leftChar && GridManager.isWideChar(leftChar))
+            yGrid.delete(GridManager.toKey(x - 1, y));
+
           if (value === " ") {
             yGrid.delete(key);
           } else {
             yGrid.set(key, value);
+            // 放置后：如果是 1x2，强制清理右侧地块
+            if (GridManager.isWideChar(value))
+              yGrid.delete(GridManager.toKey(x + 1, y));
           }
         });
       });
       forceHistorySave();
       set({ scratchLayer: null });
     },
+
     clearScratch: () => set({ scratchLayer: null }),
     clearCanvas: () => {
       performTransaction(() => yGrid.clear());
       forceHistorySave();
       set({ selections: [] });
     },
+
     setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
+
     writeTextString: (str, startPos) => {
       const { textCursor } = get();
       const cursor = startPos
@@ -116,6 +130,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
         : null;
       if (!cursor) return;
       const startX = cursor.x;
+
       performTransaction(() => {
         for (const char of str) {
           if (char === "\n") {
@@ -124,9 +139,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
             continue;
           }
           const { x, y } = cursor;
-          const wide = GridManager.isWideChar(char);
+          // 统一清理逻辑：覆盖老建筑
+          const leftChar = yGrid.get(GridManager.toKey(x - 1, y));
+          if (leftChar && GridManager.isWideChar(leftChar))
+            yGrid.delete(GridManager.toKey(x - 1, y));
+
+          const charWidth = GridManager.getCharWidth(char);
           yGrid.set(GridManager.toKey(x, y), char);
-          if (wide) {
+
+          if (charWidth === 2) {
             yGrid.delete(GridManager.toKey(x + 1, y));
             cursor.x += 2;
           } else {
@@ -137,36 +158,54 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       if (str.length > 1) forceHistorySave();
       if (get().textCursor) set({ textCursor: { x: cursor.x, y: cursor.y } });
     },
+
     moveTextCursor: (dx, dy) => {
       const { textCursor, grid } = get();
       if (!textCursor) return;
       let newX = textCursor.x;
       const newY = textCursor.y + dy;
+
       if (dx > 0) {
-        const char = grid.get(GridManager.toKey(newX, newY));
-        newX += char && GridManager.isWideChar(char) ? 2 : 1;
+        const char = grid.get(GridManager.toKey(newX, textCursor.y));
+        newX += GridManager.getCharWidth(char || " ");
       } else if (dx < 0) {
-        const char = grid.get(GridManager.toKey(newX - 2, newY));
-        newX -= char && GridManager.isWideChar(char) ? 2 : 1;
+        const leftKey = GridManager.toKey(newX - 1, textCursor.y);
+        const leftChar = grid.get(leftKey);
+        if (!leftChar) {
+          const farLeftChar = grid.get(
+            GridManager.toKey(newX - 2, textCursor.y)
+          );
+          newX -= farLeftChar && GridManager.isWideChar(farLeftChar) ? 2 : 1;
+        } else {
+          newX -= 1;
+        }
       }
       set({ textCursor: { x: newX, y: newY } });
     },
+
     backspaceText: () => {
       const { textCursor, grid } = get();
       if (!textCursor) return;
-      const targetX = textCursor.x;
-      const charBefore = grid.get(GridManager.toKey(targetX - 2, textCursor.y));
-      const isPrevWide = charBefore && GridManager.isWideChar(charBefore);
-      const deleteFromX = isPrevWide ? targetX - 2 : targetX - 1;
-      if (deleteFromX < textCursor.x) {
-        performTransaction(() => {
-          yGrid.delete(GridManager.toKey(deleteFromX, textCursor.y));
-          if (isPrevWide)
-            yGrid.delete(GridManager.toKey(deleteFromX + 1, textCursor.y));
-        });
-        set({ textCursor: { x: deleteFromX, y: textCursor.y } });
+      const { x, y } = textCursor;
+
+      let deletePos = { x: x - 1, y };
+      const charAtMinus1 = grid.get(GridManager.toKey(x - 1, y));
+      const charAtMinus2 = grid.get(GridManager.toKey(x - 2, y));
+
+      if (
+        !charAtMinus1 &&
+        charAtMinus2 &&
+        GridManager.isWideChar(charAtMinus2)
+      ) {
+        deletePos = { x: x - 2, y };
       }
+
+      performTransaction(() => {
+        yGrid.delete(GridManager.toKey(deletePos.x, deletePos.y));
+      });
+      set({ textCursor: deletePos });
     },
+
     newlineText: () =>
       set((s) =>
         s.textCursor
@@ -176,60 +215,64 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
     addSelection: (area) =>
       set((s) => ({ selections: [...s.selections, area] })),
     clearSelections: () => set({ selections: [] }),
+
     deleteSelection: () => {
       const { selections } = get();
-      if (selections.length === 0) return;
-      performTransaction(() => {
-        selections.forEach((area) => {
-          const { minX, maxX, minY, maxY } = getSelectionBounds(area);
-          for (let x = minX; x <= maxX; x++) {
-            for (let y = minY; y <= maxY; y++)
-              yGrid.delete(GridManager.toKey(x, y));
-          }
-        });
-      });
-      forceHistorySave();
-    },
-    fillSelections: () => {
-      const { selections, brushChar } = get();
-      if (selections.length > 0) get().fillSelectionsWithChar(brushChar);
-    },
-    fillSelectionsWithChar: (char: string) => {
-      const { selections } = get();
-      if (selections.length === 0) return;
-      const wide = GridManager.isWideChar(char);
       performTransaction(() => {
         selections.forEach((area) => {
           const { minX, maxX, minY, maxY } = getSelectionBounds(area);
           for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {
-              yGrid.set(GridManager.toKey(x, y), char);
-              if (wide) {
-                if (x + 1 <= maxX) yGrid.delete(GridManager.toKey(x + 1, y));
-                x++;
-              }
+              // 删除逻辑：如果删到了宽字符的影子，也要把本体删了
+              const head = GridManager.snapToCharStart({ x, y }, get().grid);
+              yGrid.delete(GridManager.toKey(head.x, head.y));
             }
           }
         });
       });
       forceHistorySave();
     },
+
+    fillSelections: () => {
+      const { selections, brushChar } = get();
+      if (selections.length > 0) get().fillSelectionsWithChar(brushChar);
+    },
+
+    fillSelectionsWithChar: (char: string) => {
+      const { selections } = get();
+      const charWidth = GridManager.getCharWidth(char);
+      performTransaction(() => {
+        selections.forEach((area) => {
+          const { minX, maxX, minY, maxY } = getSelectionBounds(area);
+          for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x += charWidth) {
+              if (x > maxX) break;
+              yGrid.set(GridManager.toKey(x, y), char);
+              if (charWidth === 2 && x + 1 <= maxX)
+                yGrid.delete(GridManager.toKey(x + 1, y));
+            }
+          }
+        });
+      });
+      forceHistorySave();
+    },
+
     erasePoints: (points) => {
       performTransaction(() => {
         points.forEach((p) => {
-          const char = yGrid.get(GridManager.toKey(p.x, p.y));
-          yGrid.delete(GridManager.toKey(p.x, p.y));
-          if (char && GridManager.isWideChar(char))
-            yGrid.delete(GridManager.toKey(p.x + 1, p.y));
+          const head = GridManager.snapToCharStart(p, get().grid);
+          yGrid.delete(GridManager.toKey(head.x, head.y));
         });
       });
     },
+
     copySelectionToClipboard: () => {
       const { grid, selections } = get();
       if (selections.length === 0) return;
       const text = exportSelectionToString(grid, selections);
       navigator.clipboard.writeText(text).then(() => toast.success("Copied!"));
     },
+
     cutSelectionToClipboard: () => {
       const { grid, selections, deleteSelection } = get();
       if (selections.length === 0) return;
