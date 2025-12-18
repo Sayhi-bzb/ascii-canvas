@@ -27,37 +27,37 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
   const menuItems: MenuDockItem[] = [
     {
       id: "select",
-      label: "Select (V)",
+      label: "Select",
       icon: MousePointer2,
       onClick: () => setTool("select"),
     },
     {
       id: "brush",
-      label: "Brush (B)",
+      label: "Brush",
       icon: Pencil,
       onClick: () => setTool("brush"),
     },
     {
       id: "box",
-      label: "Rectangle (R)",
+      label: "Rectangle",
       icon: Square,
       onClick: () => setTool("box"),
     },
     {
       id: "line",
-      label: "Line (L)",
+      label: "Line",
       icon: Minus,
       onClick: () => setTool("line"),
     },
     {
       id: "fill",
-      label: "Fill (F)",
+      label: "Fill",
       icon: PaintBucket,
       onClick: () => setTool("fill"),
     },
     {
       id: "eraser",
-      label: "Eraser (E)",
+      label: "Eraser",
       icon: Eraser,
       onClick: () => setTool("eraser"),
     },
