@@ -1,5 +1,5 @@
 src
-├── App.tsx
+├── app.tsx
 ├── components
 │   ├── AsciiCanvas
 │   │   ├── hooks
@@ -7,19 +7,22 @@ src
 │   │   │   └── useCanvasRenderer.ts
 │   │   └── index.tsx
 │   ├── ToolBar
-│   │   ├── Toolbar.tsx
+│   │   ├── dock.tsx
+│   │   ├── left-sidebar
+│   │   │   ├── logo.tsx
+│   │   │   └── sidebar-node.tsx
+│   │   ├── right-sidebar
+│   │   │   ├── empty-state.tsx
+│   │   │   └── node-properties.tsx
 │   │   ├── sidebar-left.tsx
-│   │   ├── sidebar-right.tsx
-│   │   └── site-header.tsx
+│   │   └── sidebar-right.tsx
 │   └── ui
-│       ├── alert-dialog.tsx
-│       ├── breadcrumb.tsx
-│       ├── button-group.tsx
 │       ├── button.tsx
 │       ├── collapsible.tsx
-│       ├── dropdown-menu.tsx
+│       ├── context-menu.tsx
 │       ├── input.tsx
 │       ├── label.tsx
+│       ├── menu-dock.tsx
 │       ├── separator.tsx
 │       ├── sheet.tsx
 │       ├── sidebar.tsx
@@ -36,12 +39,21 @@ src
 │   └── yjs-setup.ts
 ├── main.tsx
 ├── store
-│   └── canvasStore.ts
+│   ├── canvasStore.ts
+│   ├── interfaces.ts
+│   ├── slices
+│   │   ├── drawingSlice.ts
+│   │   ├── index.ts
+│   │   ├── nodeSlice.ts
+│   │   ├── selectionSlice.ts
+│   │   └── textSlice.ts
+│   └── utils.ts
 ├── types
 │   └── index.ts
 └── utils
     ├── event.ts
     ├── export.ts
     ├── grid.ts
+    ├── scene.ts
     ├── selection.ts
     └── shapes.ts

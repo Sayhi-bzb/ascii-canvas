@@ -4,6 +4,7 @@ import type { CanvasState, TextSlice } from "../interfaces";
 import { performTransaction, forceHistorySave } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getActiveGridYMap } from "../utils";
+import { PointSchema } from "../../types";
 
 export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   set,
@@ -11,12 +12,19 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
 ) => ({
   textCursor: null,
 
-  setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
+  setTextCursor: (rawPos) => {
+    // Zod 执法点：确保光标坐标是合法的 Point
+    const pos = rawPos ? PointSchema.parse(rawPos) : null;
+    set({ textCursor: pos, selections: [] });
+  },
 
-  writeTextString: (str, startPos) => {
+  writeTextString: (str, rawStartPos) => {
     const { textCursor, activeNodeId } = get();
     const targetGrid = getActiveGridYMap(activeNodeId) as Y.Map<string> | null;
     if (!targetGrid) return;
+
+    // Zod 执法点：验证起始输入位置
+    const startPos = rawStartPos ? PointSchema.parse(rawStartPos) : undefined;
 
     const cursor = startPos
       ? { ...startPos }

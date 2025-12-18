@@ -1,10 +1,12 @@
 import type { StateCreator } from "zustand";
 import * as Y from "yjs";
+import { z } from "zod";
 import { toast } from "sonner";
 import type { CanvasState, DrawingSlice } from "../interfaces";
 import { performTransaction, forceHistorySave } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getActiveGridYMap } from "../utils";
+import { GridPointSchema } from "../../types";
 
 export const createDrawingSlice: StateCreator<
   CanvasState,
@@ -14,13 +16,19 @@ export const createDrawingSlice: StateCreator<
 > = (set, get) => ({
   scratchLayer: null,
 
-  setScratchLayer: (points) => {
+  setScratchLayer: (rawPoints) => {
+    // Zod 执法点：验证临时涂层数据完整性
+    const points = z.array(GridPointSchema).parse(rawPoints);
+
     const layer = new Map<string, string>();
     points.forEach((p) => layer.set(GridManager.toKey(p.x, p.y), p.char));
     set({ scratchLayer: layer });
   },
 
-  addScratchPoints: (points) => {
+  addScratchPoints: (rawPoints) => {
+    // Zod 执法点：验证增量点数据
+    const points = z.array(GridPointSchema).parse(rawPoints);
+
     set((state) => {
       const layer = new Map(state.scratchLayer || []);
       points.forEach((p) => layer.set(GridManager.toKey(p.x, p.y), p.char));

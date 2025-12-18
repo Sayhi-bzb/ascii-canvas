@@ -7,6 +7,7 @@ import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
 import { exportSelectionToString } from "../../utils/export";
 import { getActiveGridYMap } from "../utils";
+import { SelectionAreaSchema } from "../../types";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -16,7 +17,11 @@ export const createSelectionSlice: StateCreator<
 > = (set, get) => ({
   selections: [],
 
-  addSelection: (area) => set((s) => ({ selections: [...s.selections, area] })),
+  addSelection: (rawArea) => {
+    // Zod 执法点：确保选区结构符合法规
+    const area = SelectionAreaSchema.parse(rawArea);
+    set((s) => ({ selections: [...s.selections, area] }));
+  },
 
   clearSelections: () => set({ selections: [] }),
 
