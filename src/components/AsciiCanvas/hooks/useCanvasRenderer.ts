@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   BACKGROUND_COLOR,
   CELL_HEIGHT,
@@ -14,7 +14,7 @@ import {
   GRID_COLOR,
 } from "../../../lib/constants";
 import { type CanvasState } from "../../../store/canvasStore";
-import { gridToScreen, toKey } from "../../../utils/math";
+import { gridToScreen, fromKey, toKey } from "../../../utils/math";
 import type { SelectionArea } from "../../../types";
 import { isWideChar } from "../../../utils/char";
 import { getSelectionBounds } from "../../../utils/selection";
@@ -27,6 +27,25 @@ export const useCanvasRenderer = (
 ) => {
   const { offset, zoom, grid, scratchLayer, textCursor, selections } = store;
 
+  const gridPattern = useMemo(() => {
+    const scaledW = CELL_WIDTH * zoom;
+    const scaledH = CELL_HEIGHT * zoom;
+    const offscreen = document.createElement("canvas");
+    offscreen.width = scaledW;
+    offscreen.height = scaledH;
+    const octx = offscreen.getContext("2d");
+    if (octx) {
+      octx.strokeStyle = GRID_COLOR;
+      octx.lineWidth = 1;
+      octx.beginPath();
+      octx.moveTo(scaledW, 0);
+      octx.lineTo(0, 0);
+      octx.lineTo(0, scaledH);
+      octx.stroke();
+    }
+    return offscreen;
+  }, [zoom]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
@@ -38,57 +57,53 @@ export const useCanvasRenderer = (
     canvas.height = size.height * dpr;
     ctx.resetTransform();
     ctx.scale(dpr, dpr);
-    canvas.style.width = `${size.width}px`;
-    canvas.style.height = `${size.height}px`;
 
     ctx.fillStyle = BACKGROUND_COLOR;
     ctx.fillRect(0, 0, size.width, size.height);
 
-    ctx.beginPath();
-    ctx.strokeStyle = GRID_COLOR;
-    ctx.lineWidth = 1;
-
-    const scaledCellW = CELL_WIDTH * zoom;
-    const scaledCellH = CELL_HEIGHT * zoom;
-    const startCol = Math.floor(-offset.x / scaledCellW);
-    const endCol = startCol + Math.ceil(size.width / scaledCellW) + 1;
-    const startRow = Math.floor(-offset.y / scaledCellH);
-    const endRow = startRow + Math.ceil(size.height / scaledCellH) + 1;
-
-    for (let col = startCol; col <= endCol; col++) {
-      const x = Math.floor(col * scaledCellW + offset.x);
-      ctx.moveTo(x + 0.5, 0);
-      ctx.lineTo(x + 0.5, size.height);
+    const pattern = ctx.createPattern(gridPattern, "repeat");
+    if (pattern) {
+      ctx.save();
+      ctx.translate(
+        offset.x % (CELL_WIDTH * zoom),
+        offset.y % (CELL_HEIGHT * zoom)
+      );
+      ctx.fillStyle = pattern;
+      ctx.fillRect(
+        -(CELL_WIDTH * zoom),
+        -(CELL_HEIGHT * zoom),
+        size.width + CELL_WIDTH * zoom * 2,
+        size.height + CELL_HEIGHT * zoom * 2
+      );
+      ctx.restore();
     }
-    for (let row = startRow; row <= endRow; row++) {
-      const y = Math.floor(row * scaledCellH + offset.y);
-      ctx.moveTo(0, y + 0.5);
-      ctx.lineTo(size.width, y + 0.5);
-    }
-    ctx.stroke();
 
+    const scaledW = CELL_WIDTH * zoom;
+    const scaledH = CELL_HEIGHT * zoom;
     ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
 
     const renderLayer = (layer: Map<string, string>, color: string) => {
       ctx.fillStyle = color;
-      for (let y = startRow; y <= endRow; y++) {
-        for (let x = startCol; x <= endCol; x++) {
-          const char = layer.get(toKey(x, y));
-          if (!char || char === " ") continue;
 
-          const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
-          const wide = isWideChar(char);
-          const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
-          const centerY = screenPos.y + scaledCellH / 2;
+      const minX = -offset.x / scaledW - 1;
+      const maxX = (size.width - offset.x) / scaledW + 1;
+      const minY = -offset.y / scaledH - 1;
+      const maxY = (size.height - offset.y) / scaledH + 1;
 
-          ctx.fillText(char, centerX, centerY);
+      for (const [key, char] of layer.entries()) {
+        if (!char || char === " ") continue;
+        const { x, y } = fromKey(key);
 
-          if (wide) {
-            x++;
-          }
-        }
+        if (x < minX || x > maxX || y < minY || y > maxY) continue;
+
+        const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
+        const wide = isWideChar(char);
+        const centerX = screenPos.x + (wide ? scaledW : scaledW / 2);
+        const centerY = screenPos.y + scaledH / 2;
+
+        ctx.fillText(char, centerX, centerY);
       }
     };
 
@@ -97,10 +112,9 @@ export const useCanvasRenderer = (
 
     const renderSelection = (area: SelectionArea) => {
       const { minX, minY, maxX, maxY } = getSelectionBounds(area);
-
       const screenStart = gridToScreen(minX, minY, offset.x, offset.y, zoom);
-      const width = (maxX - minX + 1) * scaledCellW;
-      const height = (maxY - minY + 1) * scaledCellH;
+      const width = (maxX - minX + 1) * scaledW;
+      const height = (maxY - minY + 1) * scaledH;
 
       ctx.fillStyle = COLOR_SELECTION_BG;
       ctx.fillRect(screenStart.x, screenStart.y, width, height);
@@ -120,23 +134,21 @@ export const useCanvasRenderer = (
       const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
       const charUnderCursor = grid.get(toKey(x, y));
       const wide = charUnderCursor ? isWideChar(charUnderCursor) : false;
-      const cursorWidth = wide ? scaledCellW * 2 : scaledCellW;
+      const cursorWidth = wide ? scaledW * 2 : scaledW;
 
       ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
-      ctx.fillRect(screenPos.x, screenPos.y, cursorWidth, scaledCellH);
+      ctx.fillRect(screenPos.x, screenPos.y, cursorWidth, scaledH);
 
       if (charUnderCursor) {
         ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-        const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
-        ctx.fillText(charUnderCursor, centerX, screenPos.y + scaledCellH / 2);
+        const centerX = screenPos.x + (wide ? scaledW : scaledW / 2);
+        ctx.fillText(charUnderCursor, centerX, screenPos.y + scaledH / 2);
       }
     }
 
-    const originX = offset.x;
-    const originY = offset.y;
     ctx.fillStyle = COLOR_ORIGIN_MARKER;
-    ctx.fillRect(originX - 2, originY - 10, 4, 20);
-    ctx.fillRect(originX - 10, originY - 2, 20, 4);
+    ctx.fillRect(offset.x - 1, offset.y - 10, 2, 20);
+    ctx.fillRect(offset.x - 10, offset.y - 1, 20, 2);
   }, [
     offset,
     zoom,
@@ -146,6 +158,7 @@ export const useCanvasRenderer = (
     textCursor,
     selections,
     draggingSelection,
+    gridPattern,
     canvasRef,
   ]);
 };

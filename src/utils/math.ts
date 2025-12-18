@@ -1,5 +1,8 @@
 import { CELL_WIDTH, CELL_HEIGHT } from "../lib/constants";
 
+/**
+ * 将屏幕位置转换为网格坐标
+ */
 export const screenToGrid = (
   screenX: number,
   screenY: number,
@@ -12,6 +15,9 @@ export const screenToGrid = (
   return { x: gridX, y: gridY };
 };
 
+/**
+ * 将网格坐标转换为屏幕位置
+ */
 export const gridToScreen = (
   gridX: number,
   gridY: number,
@@ -25,8 +31,14 @@ export const gridToScreen = (
   };
 };
 
+/**
+ * 户籍 Key 生成：确保格式统一
+ */
 export const toKey = (x: number, y: number) => `${x},${y}`;
 
+/**
+ * 户籍 Key 解析
+ */
 export const fromKey = (key: string) => {
   const [x, y] = key.split(",").map(Number);
   return { x, y };

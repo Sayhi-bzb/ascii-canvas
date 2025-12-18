@@ -1,0 +1,49 @@
+src
+├── App.tsx
+├── components
+│   ├── AsciiCanvas
+│   │   ├── hooks
+│   │   │   ├── useCanvasInteraction.ts
+│   │   │   └── useCanvasRenderer.ts
+│   │   └── index.tsx
+│   ├── ToolBar
+│   │   ├── Toolbar.tsx
+│   │   ├── sidebar-left.tsx
+│   │   ├── sidebar-right.tsx
+│   │   └── site-header.tsx
+│   └── ui
+│       ├── alert-dialog.tsx
+│       ├── breadcrumb.tsx
+│       ├── button-group.tsx
+│       ├── button.tsx
+│       ├── collapsible.tsx
+│       ├── dropdown-menu.tsx
+│       ├── input.tsx
+│       ├── label.tsx
+│       ├── separator.tsx
+│       ├── sheet.tsx
+│       ├── sidebar.tsx
+│       ├── skeleton.tsx
+│       ├── sonner.tsx
+│       └── tooltip.tsx
+├── hooks
+│   └── use-mobile.ts
+├── index.css
+├── layout.tsx
+├── lib
+│   ├── constants.ts
+│   ├── utils.ts
+│   └── yjs-setup.ts
+├── main.tsx
+├── store
+│   └── canvasStore.ts
+├── types
+│   └── index.ts
+└── utils
+    ├── char.ts
+    ├── event.ts
+    ├── export.ts
+    ├── grid.ts
+    ├── math.ts
+    ├── selection.ts
+    └── shapes.ts

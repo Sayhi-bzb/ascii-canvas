@@ -1,208 +1,3 @@
-```src/components/Toolbar.tsx
-import React from "react";
-import {
-  File,
-  Minus,
-  MousePointer2,
-  Pencil,
-  Redo2,
-  Square,
-  Trash2,
-  Undo2,
-  Eraser,
-  PaintBucket,
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
-import { Button } from "./ui/button";
-import { ButtonGroup, ButtonGroupSeparator } from "./ui/button-group";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "./ui/alert-dialog";
-import type { ToolType } from "../types";
-
-interface ToolButtonProps {
-  tool: ToolType;
-  setTool: (tool: ToolType) => void;
-}
-
-interface ActionButtonProps {
-  onUndo: () => void;
-  onRedo: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
-}
-
-interface FileButtonProps {
-  onExport: () => void;
-  onClear: () => void;
-}
-
-export const Toolbar = ({
-  tool,
-  setTool,
-  onUndo,
-  onRedo,
-  canUndo,
-  canRedo,
-  onExport,
-  onClear,
-}: ToolButtonProps & ActionButtonProps & FileButtonProps) => {
-  const tools: { name: ToolType; label: string; icon: React.ElementType }[] = [
-    {
-      name: "select",
-      label: "Select",
-      icon: MousePointer2,
-    },
-    { name: "fill", label: "Fill Selection", icon: PaintBucket },
-    { name: "brush", label: "Brush", icon: Pencil },
-    { name: "line", label: "Line", icon: Minus },
-    { name: "box", label: "Box", icon: Square },
-
-    { name: "eraser", label: "Eraser", icon: Eraser },
-  ];
-
-  return (
-    <TooltipProvider delayDuration={100}>
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
-        <ButtonGroup className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-1.5">
-          <ButtonGroup>
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9">
-                      <File size={20} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>File</p>
-                </TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent side="top" align="start" className="mb-2">
-                <DropdownMenuItem onClick={onExport}>
-                  <p>Export</p>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      className="text-red-500 focus:text-red-500 focus:bg-red-50"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      <span>Clear</span>
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Clear Canvas?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently
-                        delete all your artwork on the canvas.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={onClear}
-                        className="bg-red-500 hover:bg-red-600 focus:ring-red-500"
-                      >
-                        Yes, Clear it
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </ButtonGroup>
-
-          <ButtonGroupSeparator />
-
-          <ButtonGroup>
-            {tools.map((t) => (
-              <Tooltip key={t.name}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={tool === t.name ? "default" : "ghost"}
-                    size="icon"
-                    className="h-9 w-9"
-                    onClick={() => setTool(t.name)}
-                  >
-                    <t.icon size={20} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t.label}</p>
-                </TooltipContent>
-              </Tooltip>
-            ))}
-          </ButtonGroup>
-
-          <ButtonGroupSeparator />
-
-          <ButtonGroup>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={onUndo}
-                  disabled={!canUndo}
-                >
-                  <Undo2 size={20} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Undo</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={onRedo}
-                  disabled={!canRedo}
-                >
-                  <Redo2 size={20} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Redo</p>
-              </TooltipContent>
-            </Tooltip>
-          </ButtonGroup>
-        </ButtonGroup>
-      </div>
-    </TooltipProvider>
-  );
-};
-```
----
 ```src/components/AsciiCanvas/index.tsx
 import { useRef, useMemo, useEffect } from "react";
 import { useSize, useEventListener } from "ahooks";
@@ -854,6 +649,511 @@ export const useCanvasRenderer = (
 };
 ```
 ---
+```src/components/ToolBar/sidebar-left.tsx
+import * as React from "react";
+import { Layers, Component, Book, ChevronRight } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+  SidebarSeparator,
+} from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+
+export function SidebarLeft({
+  ...props
+}: React.ComponentProps<typeof Sidebar>) {
+  return (
+    <Sidebar
+      collapsible="offcanvas"
+      side="left"
+      className="absolute left-0 top-0 z-40 border-r"
+      {...props}
+    >
+      <SidebarHeader className="h-14 border-b justify-center px-4">
+        <div className="text-sm font-semibold tracking-tight">ASCII Studio</div>
+      </SidebarHeader>
+      <SidebarContent className="overflow-x-hidden">
+        <SidebarMenu className="p-2">
+          <SidebarMenuItem>
+            <SidebarMenuButton isActive tooltip="Manage layers">
+              <Layers className="h-4 w-4" />
+              <span>Layers</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Reusable assets">
+              <Component className="h-4 w-4" />
+              <span>Assets</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Document pages">
+              <Book className="h-4 w-4" />
+              <span>Pages</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+
+        <SidebarSeparator />
+
+        <Collapsible defaultOpen className="px-2 mt-2">
+          <CollapsibleTrigger asChild>
+            <div className="flex w-full items-center justify-between p-2 cursor-pointer hover:bg-muted/50 rounded-md transition-colors">
+              <div className="flex items-center gap-2">
+                <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
+                <span className="text-xs font-bold uppercase text-muted-foreground tracking-wider">
+                  Page 1
+                </span>
+              </div>
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="py-1 pl-4">
+            <div className="flex flex-col gap-0.5 text-sm">
+              <div className="rounded-md px-2 py-1.5 hover:bg-muted cursor-default">
+                Background Layer
+              </div>
+              <div className="rounded-md bg-accent px-2 py-1.5 text-accent-foreground cursor-default font-medium">
+                Active Canvas
+              </div>
+              <div className="rounded-md px-2 py-1.5 hover:bg-muted cursor-default">
+                Annotation Overlay
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </SidebarContent>
+      <SidebarRail />
+    </Sidebar>
+  );
+}
+```
+---
+```src/components/ToolBar/sidebar-right.tsx
+import * as React from "react";
+import { X } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarSeparator,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Button } from "../ui/button";
+
+export function SidebarRight({
+  ...props
+}: React.ComponentProps<typeof Sidebar>) {
+  const { toggleSidebar } = useSidebar();
+  const hasSelection = false;
+
+  return (
+    <Sidebar
+      collapsible="offcanvas"
+      side="right"
+      className="absolute right-0 top-0 z-40 border-l bg-sidebar pointer-events-auto"
+      {...props}
+    >
+      <SidebarHeader className="h-14 border-b flex flex-row items-center justify-between px-4">
+        <div className="text-sm font-semibold tracking-tight">Properties</div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 -mr-2"
+          onClick={toggleSidebar}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </SidebarHeader>
+
+      <SidebarContent className="p-4 overflow-x-hidden">
+        {hasSelection ? (
+          <div className="flex flex-col gap-6">
+            <div className="grid gap-4">
+              <div className="text-xs font-bold uppercase text-muted-foreground tracking-wider">
+                Layout
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label
+                    htmlFor="pos-x"
+                    className="text-[10px] text-muted-foreground uppercase"
+                  >
+                    X
+                  </Label>
+                  <Input
+                    id="pos-x"
+                    defaultValue="120"
+                    className="h-8 text-xs px-2"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label
+                    htmlFor="pos-y"
+                    className="text-[10px] text-muted-foreground uppercase"
+                  >
+                    Y
+                  </Label>
+                  <Input
+                    id="pos-y"
+                    defaultValue="80"
+                    className="h-8 text-xs px-2"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <SidebarSeparator className="mx-0" />
+
+            <div className="grid gap-4">
+              <div className="text-xs font-bold uppercase text-muted-foreground tracking-wider">
+                Appearance
+              </div>
+              <div className="grid gap-1.5">
+                <Label
+                  htmlFor="char-content"
+                  className="text-[10px] text-muted-foreground uppercase"
+                >
+                  Character
+                </Label>
+                <Input
+                  id="char-content"
+                  defaultValue="#"
+                  className="h-8 text-xs px-2"
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col h-full items-center justify-center gap-2 text-muted-foreground/60">
+            <div className="p-3 border-2 border-dashed rounded-lg">
+              <div className="size-8 rounded bg-muted/50" />
+            </div>
+            <p className="text-xs font-medium">Select an object</p>
+          </div>
+        )}
+      </SidebarContent>
+    </Sidebar>
+  );
+}
+```
+---
+```src/components/ToolBar/site-header.tsx
+import { SidebarIcon, Settings2 } from "lucide-react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "../ui/breadcrumb";
+import { Button } from "../ui/button";
+import { Separator } from "../ui/separator";
+import { useSidebar } from "../ui/sidebar";
+
+interface SiteHeaderProps {
+  onToggleRight: () => void;
+  isRightOpen: boolean;
+}
+
+export function SiteHeader({ onToggleRight, isRightOpen }: SiteHeaderProps) {
+  const { toggleSidebar } = useSidebar();
+
+  return (
+    <header className="bg-background sticky top-0 z-50 flex w-full items-center border-b justify-between pr-4">
+      <div className="flex h-[--header-height] w-full items-center gap-2 px-4">
+        <Button
+          className="h-8 w-8"
+          variant="ghost"
+          size="icon"
+          onClick={toggleSidebar}
+        >
+          <SidebarIcon className="h-4 w-4" />
+        </Button>
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbPage className="line-clamp-1">
+                ASCII Art Canvas
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      </div>
+
+      <Button
+        variant={isRightOpen ? "secondary" : "ghost"}
+        size="icon"
+        className="h-8 w-8"
+        onClick={onToggleRight}
+        title="Toggle Properties"
+      >
+        <Settings2 className="h-4 w-4" />
+      </Button>
+    </header>
+  );
+}
+```
+---
+```src/components/ToolBar/Toolbar.tsx
+import React from "react";
+import {
+  File,
+  Minus,
+  MousePointer2,
+  Pencil,
+  Redo2,
+  Square,
+  Trash2,
+  Undo2,
+  Eraser,
+  PaintBucket,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
+import { Button } from "../ui/button";
+import { ButtonGroup, ButtonGroupSeparator } from "../ui/button-group";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "../ui/alert-dialog";
+import type { ToolType } from "../../types";
+
+interface ToolButtonProps {
+  tool: ToolType;
+  setTool: (tool: ToolType) => void;
+}
+
+interface ActionButtonProps {
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+}
+
+interface FileButtonProps {
+  onExport: () => void;
+  onClear: () => void;
+}
+
+export const Toolbar = ({
+  tool,
+  setTool,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  onExport,
+  onClear,
+}: ToolButtonProps & ActionButtonProps & FileButtonProps) => {
+  const tools: { name: ToolType; label: string; icon: React.ElementType }[] = [
+    {
+      name: "select",
+      label: "Select",
+      icon: MousePointer2,
+    },
+    { name: "fill", label: "Fill Selection", icon: PaintBucket },
+    { name: "brush", label: "Brush", icon: Pencil },
+    { name: "line", label: "Line", icon: Minus },
+    { name: "box", label: "Box", icon: Square },
+
+    { name: "eraser", label: "Eraser", icon: Eraser },
+  ];
+
+  return (
+    <TooltipProvider delayDuration={100}>
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+        <ButtonGroup className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-1.5">
+          <ButtonGroup>
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9">
+                      <File size={20} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>File</p>
+                </TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent side="top" align="start" className="mb-2">
+                <DropdownMenuItem onClick={onExport}>
+                  <p>Export</p>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      className="text-red-500 focus:text-red-500 focus:bg-red-50"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      <span>Clear</span>
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear Canvas?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently
+                        delete all your artwork on the canvas.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={onClear}
+                        className="bg-red-500 hover:bg-red-600 focus:ring-red-500"
+                      >
+                        Yes, Clear it
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </ButtonGroup>
+
+          <ButtonGroupSeparator />
+
+          <ButtonGroup>
+            {tools.map((t) => (
+              <Tooltip key={t.name}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={tool === t.name ? "default" : "ghost"}
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => setTool(t.name)}
+                  >
+                    <t.icon size={20} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t.label}</p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </ButtonGroup>
+
+          <ButtonGroupSeparator />
+
+          <ButtonGroup>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={onUndo}
+                  disabled={!canUndo}
+                >
+                  <Undo2 size={20} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Undo</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={onRedo}
+                  disabled={!canRedo}
+                >
+                  <Redo2 size={20} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Redo</p>
+              </TooltipContent>
+            </Tooltip>
+          </ButtonGroup>
+        </ButtonGroup>
+      </div>
+    </TooltipProvider>
+  );
+};
+```
+---
+```src/hooks/use-mobile.ts
+import * as React from "react"
+
+const MOBILE_BREAKPOINT = 768
+
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+    const onChange = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    }
+    mql.addEventListener("change", onChange)
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    return () => mql.removeEventListener("change", onChange)
+  }, [])
+
+  return !!isMobile
+}
+```
+---
+```src/types/index.ts
+import { z } from "zod";
+
+export const PointSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+});
+
+export const SelectionAreaSchema = z.object({
+  start: PointSchema,
+  end: PointSchema,
+});
+
+export type GridMap = Map<string, string>;
+export type ToolType = "select" | "fill" | "brush" | "eraser" | "box" | "line";
+export type Point = z.infer<typeof PointSchema>;
+export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
+export type GridPoint = Point & {
+  char: string;
+};
+```
+---
 ```src/lib/constants.ts
 export const CELL_WIDTH = 10;
 export const CELL_HEIGHT = 20;
@@ -1231,26 +1531,342 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
 });
 ```
 ---
-```src/types/index.ts
-import { z } from "zod";
+```src/App.tsx
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useKeyPress } from "ahooks";
+import { AsciiCanvas } from "./components/AsciiCanvas";
+import { useCanvasStore } from "./store/canvasStore";
+import { exportToString } from "./utils/export";
+import { AppLayout } from "./layout";
+import { Toolbar } from "./components/ToolBar/Toolbar";
+import { undoManager } from "./lib/yjs-setup";
+import { isCtrlOrMeta } from "./utils/event";
 
-export const PointSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-});
+import { SidebarLeft } from "./components/ToolBar/sidebar-left";
+import { SidebarRight } from "./components/ToolBar/sidebar-right";
+import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
+import { SiteHeader } from "./components/ToolBar/site-header";
 
-export const SelectionAreaSchema = z.object({
-  start: PointSchema,
-  end: PointSchema,
-});
+function App() {
+  const {
+    tool,
+    grid,
+    setTool,
+    clearCanvas,
+    fillSelectionsWithChar,
+    copySelectionToClipboard,
+    cutSelectionToClipboard,
+  } = useCanvasStore();
 
-export type GridMap = Map<string, string>;
-export type ToolType = "select" | "fill" | "brush" | "eraser" | "box" | "line";
-export type Point = z.infer<typeof PointSchema>;
-export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
-export type GridPoint = Point & {
-  char: string;
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+
+  useEffect(() => {
+    const updateStackStatus = () => {
+      setCanUndo(undoManager.undoStack.length > 0);
+      setCanRedo(undoManager.redoStack.length > 0);
+    };
+
+    undoManager.on("stack-item-added", updateStackStatus);
+    undoManager.on("stack-item-popped", updateStackStatus);
+
+    return () => {
+      undoManager.off("stack-item-added", updateStackStatus);
+      undoManager.off("stack-item-popped", updateStackStatus);
+    };
+  }, []);
+
+  const handleUndo = () => {
+    undoManager.undo();
+    toast.dismiss();
+  };
+
+  const handleRedo = () => {
+    undoManager.redo();
+  };
+
+  useKeyPress(["meta.z", "ctrl.z"], (e) => {
+    e.preventDefault();
+    handleUndo();
+  });
+
+  useKeyPress(["meta.shift.z", "ctrl.shift.z", "meta.y", "ctrl.y"], (e) => {
+    e.preventDefault();
+    handleRedo();
+  });
+
+  useKeyPress(["meta.c", "ctrl.c"], (e) => {
+    e.preventDefault();
+    copySelectionToClipboard();
+  });
+
+  useKeyPress(["meta.x", "ctrl.x"], (e) => {
+    e.preventDefault();
+    cutSelectionToClipboard();
+  });
+
+  useKeyPress(
+    (event) => !isCtrlOrMeta(event) && !event.altKey && event.key.length === 1,
+    (event) => {
+      const { selections, textCursor } = useCanvasStore.getState();
+      if (selections.length > 0 && !textCursor) {
+        event.preventDefault();
+        fillSelectionsWithChar(event.key);
+      }
+    },
+    {
+      events: ["keydown"],
+    }
+  );
+
+  const handleExport = () => {
+    const text = exportToString(grid);
+    if (!text) {
+      toast.warning("Canvas is empty!", {
+        description: "Draw something before exporting.",
+      });
+      return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success("Copied to clipboard!", {
+        description: `${text.length} characters ready to paste.`,
+      });
+    });
+  };
+
+  const handleClear = () => {
+    clearCanvas();
+    toast.success("Canvas Cleared", {
+      description: "Start fresh!",
+    });
+  };
+
+  return (
+    <div className="[--header-height:3.5rem] h-full w-full">
+      <SidebarProvider className="flex flex-col h-full">
+        <SiteHeader
+          isRightOpen={isRightPanelOpen}
+          onToggleRight={() => setIsRightPanelOpen(!isRightPanelOpen)}
+        />
+        <div className="flex flex-1 relative overflow-hidden">
+          <SidebarLeft />
+
+          <SidebarInset className="h-full w-full">
+            <AppLayout
+              canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
+            >
+              <Toolbar
+                tool={tool}
+                setTool={setTool}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                onExport={handleExport}
+                onClear={handleClear}
+              />
+            </AppLayout>
+          </SidebarInset>
+
+          <SidebarProvider
+            open={isRightPanelOpen}
+            onOpenChange={setIsRightPanelOpen}
+            className="absolute top-0 right-0 h-full w-auto min-h-0 z-50 pointer-events-none"
+          >
+            <SidebarRight />
+          </SidebarProvider>
+        </div>
+      </SidebarProvider>
+    </div>
+  );
+}
+
+export default App;
+```
+---
+```src/index.css
+/* src/index.css */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Maple Mono NF CN";
+    font-weight: normal;
+  }
+}
+
+[data-slot="sidebar-gap"] {
+  width: 0 !important;
+}
+
+[data-slot="sidebar-container"] {
+  position: absolute !important;
+  height: 100% !important;
+}
+```
+---
+```src/layout.tsx
+import React from "react";
+import { Toaster } from "./components/ui/sonner";
+
+interface AppLayoutProps {
+  canvas: React.ReactNode;
+  children: React.ReactNode;
+}
+
+export const AppLayout = ({ canvas, children }: AppLayoutProps) => {
+  return (
+    <div className="w-full h-full flex flex-col bg-gray-50 relative overflow-hidden">
+      <main className="flex-1 relative z-0">{canvas}</main>
+
+      <Toaster />
+
+      {children}
+    </div>
+  );
 };
+```
+---
+```src/main.tsx
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.tsx";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
 ```
 ---
 ```src/utils/char.ts
@@ -1533,325 +2149,4 @@ export function getBoxPoints(start: Point, end: Point): GridPoint[] {
 
   return points;
 }
-```
----
-```src/App.tsx
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { useKeyPress } from "ahooks";
-import { AsciiCanvas } from "./components/AsciiCanvas";
-import { useCanvasStore } from "./store/canvasStore";
-import { exportToString } from "./utils/export";
-import { AppLayout } from "./layout";
-import { Toolbar } from "./components/Toolbar";
-import { undoManager } from "./lib/yjs-setup";
-import { isCtrlOrMeta } from "./utils/event";
-
-function App() {
-  const {
-    zoom,
-    offset,
-    tool,
-    grid,
-    textCursor,
-    setTool,
-    clearCanvas,
-    fillSelectionsWithChar,
-    copySelectionToClipboard,
-    cutSelectionToClipboard,
-  } = useCanvasStore();
-
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
-
-  useEffect(() => {
-    const updateStackStatus = () => {
-      setCanUndo(undoManager.undoStack.length > 0);
-      setCanRedo(undoManager.redoStack.length > 0);
-    };
-
-    undoManager.on("stack-item-added", updateStackStatus);
-    undoManager.on("stack-item-popped", updateStackStatus);
-
-    return () => {
-      undoManager.off("stack-item-added", updateStackStatus);
-      undoManager.off("stack-item-popped", updateStackStatus);
-    };
-  }, []);
-
-  const handleUndo = () => {
-    undoManager.undo();
-    toast.dismiss();
-  };
-
-  const handleRedo = () => {
-    undoManager.redo();
-  };
-
-  useKeyPress(["meta.z", "ctrl.z"], (e) => {
-    e.preventDefault();
-    handleUndo();
-  });
-
-  useKeyPress(["meta.shift.z", "ctrl.shift.z", "meta.y", "ctrl.y"], (e) => {
-    e.preventDefault();
-    handleRedo();
-  });
-
-  useKeyPress(["meta.c", "ctrl.c"], (e) => {
-    e.preventDefault();
-    copySelectionToClipboard();
-  });
-
-  useKeyPress(["meta.x", "ctrl.x"], (e) => {
-    e.preventDefault();
-    cutSelectionToClipboard();
-  });
-
-  useKeyPress(
-    (event) => !isCtrlOrMeta(event) && !event.altKey && event.key.length === 1,
-    (event) => {
-      const { selections, textCursor } = useCanvasStore.getState();
-      if (selections.length > 0 && !textCursor) {
-        event.preventDefault();
-        fillSelectionsWithChar(event.key);
-      }
-    },
-    {
-      events: ["keydown"],
-    }
-  );
-
-  const handleExport = () => {
-    const text = exportToString(grid);
-    if (!text) {
-      toast.warning("Canvas is empty!", {
-        description: "Draw something before exporting.",
-      });
-      return;
-    }
-    navigator.clipboard.writeText(text).then(() => {
-      toast.success("Copied to clipboard!", {
-        description: `${text.length} characters ready to paste.`,
-      });
-    });
-  };
-
-  const handleClear = () => {
-    clearCanvas();
-    toast.success("Canvas Cleared", {
-      description: "Start fresh!",
-    });
-  };
-
-  const statusBar = (
-    <div className="pointer-events-none select-none font-mono text-xs text-gray-400 bg-white/50 p-2 rounded backdrop-blur-sm">
-      Pos: {offset.x.toFixed(0)}, {offset.y.toFixed(0)} | Zoom:{" "}
-      {(zoom * 100).toFixed(0)}% <br />
-      Objects: {grid.size} <br />
-      {!!textCursor && (
-        <span className="text-blue-600 font-bold animate-pulse">
-          Mode: Text Input (Click to focus)
-        </span>
-      )}
-    </div>
-  );
-
-  return (
-    <AppLayout
-      statusBar={statusBar}
-      canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
-    >
-      <Toolbar
-        tool={tool}
-        setTool={setTool}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onExport={handleExport}
-        onClear={handleClear}
-      />
-    </AppLayout>
-  );
-}
-
-export default App;
-```
----
-```src/index.css
-/* src/index.css */
-@import "tailwindcss";
-@import "tw-animate-css";
-
-@custom-variant dark (&:is(.dark *));
-
-html,
-body,
-#root {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-}
-
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-}
-
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-family: "Maple Mono NF CN";
-    font-weight: normal;
-  }
-}
-```
----
-```src/layout.tsx
-import React from "react";
-import { Toaster } from "./components/ui/sonner";
-
-interface AppLayoutProps {
-  statusBar: React.ReactNode;
-  canvas: React.ReactNode;
-  children: React.ReactNode;
-}
-
-export const AppLayout = ({ statusBar, canvas, children }: AppLayoutProps) => {
-  return (
-    <div className="w-screen h-screen flex flex-col bg-gray-50 relative overflow-hidden">
-      <main className="flex-1 relative z-0">{canvas}</main>
-
-      <footer className="absolute bottom-4 left-4 z-10">{statusBar}</footer>
-
-      <Toaster />
-
-      {children}
-    </div>
-  );
-};
-```
----
-```src/main.tsx
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App.tsx";
-import "./index.css";
-
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
 ```

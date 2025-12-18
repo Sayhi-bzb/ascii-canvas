@@ -42,6 +42,12 @@ export const useCanvasInteraction = (
   const handleDrawing = useCreation(
     () => (currentGrid: Point) => {
       if (!lastGrid.current) return;
+      if (
+        currentGrid.x === lastGrid.current.x &&
+        currentGrid.y === lastGrid.current.y
+      )
+        return;
+
       const points = bresenham(
         lastGrid.current.x,
         lastGrid.current.y,
@@ -61,7 +67,7 @@ export const useCanvasInteraction = (
   );
 
   const { run: throttledDraw } = useThrottleFn(handleDrawing, {
-    wait: 16,
+    wait: 8,
     trailing: true,
   });
 
@@ -120,12 +126,8 @@ export const useCanvasInteraction = (
           }
         }
       },
-      onDrag: ({ xy: [x, y], delta: [dx, dy], event }) => {
-        const mouseEvent = event as MouseEvent;
-        const isPanGesture =
-          mouseEvent.buttons === 4 || isCtrlOrMeta(mouseEvent);
-
-        if (isPanningRef.current || isPanGesture) {
+      onDrag: ({ xy: [x, y], delta: [dx, dy] }) => {
+        if (isPanningRef.current) {
           setOffset((prev: Point) => ({ x: prev.x + dx, y: prev.y + dy }));
           return;
         }
@@ -174,28 +176,22 @@ export const useCanvasInteraction = (
         }
       },
       onDragEnd: ({ event }) => {
-        const mouseEvent = event as MouseEvent;
-        const isLeftClick = mouseEvent.button === 0;
-
         if (isPanningRef.current) {
           isPanningRef.current = false;
           document.body.style.cursor = "auto";
           return;
         }
 
-        if (isLeftClick) {
+        const mouseEvent = event as MouseEvent;
+        if (mouseEvent.button === 0) {
           if (tool === "select" && draggingSelection) {
             const { start, end } = draggingSelection;
-            const isClick = start.x === end.x && start.y === end.y;
-
-            if (isClick) {
-              const clickPos = snapToCharStart(start, grid);
-              setTextCursor(clickPos);
-              setDraggingSelection(null);
+            if (start.x === end.x && start.y === end.y) {
+              setTextCursor(start);
             } else {
               addSelection(draggingSelection);
-              setDraggingSelection(null);
             }
+            setDraggingSelection(null);
           } else if (tool !== "fill" && tool !== "eraser") {
             commitScratch();
           } else if (tool === "eraser") {
