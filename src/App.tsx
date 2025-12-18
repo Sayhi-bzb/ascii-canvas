@@ -99,7 +99,6 @@ function App() {
           />
         </AppLayout>
 
-        {/* 右侧侧边栏独立行政区 */}
         <div className="absolute top-0 right-0 h-full pointer-events-none z-50">
           <SidebarProvider
             open={isRightPanelOpen}

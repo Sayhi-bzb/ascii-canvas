@@ -1,107 +1,149 @@
-import bresenham from "bresenham";
 import { BOX_CHARS } from "../lib/constants";
 import type { Point, GridPoint } from "../types";
 
-function getLinePoints(start: Point, end: Point): Point[] {
-  const points = bresenham(start.x, start.y, end.x, end.y);
-  return points.map(({ x, y }) => ({ x, y }));
+function resolvePointChars(points: Point[]): GridPoint[] {
+  return points.map((p, i) => {
+    const prev = points[i - 1];
+    const next = points[i + 1];
+
+    if (!prev && !next) return { ...p, char: BOX_CHARS.CROSS };
+
+    const dIn = prev ? `${p.x - prev.x},${p.y - prev.y}` : null;
+    const dOut = next ? `${next.x - p.x},${next.y - p.y}` : null;
+
+    const isH = (d: string | null) => d === "1,0" || d === "-1,0";
+    const isV = (d: string | null) => d === "0,1" || d === "0,-1";
+
+    if ((isH(dIn) || !dIn) && (isH(dOut) || !dOut)) {
+      return { ...p, char: BOX_CHARS.HORIZONTAL };
+    }
+    if ((isV(dIn) || !dIn) && (isV(dOut) || !dOut)) {
+      return { ...p, char: BOX_CHARS.VERTICAL };
+    }
+
+    const combined = `${dIn}|${dOut}`;
+    let char = BOX_CHARS.CROSS;
+
+    switch (combined) {
+      case "0,-1|1,0":
+      case "-1,0|0,1":
+        char = BOX_CHARS.TOP_LEFT;
+        break;
+
+      case "0,-1|-1,0":
+      case "1,0|0,1":
+        char = BOX_CHARS.TOP_RIGHT;
+        break;
+
+      case "0,1|1,0":
+      case "-1,0|0,-1":
+        char = BOX_CHARS.BOTTOM_LEFT;
+        break;
+      case "0,1|-1,0":
+      case "1,0|0,-1":
+        char = BOX_CHARS.BOTTOM_RIGHT;
+        break;
+    }
+
+    return { ...p, char };
+  });
 }
 
-export function getOrthogonalLinePoints(
+export function getLShapeLinePoints(
   start: Point,
   end: Point,
   isVerticalFirst: boolean
 ): GridPoint[] {
-  const points: GridPoint[] = [];
-
-  if (start.x === end.x) {
-    return getLinePoints(start, end).map((p) => ({
-      ...p,
-      char: BOX_CHARS.VERTICAL,
-    }));
-  }
-  if (start.y === end.y) {
-    return getLinePoints(start, end).map((p) => ({
-      ...p,
-      char: BOX_CHARS.HORIZONTAL,
-    }));
-  }
-
-  const junction: Point = isVerticalFirst
+  const points: Point[] = [];
+  const junction = isVerticalFirst
     ? { x: start.x, y: end.y }
     : { x: end.x, y: start.y };
 
-  const segment1 = getLinePoints(start, junction);
-  segment1.pop();
-  points.push(
-    ...segment1.map((p) => ({
-      ...p,
-      char: isVerticalFirst ? BOX_CHARS.VERTICAL : BOX_CHARS.HORIZONTAL,
-    }))
-  );
+  const drawLine = (p1: Point, p2: Point) => {
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const adx = Math.abs(dx);
+    const ady = Math.abs(dy);
+    const stepX = dx === 0 ? 0 : dx / adx;
+    const stepY = dy === 0 ? 0 : dy / ady;
+    const steps = Math.max(adx, ady);
 
-  const segment2 = getLinePoints(junction, end);
-  segment2.shift();
-  points.push(
-    ...segment2.map((p) => ({
-      ...p,
-      char: isVerticalFirst ? BOX_CHARS.HORIZONTAL : BOX_CHARS.VERTICAL,
-    }))
-  );
-
-  let cornerChar = "";
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
+    for (let i = 0; i <= steps; i++) {
+      points.push({ x: p1.x + i * stepX, y: p1.y + i * stepY });
+    }
+  };
 
   if (isVerticalFirst) {
-    if (dy > 0) {
-      cornerChar = dx > 0 ? BOX_CHARS.BOTTOM_LEFT : BOX_CHARS.BOTTOM_RIGHT;
-    } else {
-      cornerChar = dx > 0 ? BOX_CHARS.TOP_LEFT : BOX_CHARS.TOP_RIGHT;
-    }
+    drawLine(start, junction);
+    points.pop();
+    drawLine(junction, end);
   } else {
-    if (dx > 0) {
-      cornerChar = dy > 0 ? BOX_CHARS.TOP_RIGHT : BOX_CHARS.BOTTOM_RIGHT;
-    } else {
-      cornerChar = dy > 0 ? BOX_CHARS.TOP_LEFT : BOX_CHARS.BOTTOM_LEFT;
-    }
+    drawLine(start, junction);
+    points.pop();
+    drawLine(junction, end);
   }
 
-  points.push({ ...junction, char: cornerChar });
-  return points;
+  const uniquePoints: Point[] = [];
+  const seen = new Set();
+  points.forEach((p) => {
+    const key = `${p.x},${p.y}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniquePoints.push(p);
+    }
+  });
+
+  return resolvePointChars(uniquePoints);
+}
+
+export function getStepLinePoints(start: Point, end: Point): GridPoint[] {
+  const points: Point[] = [];
+  let x = start.x;
+  let y = start.y;
+  const dx = Math.abs(end.x - start.x);
+  const dy = Math.abs(end.y - start.y);
+  const sx = start.x < end.x ? 1 : -1;
+  const sy = start.y < end.y ? 1 : -1;
+  let err = dx - dy;
+
+  points.push({ x, y });
+  while (x !== end.x || y !== end.y) {
+    const e2 = 2 * err;
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+      points.push({ x, y });
+    }
+    if (x === end.x && y === end.y) break;
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+      points.push({ x, y });
+    }
+  }
+  return resolvePointChars(points);
 }
 
 export function getBoxPoints(start: Point, end: Point): GridPoint[] {
   const points: GridPoint[] = [];
+  const x1 = Math.min(start.x, end.x);
+  const x2 = Math.max(start.x, end.x);
+  const y1 = Math.min(start.y, end.y);
+  const y2 = Math.max(start.y, end.y);
 
-  const left = Math.min(start.x, end.x);
-  const right = Math.max(start.x, end.x);
-  const top = Math.min(start.y, end.y);
-  const bottom = Math.max(start.y, end.y);
-
-  if (left === right || top === bottom) {
-    if (left === right && top === bottom)
-      return [{ ...start, char: BOX_CHARS.CROSS }];
-    return getLinePoints(start, end).map((p) => ({
-      ...p,
-      char: left === right ? BOX_CHARS.VERTICAL : BOX_CHARS.HORIZONTAL,
-    }));
+  for (let x = x1; x <= x2; x++) {
+    for (let y = y1; y <= y2; y++) {
+      if (x === x1 || x === x2 || y === y1 || y === y2) {
+        let char = "";
+        if (x === x1 && y === y1) char = BOX_CHARS.TOP_LEFT;
+        else if (x === x2 && y === y1) char = BOX_CHARS.TOP_RIGHT;
+        else if (x === x1 && y === y2) char = BOX_CHARS.BOTTOM_LEFT;
+        else if (x === x2 && y === y2) char = BOX_CHARS.BOTTOM_RIGHT;
+        else if (y === y1 || y === y2) char = BOX_CHARS.HORIZONTAL;
+        else char = BOX_CHARS.VERTICAL;
+        points.push({ x, y, char });
+      }
+    }
   }
-
-  points.push({ x: left, y: top, char: BOX_CHARS.TOP_LEFT });
-  points.push({ x: right, y: top, char: BOX_CHARS.TOP_RIGHT });
-  points.push({ x: left, y: bottom, char: BOX_CHARS.BOTTOM_LEFT });
-  points.push({ x: right, y: bottom, char: BOX_CHARS.BOTTOM_RIGHT });
-
-  for (let x = left + 1; x < right; x++) {
-    points.push({ x, y: top, char: BOX_CHARS.HORIZONTAL });
-    points.push({ x, y: bottom, char: BOX_CHARS.HORIZONTAL });
-  }
-
-  for (let y = top + 1; y < bottom; y++) {
-    points.push({ x: left, y, char: BOX_CHARS.VERTICAL });
-    points.push({ x: right, y, char: BOX_CHARS.VERTICAL });
-  }
-
   return points;
 }

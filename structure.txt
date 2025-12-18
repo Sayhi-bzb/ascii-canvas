@@ -26,7 +26,6 @@ src
 │       ├── separator.tsx
 │       ├── sheet.tsx
 │       ├── sidebar.tsx
-│       ├── skeleton.tsx
 │       ├── sonner.tsx
 │       └── tooltip.tsx
 ├── hooks

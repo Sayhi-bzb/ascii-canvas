@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   MousePointer2,
   Square,
@@ -9,6 +10,7 @@ import {
   PaintBucket,
   Undo2,
   Download,
+  LineSquiggle,
 } from "lucide-react";
 import { MenuDock, type MenuDockItem } from "@/components/ui/menu-dock";
 import { cn } from "@/lib/utils";
@@ -22,6 +24,17 @@ interface ToolbarProps {
 }
 
 export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
+  const [lastUsedLineType, setLastUsedLineType] = useState<"line" | "stepline">(
+    "line"
+  );
+
+  const isLineGroupActive = tool === "line" || tool === "stepline";
+
+  const displayLineType = isLineGroupActive ? tool : lastUsedLineType;
+
+  const CurrentLineIcon = displayLineType === "stepline" ? LineSquiggle : Minus;
+  const currentLineLabel = displayLineType === "stepline" ? "Curve" : "Line";
+
   const menuItems: MenuDockItem[] = [
     {
       id: "select",
@@ -42,10 +55,29 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
       onClick: () => setTool("box"),
     },
     {
-      id: "line",
-      label: "Line",
-      icon: Minus,
-      onClick: () => setTool("line"),
+      id: "line-group",
+      label: currentLineLabel,
+      icon: CurrentLineIcon,
+      subItems: [
+        {
+          id: "tool-line",
+          label: "Line",
+          icon: Minus,
+          onClick: () => {
+            setTool("line");
+            setLastUsedLineType("line");
+          },
+        },
+        {
+          id: "tool-stepline",
+          label: "Curve",
+          icon: LineSquiggle,
+          onClick: () => {
+            setTool("stepline");
+            setLastUsedLineType("stepline");
+          },
+        },
+      ],
     },
     {
       id: "fill",
@@ -80,7 +112,7 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
           items={menuItems}
           variant="default"
           showLabels={false}
-          activeId={tool}
+          activeId={isLineGroupActive ? "line-group" : tool}
           className={cn(
             "shadow-2xl border-primary/10 bg-background/80 backdrop-blur-md",
             "rounded-2xl"

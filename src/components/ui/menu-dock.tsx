@@ -9,6 +9,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 type IconComponentType = React.ElementType<{ className?: string }>;
 
@@ -17,6 +22,7 @@ export interface MenuDockItem {
   icon: IconComponentType;
   onClick?: () => void;
   id?: string;
+  subItems?: MenuDockItem[];
 }
 
 export interface MenuDockProps {
@@ -47,11 +53,12 @@ export const MenuDock: React.FC<MenuDockProps> = ({
 }) => {
   const finalItems = useMemo(() => {
     const isValid =
-      items && Array.isArray(items) && items.length >= 2 && items.length <= 8;
+      items && Array.isArray(items) && items.length >= 2 && items.length <= 12;
     return isValid ? items : defaultItems;
   }, [items]);
 
   const [internalActiveIndex, setInternalActiveIndex] = useState(0);
+  const [openSubMenuId, setOpenSubMenuId] = useState<string | null>(null);
 
   const activeIndex = useMemo(() => {
     if (activeId !== undefined) {
@@ -77,9 +84,11 @@ export const MenuDock: React.FC<MenuDockProps> = ({
       const activeButton = itemRefs.current[activeIndex];
       const container = activeButton?.parentElement;
 
-      if (activeButton && container) {
+      const navContainer = activeButton?.closest("nav");
+
+      if (activeButton && navContainer) {
         const btnRect = activeButton.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
+        const containerRect = navContainer.getBoundingClientRect();
 
         if (orientation === "horizontal") {
           const width = showLabels ? btnRect.width * 0.6 : 24;
@@ -157,50 +166,110 @@ export const MenuDock: React.FC<MenuDockProps> = ({
         {finalItems.map((item, index) => {
           const isActive = index === activeIndex;
           const IconComponent = item.icon;
+          const hasSubMenu = item.subItems && item.subItems.length > 0;
+          const itemId = item.id || item.label;
+
+          const MainButton = (
+            <button
+              ref={(el) => {
+                itemRefs.current[index] = el;
+              }}
+              className={cn(
+                "relative flex flex-col items-center justify-center rounded-lg transition-all duration-200",
+                "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                styles.item,
+                isActive
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground",
+                hasSubMenu && openSubMenuId === itemId && "bg-muted/50"
+              )}
+              onClick={() => {
+                if (!hasSubMenu) {
+                  setInternalActiveIndex(index);
+                  item.onClick?.();
+                }
+              }}
+              aria-label={item.label}
+              type="button"
+            >
+              <div
+                className={cn(
+                  "flex items-center justify-center",
+                  orientation === "horizontal" && showLabels ? "mb-1" : ""
+                )}
+              >
+                <IconComponent className={cn(styles.icon)} />
+              </div>
+
+              {showLabels && (
+                <span
+                  className={cn(
+                    "font-medium capitalize whitespace-nowrap",
+                    styles.text
+                  )}
+                >
+                  {item.label}
+                </span>
+              )}
+            </button>
+          );
+
+          if (hasSubMenu) {
+            return (
+              <Popover
+                key={`${item.label}-${index}`}
+                open={openSubMenuId === itemId}
+                onOpenChange={(open) => setOpenSubMenuId(open ? itemId : null)}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>{MainButton}</PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side={orientation === "horizontal" ? "top" : "right"}
+                    className="capitalize"
+                  >
+                    {item.label}
+                  </TooltipContent>
+                </Tooltip>
+
+                <PopoverContent
+                  side="top"
+                  align="center"
+                  className="w-auto p-1.5 flex gap-1 rounded-xl bg-card/90 backdrop-blur-md border shadow-xl"
+                  sideOffset={10}
+                >
+                  {item.subItems?.map((subItem, subIndex) => {
+                    const SubIcon = subItem.icon;
+                    return (
+                      <Tooltip key={`sub-${subIndex}`}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => {
+                              subItem.onClick?.();
+                              setOpenSubMenuId(null);
+                              setInternalActiveIndex(index);
+                            }}
+                            className={cn(
+                              "p-2 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors",
+                              "text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            )}
+                          >
+                            <SubIcon className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{subItem.label}</TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
+            );
+          }
 
           return (
             <Tooltip key={`${item.label}-${index}`}>
-              <TooltipTrigger asChild>
-                <button
-                  ref={(el) => {
-                    itemRefs.current[index] = el;
-                  }}
-                  className={cn(
-                    "relative flex flex-col items-center justify-center rounded-lg transition-all duration-200",
-                    "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    styles.item,
-                    isActive
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  onClick={() => {
-                    setInternalActiveIndex(index);
-                    item.onClick?.();
-                  }}
-                  aria-label={item.label}
-                  type="button"
-                >
-                  <div
-                    className={cn(
-                      "flex items-center justify-center",
-                      orientation === "horizontal" && showLabels ? "mb-1" : ""
-                    )}
-                  >
-                    <IconComponent className={cn(styles.icon)} />
-                  </div>
-
-                  {showLabels && (
-                    <span
-                      className={cn(
-                        "font-medium capitalize whitespace-nowrap",
-                        styles.text
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  )}
-                </button>
-              </TooltipTrigger>
+              <TooltipTrigger asChild>{MainButton}</TooltipTrigger>
               <TooltipContent
                 side={orientation === "horizontal" ? "top" : "right"}
                 className="capitalize"
@@ -211,7 +280,6 @@ export const MenuDock: React.FC<MenuDockProps> = ({
           );
         })}
 
-        {/* 统一的物理定位下划线/指示器 */}
         <div
           className={cn(
             "absolute bg-primary rounded-full transition-all duration-300 ease-out pointer-events-none",

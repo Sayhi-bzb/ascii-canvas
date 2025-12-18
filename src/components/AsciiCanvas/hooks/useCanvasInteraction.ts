@@ -2,7 +2,11 @@ import { useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
 import { useCreation, useThrottleFn } from "ahooks";
 import { GridManager } from "../../../utils/grid";
-import { getBoxPoints, getOrthogonalLinePoints } from "../../../utils/shapes";
+import {
+  getBoxPoints,
+  getLShapeLinePoints,
+  getStepLinePoints,
+} from "../../../utils/shapes";
 import type { Point, SelectionArea } from "../../../types";
 import { type CanvasState } from "../../../store/canvasStore";
 import { forceHistorySave } from "../../../lib/yjs-setup";
@@ -45,6 +49,7 @@ export const useCanvasInteraction = (
           currentGrid.y === lastGrid.current.y)
       )
         return;
+
       const points = bresenham(
         lastGrid.current.x,
         lastGrid.current.y,
@@ -100,6 +105,7 @@ export const useCanvasInteraction = (
           setTextCursor(null);
           dragStartGrid.current = start;
           lastGrid.current = start;
+          lineAxisRef.current = null;
 
           if (tool === "brush")
             addScratchPoints([{ ...start, char: brushChar }]);
@@ -136,15 +142,20 @@ export const useCanvasInteraction = (
             if (!lineAxisRef.current) {
               const adx = Math.abs(currentGrid.x - dragStartGrid.current.x);
               const ady = Math.abs(currentGrid.y - dragStartGrid.current.y);
-              if (adx > 0 || ady > 0)
+              if (adx > 0 || ady > 0) {
                 lineAxisRef.current = ady > adx ? "vertical" : "horizontal";
+              }
             }
             setScratchLayer(
-              getOrthogonalLinePoints(
+              getLShapeLinePoints(
                 dragStartGrid.current,
                 currentGrid,
                 lineAxisRef.current === "vertical"
               )
+            );
+          } else if (tool === "stepline") {
+            setScratchLayer(
+              getStepLinePoints(dragStartGrid.current, currentGrid)
             );
           }
         }
@@ -166,7 +177,12 @@ export const useCanvasInteraction = (
               addSelection(draggingSelection);
             }
             setDraggingSelection(null);
-          } else if (tool !== "fill" && tool !== "eraser") {
+          } else if (
+            tool === "brush" ||
+            tool === "box" ||
+            tool === "line" ||
+            tool === "stepline"
+          ) {
             commitScratch();
           } else if (tool === "eraser") {
             forceHistorySave();
