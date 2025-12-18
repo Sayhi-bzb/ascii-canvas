@@ -5,14 +5,14 @@ import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
 import { exportToString } from "./utils/export";
 import { AppLayout } from "./layout";
-import { Toolbar } from "./components/Toolbar";
+import { Toolbar } from "./components/ToolBar/Toolbar";
 import { undoManager } from "./lib/yjs-setup";
 import { isCtrlOrMeta } from "./utils/event";
 
-import { SidebarLeft } from "./components/sidebar-left";
-import { SidebarRight } from "./components/sidebar-right";
+import { SidebarLeft } from "./components/ToolBar/sidebar-left";
+import { SidebarRight } from "./components/ToolBar/sidebar-right";
 import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
-import { SiteHeader } from "./components/site-header";
+import { SiteHeader } from "./components/ToolBar/site-header";
 
 function App() {
   const {

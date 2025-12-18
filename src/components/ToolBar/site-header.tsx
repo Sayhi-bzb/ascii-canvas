@@ -4,10 +4,10 @@ import {
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
-} from "./ui/breadcrumb";
-import { Button } from "./ui/button";
-import { Separator } from "./ui/separator";
-import { useSidebar } from "./ui/sidebar";
+} from "../ui/breadcrumb";
+import { Button } from "../ui/button";
+import { Separator } from "../ui/separator";
+import { useSidebar } from "../ui/sidebar";
 
 interface SiteHeaderProps {
   onToggleRight: () => void;

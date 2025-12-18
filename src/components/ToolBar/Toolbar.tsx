@@ -17,15 +17,15 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
+} from "../ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "./ui/tooltip";
-import { Button } from "./ui/button";
-import { ButtonGroup, ButtonGroupSeparator } from "./ui/button-group";
+} from "../ui/tooltip";
+import { Button } from "../ui/button";
+import { ButtonGroup, ButtonGroupSeparator } from "../ui/button-group";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,8 +36,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "./ui/alert-dialog";
-import type { ToolType } from "../types";
+} from "../ui/alert-dialog";
+import type { ToolType } from "../../types";
 
 interface ToolButtonProps {
   tool: ToolType;
