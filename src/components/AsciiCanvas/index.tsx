@@ -3,7 +3,7 @@ import { useSize, useEventListener } from "ahooks";
 import { useCanvasStore } from "../../store/canvasStore";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
 import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
-import { gridToScreen, toKey } from "../../utils/math";
+import { GridManager } from "../../utils/grid"; // 统一使用规划局
 import { toast } from "sonner";
 import { isCtrlOrMeta } from "../../utils/event";
 
@@ -38,6 +38,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
   useCanvasRenderer(canvasRef, size, store, draggingSelection);
 
+  // 当市长点击地块时，自动聚焦到输入框，准备录入“人口数据（文字）”
   useEffect(() => {
     if (textCursor && textareaRef.current) {
       setTimeout(() => {
@@ -57,7 +58,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 
     if (textCursor) {
       e.preventDefault();
-      const key = toKey(textCursor.x, textCursor.y);
+      const key = GridManager.toKey(textCursor.x, textCursor.y);
       const char = grid.get(key) || " ";
       navigator.clipboard.writeText(char).then(() => {
         toast.success("Copied Char!", {
@@ -77,7 +78,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 
     if (textCursor) {
       e.preventDefault();
-      const key = toKey(textCursor.x, textCursor.y);
+      const key = GridManager.toKey(textCursor.x, textCursor.y);
       const char = grid.get(key) || " ";
       navigator.clipboard.writeText(char).then(() => {
         erasePoints([textCursor]);
@@ -119,10 +120,11 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   };
   useEventListener("paste", handlePaste);
 
+  // 计算隐藏输入框的位置，确保它始终跟着地块光标走
   const textareaStyle: React.CSSProperties = useMemo(() => {
     if (!textCursor || !size) return { display: "none" };
 
-    const { x, y } = gridToScreen(
+    const { x, y } = GridManager.gridToScreen(
       textCursor.x,
       textCursor.y,
       store.offset.x,

@@ -311,6 +311,12 @@ export const useCanvasInteraction = (
   const handleDrawing = useCreation(
     () => (currentGrid: Point) => {
       if (!lastGrid.current) return;
+      if (
+        currentGrid.x === lastGrid.current.x &&
+        currentGrid.y === lastGrid.current.y
+      )
+        return;
+
       const points = bresenham(
         lastGrid.current.x,
         lastGrid.current.y,
@@ -330,7 +336,7 @@ export const useCanvasInteraction = (
   );
 
   const { run: throttledDraw } = useThrottleFn(handleDrawing, {
-    wait: 16,
+    wait: 8,
     trailing: true,
   });
 
@@ -389,12 +395,8 @@ export const useCanvasInteraction = (
           }
         }
       },
-      onDrag: ({ xy: [x, y], delta: [dx, dy], event }) => {
-        const mouseEvent = event as MouseEvent;
-        const isPanGesture =
-          mouseEvent.buttons === 4 || isCtrlOrMeta(mouseEvent);
-
-        if (isPanningRef.current || isPanGesture) {
+      onDrag: ({ xy: [x, y], delta: [dx, dy] }) => {
+        if (isPanningRef.current) {
           setOffset((prev: Point) => ({ x: prev.x + dx, y: prev.y + dy }));
           return;
         }
@@ -443,28 +445,22 @@ export const useCanvasInteraction = (
         }
       },
       onDragEnd: ({ event }) => {
-        const mouseEvent = event as MouseEvent;
-        const isLeftClick = mouseEvent.button === 0;
-
         if (isPanningRef.current) {
           isPanningRef.current = false;
           document.body.style.cursor = "auto";
           return;
         }
 
-        if (isLeftClick) {
+        const mouseEvent = event as MouseEvent;
+        if (mouseEvent.button === 0) {
           if (tool === "select" && draggingSelection) {
             const { start, end } = draggingSelection;
-            const isClick = start.x === end.x && start.y === end.y;
-
-            if (isClick) {
-              const clickPos = snapToCharStart(start, grid);
-              setTextCursor(clickPos);
-              setDraggingSelection(null);
+            if (start.x === end.x && start.y === end.y) {
+              setTextCursor(start);
             } else {
               addSelection(draggingSelection);
-              setDraggingSelection(null);
             }
+            setDraggingSelection(null);
           } else if (tool !== "fill" && tool !== "eraser") {
             commitScratch();
           } else if (tool === "eraser") {
@@ -496,7 +492,7 @@ export const useCanvasInteraction = (
 ```
 ---
 ```src/components/AsciiCanvas/hooks/useCanvasRenderer.ts
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   BACKGROUND_COLOR,
   CELL_HEIGHT,
@@ -512,7 +508,7 @@ import {
   GRID_COLOR,
 } from "../../../lib/constants";
 import { type CanvasState } from "../../../store/canvasStore";
-import { gridToScreen, toKey } from "../../../utils/math";
+import { gridToScreen, fromKey, toKey } from "../../../utils/math";
 import type { SelectionArea } from "../../../types";
 import { isWideChar } from "../../../utils/char";
 import { getSelectionBounds } from "../../../utils/selection";
@@ -525,6 +521,25 @@ export const useCanvasRenderer = (
 ) => {
   const { offset, zoom, grid, scratchLayer, textCursor, selections } = store;
 
+  const gridPattern = useMemo(() => {
+    const scaledW = CELL_WIDTH * zoom;
+    const scaledH = CELL_HEIGHT * zoom;
+    const offscreen = document.createElement("canvas");
+    offscreen.width = scaledW;
+    offscreen.height = scaledH;
+    const octx = offscreen.getContext("2d");
+    if (octx) {
+      octx.strokeStyle = GRID_COLOR;
+      octx.lineWidth = 1;
+      octx.beginPath();
+      octx.moveTo(scaledW, 0);
+      octx.lineTo(0, 0);
+      octx.lineTo(0, scaledH);
+      octx.stroke();
+    }
+    return offscreen;
+  }, [zoom]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
@@ -536,57 +551,53 @@ export const useCanvasRenderer = (
     canvas.height = size.height * dpr;
     ctx.resetTransform();
     ctx.scale(dpr, dpr);
-    canvas.style.width = `${size.width}px`;
-    canvas.style.height = `${size.height}px`;
 
     ctx.fillStyle = BACKGROUND_COLOR;
     ctx.fillRect(0, 0, size.width, size.height);
 
-    ctx.beginPath();
-    ctx.strokeStyle = GRID_COLOR;
-    ctx.lineWidth = 1;
-
-    const scaledCellW = CELL_WIDTH * zoom;
-    const scaledCellH = CELL_HEIGHT * zoom;
-    const startCol = Math.floor(-offset.x / scaledCellW);
-    const endCol = startCol + Math.ceil(size.width / scaledCellW) + 1;
-    const startRow = Math.floor(-offset.y / scaledCellH);
-    const endRow = startRow + Math.ceil(size.height / scaledCellH) + 1;
-
-    for (let col = startCol; col <= endCol; col++) {
-      const x = Math.floor(col * scaledCellW + offset.x);
-      ctx.moveTo(x + 0.5, 0);
-      ctx.lineTo(x + 0.5, size.height);
+    const pattern = ctx.createPattern(gridPattern, "repeat");
+    if (pattern) {
+      ctx.save();
+      ctx.translate(
+        offset.x % (CELL_WIDTH * zoom),
+        offset.y % (CELL_HEIGHT * zoom)
+      );
+      ctx.fillStyle = pattern;
+      ctx.fillRect(
+        -(CELL_WIDTH * zoom),
+        -(CELL_HEIGHT * zoom),
+        size.width + CELL_WIDTH * zoom * 2,
+        size.height + CELL_HEIGHT * zoom * 2
+      );
+      ctx.restore();
     }
-    for (let row = startRow; row <= endRow; row++) {
-      const y = Math.floor(row * scaledCellH + offset.y);
-      ctx.moveTo(0, y + 0.5);
-      ctx.lineTo(size.width, y + 0.5);
-    }
-    ctx.stroke();
 
+    const scaledW = CELL_WIDTH * zoom;
+    const scaledH = CELL_HEIGHT * zoom;
     ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
 
     const renderLayer = (layer: Map<string, string>, color: string) => {
       ctx.fillStyle = color;
-      for (let y = startRow; y <= endRow; y++) {
-        for (let x = startCol; x <= endCol; x++) {
-          const char = layer.get(toKey(x, y));
-          if (!char || char === " ") continue;
 
-          const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
-          const wide = isWideChar(char);
-          const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
-          const centerY = screenPos.y + scaledCellH / 2;
+      const minX = -offset.x / scaledW - 1;
+      const maxX = (size.width - offset.x) / scaledW + 1;
+      const minY = -offset.y / scaledH - 1;
+      const maxY = (size.height - offset.y) / scaledH + 1;
 
-          ctx.fillText(char, centerX, centerY);
+      for (const [key, char] of layer.entries()) {
+        if (!char || char === " ") continue;
+        const { x, y } = fromKey(key);
 
-          if (wide) {
-            x++;
-          }
-        }
+        if (x < minX || x > maxX || y < minY || y > maxY) continue;
+
+        const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
+        const wide = isWideChar(char);
+        const centerX = screenPos.x + (wide ? scaledW : scaledW / 2);
+        const centerY = screenPos.y + scaledH / 2;
+
+        ctx.fillText(char, centerX, centerY);
       }
     };
 
@@ -595,10 +606,9 @@ export const useCanvasRenderer = (
 
     const renderSelection = (area: SelectionArea) => {
       const { minX, minY, maxX, maxY } = getSelectionBounds(area);
-
       const screenStart = gridToScreen(minX, minY, offset.x, offset.y, zoom);
-      const width = (maxX - minX + 1) * scaledCellW;
-      const height = (maxY - minY + 1) * scaledCellH;
+      const width = (maxX - minX + 1) * scaledW;
+      const height = (maxY - minY + 1) * scaledH;
 
       ctx.fillStyle = COLOR_SELECTION_BG;
       ctx.fillRect(screenStart.x, screenStart.y, width, height);
@@ -618,23 +628,21 @@ export const useCanvasRenderer = (
       const screenPos = gridToScreen(x, y, offset.x, offset.y, zoom);
       const charUnderCursor = grid.get(toKey(x, y));
       const wide = charUnderCursor ? isWideChar(charUnderCursor) : false;
-      const cursorWidth = wide ? scaledCellW * 2 : scaledCellW;
+      const cursorWidth = wide ? scaledW * 2 : scaledW;
 
       ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
-      ctx.fillRect(screenPos.x, screenPos.y, cursorWidth, scaledCellH);
+      ctx.fillRect(screenPos.x, screenPos.y, cursorWidth, scaledH);
 
       if (charUnderCursor) {
         ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-        const centerX = screenPos.x + (wide ? scaledCellW : scaledCellW / 2);
-        ctx.fillText(charUnderCursor, centerX, screenPos.y + scaledCellH / 2);
+        const centerX = screenPos.x + (wide ? scaledW : scaledW / 2);
+        ctx.fillText(charUnderCursor, centerX, screenPos.y + scaledH / 2);
       }
     }
 
-    const originX = offset.x;
-    const originY = offset.y;
     ctx.fillStyle = COLOR_ORIGIN_MARKER;
-    ctx.fillRect(originX - 2, originY - 10, 4, 20);
-    ctx.fillRect(originX - 10, originY - 2, 20, 4);
+    ctx.fillRect(offset.x - 1, offset.y - 10, 2, 20);
+    ctx.fillRect(offset.x - 10, offset.y - 1, 20, 2);
   }, [
     offset,
     zoom,
@@ -644,6 +652,7 @@ export const useCanvasRenderer = (
     textCursor,
     selections,
     draggingSelection,
+    gridPattern,
     canvasRef,
   ]);
 };
@@ -1132,28 +1141,6 @@ export function useIsMobile() {
 }
 ```
 ---
-```src/types/index.ts
-import { z } from "zod";
-
-export const PointSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-});
-
-export const SelectionAreaSchema = z.object({
-  start: PointSchema,
-  end: PointSchema,
-});
-
-export type GridMap = Map<string, string>;
-export type ToolType = "select" | "fill" | "brush" | "eraser" | "box" | "line";
-export type Point = z.infer<typeof PointSchema>;
-export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
-export type GridPoint = Point & {
-  char: string;
-};
-```
----
 ```src/lib/constants.ts
 export const CELL_WIDTH = 10;
 export const CELL_HEIGHT = 20;
@@ -1531,6 +1518,320 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
 });
 ```
 ---
+```src/types/index.ts
+export type GridMap = Map<string, string>;
+
+export type ToolType = "select" | "fill" | "brush" | "eraser" | "box" | "line";
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface SelectionArea {
+  start: Point;
+  end: Point;
+}
+
+export type GridPoint = Point & {
+  char: string;
+};
+```
+---
+```src/utils/char.ts
+export const isWideChar = (char: string) => {
+  return /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef\ue000-\uf8ff]/.test(char);
+};
+```
+---
+```src/utils/event.ts
+export const isCtrlOrMeta = (event: { ctrlKey: boolean; metaKey: boolean }) => {
+  return event.ctrlKey || event.metaKey;
+};
+```
+---
+```src/utils/export.ts
+import { EXPORT_PADDING } from "../lib/constants";
+import type { GridMap, SelectionArea } from "../types";
+import { isWideChar } from "./char";
+import { fromKey, toKey } from "./math";
+import { getSelectionsBoundingBox } from "./selection";
+
+export const exportToString = (grid: Map<string, string>) => {
+  if (grid.size === 0) return "";
+
+  let minX = Infinity,
+    maxX = -Infinity;
+  let minY = Infinity,
+    maxY = -Infinity;
+
+  grid.forEach((_char, key) => {
+    const { x, y } = fromKey(key);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  });
+
+  const lines: string[] = [];
+
+  for (let y = minY - EXPORT_PADDING; y <= maxY + EXPORT_PADDING; y++) {
+    let line = "";
+    for (let x = minX - EXPORT_PADDING; x <= maxX + EXPORT_PADDING; x++) {
+      const char = grid.get(toKey(x, y));
+      if (char) {
+        line += char;
+
+        if (isWideChar(char)) {
+          x++;
+        }
+      } else {
+        line += " ";
+      }
+    }
+    lines.push(line);
+  }
+
+  return lines.join("\n");
+};
+
+export const exportSelectionToString = (
+  grid: GridMap,
+  selections: SelectionArea[]
+) => {
+  if (selections.length === 0) return "";
+
+  const { minX, maxX, minY, maxY } = getSelectionsBoundingBox(selections);
+
+  const lines: string[] = [];
+
+  for (let y = minY; y <= maxY; y++) {
+    let line = "";
+    for (let x = minX; x <= maxX; x++) {
+      const char = grid.get(toKey(x, y));
+      if (char) {
+        line += char;
+
+        if (isWideChar(char)) {
+          x++;
+        }
+      } else {
+        line += " ";
+      }
+    }
+    lines.push(line);
+  }
+
+  return lines.join("\n");
+};
+```
+---
+```src/utils/grid.ts
+import { isWideChar } from "./char";
+import { toKey } from "./math";
+import type { Point, GridMap } from "../types";
+
+export const snapToCharStart = (pos: Point, grid: GridMap): Point => {
+  const charBefore = grid.get(toKey(pos.x - 1, pos.y));
+  if (charBefore && isWideChar(charBefore)) {
+    return { ...pos, x: pos.x - 1 };
+  }
+  return pos;
+};
+```
+---
+```src/utils/math.ts
+import { CELL_WIDTH, CELL_HEIGHT } from "../lib/constants";
+
+/**
+ * 将屏幕位置转换为网格坐标
+ */
+export const screenToGrid = (
+  screenX: number,
+  screenY: number,
+  offsetX: number,
+  offsetY: number,
+  zoom: number
+) => {
+  const gridX = Math.floor((screenX - offsetX) / (CELL_WIDTH * zoom));
+  const gridY = Math.floor((screenY - offsetY) / (CELL_HEIGHT * zoom));
+  return { x: gridX, y: gridY };
+};
+
+/**
+ * 将网格坐标转换为屏幕位置
+ */
+export const gridToScreen = (
+  gridX: number,
+  gridY: number,
+  offsetX: number,
+  offsetY: number,
+  zoom: number
+) => {
+  return {
+    x: gridX * CELL_WIDTH * zoom + offsetX,
+    y: gridY * CELL_HEIGHT * zoom + offsetY,
+  };
+};
+
+/**
+ * 户籍 Key 生成：确保格式统一
+ */
+export const toKey = (x: number, y: number) => `${x},${y}`;
+
+/**
+ * 户籍 Key 解析
+ */
+export const fromKey = (key: string) => {
+  const [x, y] = key.split(",").map(Number);
+  return { x, y };
+};
+```
+---
+```src/utils/selection.ts
+import type { SelectionArea } from "../types";
+
+export const getSelectionBounds = (area: SelectionArea) => {
+  const minX = Math.min(area.start.x, area.end.x);
+  const maxX = Math.max(area.start.x, area.end.x);
+  const minY = Math.min(area.start.y, area.end.y);
+  const maxY = Math.max(area.start.y, area.end.y);
+  return { minX, maxX, minY, maxY };
+};
+
+export const getSelectionsBoundingBox = (selections: SelectionArea[]) => {
+  if (selections.length === 0) {
+    return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  }
+
+  let minX = Infinity,
+    maxX = -Infinity;
+  let minY = Infinity,
+    maxY = -Infinity;
+
+  selections.forEach((area) => {
+    minX = Math.min(minX, area.start.x, area.end.x);
+    maxX = Math.max(maxX, area.start.x, area.end.x);
+    minY = Math.min(minY, area.start.y, area.end.y);
+    maxY = Math.max(maxY, area.start.y, area.end.y);
+  });
+
+  return { minX, maxX, minY, maxY };
+};
+```
+---
+```src/utils/shapes.ts
+import bresenham from "bresenham";
+import { BOX_CHARS } from "../lib/constants";
+import type { Point, GridPoint } from "../types";
+
+function getLinePoints(start: Point, end: Point): Point[] {
+  const points = bresenham(start.x, start.y, end.x, end.y);
+  return points.map(({ x, y }) => ({ x, y }));
+}
+
+export function getOrthogonalLinePoints(
+  start: Point,
+  end: Point,
+  isVerticalFirst: boolean
+): GridPoint[] {
+  const points: GridPoint[] = [];
+
+  if (start.x === end.x) {
+    return getLinePoints(start, end).map((p) => ({
+      ...p,
+      char: BOX_CHARS.VERTICAL,
+    }));
+  }
+  if (start.y === end.y) {
+    return getLinePoints(start, end).map((p) => ({
+      ...p,
+      char: BOX_CHARS.HORIZONTAL,
+    }));
+  }
+
+  const junction: Point = isVerticalFirst
+    ? { x: start.x, y: end.y }
+    : { x: end.x, y: start.y };
+
+  const segment1 = getLinePoints(start, junction);
+  segment1.pop();
+  points.push(
+    ...segment1.map((p) => ({
+      ...p,
+      char: isVerticalFirst ? BOX_CHARS.VERTICAL : BOX_CHARS.HORIZONTAL,
+    }))
+  );
+
+  const segment2 = getLinePoints(junction, end);
+  segment2.shift();
+  points.push(
+    ...segment2.map((p) => ({
+      ...p,
+      char: isVerticalFirst ? BOX_CHARS.HORIZONTAL : BOX_CHARS.VERTICAL,
+    }))
+  );
+
+  let cornerChar = "";
+
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+
+  if (isVerticalFirst) {
+    if (dy > 0) {
+      cornerChar = dx > 0 ? BOX_CHARS.BOTTOM_LEFT : BOX_CHARS.BOTTOM_RIGHT;
+    } else {
+      cornerChar = dx > 0 ? BOX_CHARS.TOP_LEFT : BOX_CHARS.TOP_RIGHT;
+    }
+  } else {
+    if (dx > 0) {
+      cornerChar = dy > 0 ? BOX_CHARS.TOP_RIGHT : BOX_CHARS.BOTTOM_RIGHT;
+    } else {
+      cornerChar = dy > 0 ? BOX_CHARS.TOP_LEFT : BOX_CHARS.BOTTOM_LEFT;
+    }
+  }
+
+  points.push({ ...junction, char: cornerChar });
+
+  return points;
+}
+
+export function getBoxPoints(start: Point, end: Point): GridPoint[] {
+  const points: GridPoint[] = [];
+
+  const left = Math.min(start.x, end.x);
+  const right = Math.max(start.x, end.x);
+  const top = Math.min(start.y, end.y);
+  const bottom = Math.max(start.y, end.y);
+
+  if (left === right || top === bottom) {
+    if (left === right && top === bottom)
+      return [{ ...start, char: BOX_CHARS.CROSS }];
+    return getLinePoints(start, end).map((p) => ({
+      ...p,
+      char: left === right ? BOX_CHARS.VERTICAL : BOX_CHARS.HORIZONTAL,
+    }));
+  }
+
+  points.push({ x: left, y: top, char: BOX_CHARS.TOP_LEFT });
+  points.push({ x: right, y: top, char: BOX_CHARS.TOP_RIGHT });
+  points.push({ x: left, y: bottom, char: BOX_CHARS.BOTTOM_LEFT });
+  points.push({ x: right, y: bottom, char: BOX_CHARS.BOTTOM_RIGHT });
+
+  for (let x = left + 1; x < right; x++) {
+    points.push({ x, y: top, char: BOX_CHARS.HORIZONTAL });
+    points.push({ x, y: bottom, char: BOX_CHARS.HORIZONTAL });
+  }
+
+  for (let y = top + 1; y < bottom; y++) {
+    points.push({ x: left, y, char: BOX_CHARS.VERTICAL });
+    points.push({ x: right, y, char: BOX_CHARS.VERTICAL });
+  }
+
+  return points;
+}
+```
+---
 ```src/App.tsx
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -1867,286 +2168,4 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>
 );
-```
----
-```src/utils/char.ts
-export const isWideChar = (char: string) => {
-  return /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef\ue000-\uf8ff]/.test(char);
-};
-```
----
-```src/utils/event.ts
-export const isCtrlOrMeta = (event: { ctrlKey: boolean; metaKey: boolean }) => {
-  return event.ctrlKey || event.metaKey;
-};
-```
----
-```src/utils/export.ts
-import { EXPORT_PADDING } from "../lib/constants";
-import type { GridMap, SelectionArea } from "../types";
-import { isWideChar } from "./char";
-import { fromKey, toKey } from "./math";
-import { getSelectionsBoundingBox } from "./selection";
-
-export const exportToString = (grid: Map<string, string>) => {
-  if (grid.size === 0) return "";
-
-  let minX = Infinity,
-    maxX = -Infinity;
-  let minY = Infinity,
-    maxY = -Infinity;
-
-  grid.forEach((_char, key) => {
-    const { x, y } = fromKey(key);
-    minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y);
-    maxY = Math.max(maxY, y);
-  });
-
-  const lines: string[] = [];
-
-  for (let y = minY - EXPORT_PADDING; y <= maxY + EXPORT_PADDING; y++) {
-    let line = "";
-    for (let x = minX - EXPORT_PADDING; x <= maxX + EXPORT_PADDING; x++) {
-      const char = grid.get(toKey(x, y));
-      if (char) {
-        line += char;
-
-        if (isWideChar(char)) {
-          x++;
-        }
-      } else {
-        line += " ";
-      }
-    }
-    lines.push(line);
-  }
-
-  return lines.join("\n");
-};
-
-export const exportSelectionToString = (
-  grid: GridMap,
-  selections: SelectionArea[]
-) => {
-  if (selections.length === 0) return "";
-
-  const { minX, maxX, minY, maxY } = getSelectionsBoundingBox(selections);
-
-  const lines: string[] = [];
-
-  for (let y = minY; y <= maxY; y++) {
-    let line = "";
-    for (let x = minX; x <= maxX; x++) {
-      const char = grid.get(toKey(x, y));
-      if (char) {
-        line += char;
-
-        if (isWideChar(char)) {
-          x++;
-        }
-      } else {
-        line += " ";
-      }
-    }
-    lines.push(line);
-  }
-
-  return lines.join("\n");
-};
-```
----
-```src/utils/grid.ts
-import { isWideChar } from "./char";
-import { toKey } from "./math";
-import type { Point, GridMap } from "../types";
-
-export const snapToCharStart = (pos: Point, grid: GridMap): Point => {
-  const charBefore = grid.get(toKey(pos.x - 1, pos.y));
-  if (charBefore && isWideChar(charBefore)) {
-    return { ...pos, x: pos.x - 1 };
-  }
-  return pos;
-};
-```
----
-```src/utils/math.ts
-import { CELL_WIDTH, CELL_HEIGHT } from "../lib/constants";
-
-export const screenToGrid = (
-  screenX: number,
-  screenY: number,
-  offsetX: number,
-  offsetY: number,
-  zoom: number
-) => {
-  const gridX = Math.floor((screenX - offsetX) / (CELL_WIDTH * zoom));
-  const gridY = Math.floor((screenY - offsetY) / (CELL_HEIGHT * zoom));
-  return { x: gridX, y: gridY };
-};
-
-export const gridToScreen = (
-  gridX: number,
-  gridY: number,
-  offsetX: number,
-  offsetY: number,
-  zoom: number
-) => {
-  return {
-    x: gridX * CELL_WIDTH * zoom + offsetX,
-    y: gridY * CELL_HEIGHT * zoom + offsetY,
-  };
-};
-
-export const toKey = (x: number, y: number) => `${x},${y}`;
-
-export const fromKey = (key: string) => {
-  const [x, y] = key.split(",").map(Number);
-  return { x, y };
-};
-```
----
-```src/utils/selection.ts
-import type { SelectionArea } from "../types";
-
-export const getSelectionBounds = (area: SelectionArea) => {
-  const minX = Math.min(area.start.x, area.end.x);
-  const maxX = Math.max(area.start.x, area.end.x);
-  const minY = Math.min(area.start.y, area.end.y);
-  const maxY = Math.max(area.start.y, area.end.y);
-  return { minX, maxX, minY, maxY };
-};
-
-export const getSelectionsBoundingBox = (selections: SelectionArea[]) => {
-  if (selections.length === 0) {
-    return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-  }
-
-  let minX = Infinity,
-    maxX = -Infinity;
-  let minY = Infinity,
-    maxY = -Infinity;
-
-  selections.forEach((area) => {
-    minX = Math.min(minX, area.start.x, area.end.x);
-    maxX = Math.max(maxX, area.start.x, area.end.x);
-    minY = Math.min(minY, area.start.y, area.end.y);
-    maxY = Math.max(maxY, area.start.y, area.end.y);
-  });
-
-  return { minX, maxX, minY, maxY };
-};
-```
----
-```src/utils/shapes.ts
-import bresenham from "bresenham";
-import { BOX_CHARS } from "../lib/constants";
-import type { Point, GridPoint } from "../types";
-
-function getLinePoints(start: Point, end: Point): Point[] {
-  const points = bresenham(start.x, start.y, end.x, end.y);
-  return points.map(({ x, y }) => ({ x, y }));
-}
-
-export function getOrthogonalLinePoints(
-  start: Point,
-  end: Point,
-  isVerticalFirst: boolean
-): GridPoint[] {
-  const points: GridPoint[] = [];
-
-  if (start.x === end.x) {
-    return getLinePoints(start, end).map((p) => ({
-      ...p,
-      char: BOX_CHARS.VERTICAL,
-    }));
-  }
-  if (start.y === end.y) {
-    return getLinePoints(start, end).map((p) => ({
-      ...p,
-      char: BOX_CHARS.HORIZONTAL,
-    }));
-  }
-
-  const junction: Point = isVerticalFirst
-    ? { x: start.x, y: end.y }
-    : { x: end.x, y: start.y };
-
-  const segment1 = getLinePoints(start, junction);
-  segment1.pop();
-  points.push(
-    ...segment1.map((p) => ({
-      ...p,
-      char: isVerticalFirst ? BOX_CHARS.VERTICAL : BOX_CHARS.HORIZONTAL,
-    }))
-  );
-
-  const segment2 = getLinePoints(junction, end);
-  segment2.shift();
-  points.push(
-    ...segment2.map((p) => ({
-      ...p,
-      char: isVerticalFirst ? BOX_CHARS.HORIZONTAL : BOX_CHARS.VERTICAL,
-    }))
-  );
-
-  let cornerChar = "";
-
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-
-  if (isVerticalFirst) {
-    if (dy > 0) {
-      cornerChar = dx > 0 ? BOX_CHARS.BOTTOM_LEFT : BOX_CHARS.BOTTOM_RIGHT;
-    } else {
-      cornerChar = dx > 0 ? BOX_CHARS.TOP_LEFT : BOX_CHARS.TOP_RIGHT;
-    }
-  } else {
-    if (dx > 0) {
-      cornerChar = dy > 0 ? BOX_CHARS.TOP_RIGHT : BOX_CHARS.BOTTOM_RIGHT;
-    } else {
-      cornerChar = dy > 0 ? BOX_CHARS.TOP_LEFT : BOX_CHARS.BOTTOM_LEFT;
-    }
-  }
-
-  points.push({ ...junction, char: cornerChar });
-
-  return points;
-}
-
-export function getBoxPoints(start: Point, end: Point): GridPoint[] {
-  const points: GridPoint[] = [];
-
-  const left = Math.min(start.x, end.x);
-  const right = Math.max(start.x, end.x);
-  const top = Math.min(start.y, end.y);
-  const bottom = Math.max(start.y, end.y);
-
-  if (left === right || top === bottom) {
-    if (left === right && top === bottom)
-      return [{ ...start, char: BOX_CHARS.CROSS }];
-    return getLinePoints(start, end).map((p) => ({
-      ...p,
-      char: left === right ? BOX_CHARS.VERTICAL : BOX_CHARS.HORIZONTAL,
-    }));
-  }
-
-  points.push({ x: left, y: top, char: BOX_CHARS.TOP_LEFT });
-  points.push({ x: right, y: top, char: BOX_CHARS.TOP_RIGHT });
-  points.push({ x: left, y: bottom, char: BOX_CHARS.BOTTOM_LEFT });
-  points.push({ x: right, y: bottom, char: BOX_CHARS.BOTTOM_RIGHT });
-
-  for (let x = left + 1; x < right; x++) {
-    points.push({ x, y: top, char: BOX_CHARS.HORIZONTAL });
-    points.push({ x, y: bottom, char: BOX_CHARS.HORIZONTAL });
-  }
-
-  for (let y = top + 1; y < bottom; y++) {
-    points.push({ x: left, y, char: BOX_CHARS.VERTICAL });
-    points.push({ x: right, y, char: BOX_CHARS.VERTICAL });
-  }
-
-  return points;
-}
 ```

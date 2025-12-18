@@ -49,8 +49,8 @@ export function getOrthogonalLinePoints(
     }))
   );
 
+  // 拐角处特殊处理
   let cornerChar = "";
-
   const dx = end.x - start.x;
   const dy = end.y - start.y;
 
@@ -69,7 +69,6 @@ export function getOrthogonalLinePoints(
   }
 
   points.push({ ...junction, char: cornerChar });
-
   return points;
 }
 
@@ -90,11 +89,13 @@ export function getBoxPoints(start: Point, end: Point): GridPoint[] {
     }));
   }
 
+  // 四个地标角点
   points.push({ x: left, y: top, char: BOX_CHARS.TOP_LEFT });
   points.push({ x: right, y: top, char: BOX_CHARS.TOP_RIGHT });
   points.push({ x: left, y: bottom, char: BOX_CHARS.BOTTOM_LEFT });
   points.push({ x: right, y: bottom, char: BOX_CHARS.BOTTOM_RIGHT });
 
+  // 填充围栏
   for (let x = left + 1; x < right; x++) {
     points.push({ x, y: top, char: BOX_CHARS.HORIZONTAL });
     points.push({ x, y: bottom, char: BOX_CHARS.HORIZONTAL });

@@ -1,13 +1,12 @@
 import { useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
 import { useCreation, useThrottleFn } from "ahooks";
-import { screenToGrid } from "../../../utils/math";
+import { GridManager } from "../../../utils/grid";
 import { getBoxPoints, getOrthogonalLinePoints } from "../../../utils/shapes";
 import type { Point, SelectionArea } from "../../../types";
 import { type CanvasState } from "../../../store/canvasStore";
 import { forceHistorySave } from "../../../lib/yjs-setup";
 import bresenham from "bresenham";
-import { snapToCharStart } from "../../../utils/grid";
 import { isCtrlOrMeta } from "../../../utils/event";
 
 export const useCanvasInteraction = (
@@ -41,23 +40,20 @@ export const useCanvasInteraction = (
 
   const handleDrawing = useCreation(
     () => (currentGrid: Point) => {
-      if (!lastGrid.current) return;
       if (
-        currentGrid.x === lastGrid.current.x &&
-        currentGrid.y === lastGrid.current.y
+        !lastGrid.current ||
+        (currentGrid.x === lastGrid.current.x &&
+          currentGrid.y === lastGrid.current.y)
       )
         return;
-
       const points = bresenham(
         lastGrid.current.x,
         lastGrid.current.y,
         currentGrid.x,
         currentGrid.y
-      ).map((p) => ({ x: p.x, y: p.y }));
-
+      );
       if (tool === "brush") {
-        const pointsWithChar = points.map((p) => ({ ...p, char: brushChar }));
-        addScratchPoints(pointsWithChar);
+        addScratchPoints(points.map((p) => ({ ...p, char: brushChar })));
       } else if (tool === "eraser") {
         erasePoints(points);
       }
@@ -75,103 +71,80 @@ export const useCanvasInteraction = (
     {
       onDragStart: ({ xy: [x, y], event }) => {
         const mouseEvent = event as MouseEvent;
-        const isMiddleClick = mouseEvent.button === 1;
-        const isPanStart = isMiddleClick || isCtrlOrMeta(mouseEvent);
-
-        if (isPanStart) {
+        if (mouseEvent.button === 1 || isCtrlOrMeta(mouseEvent)) {
           isPanningRef.current = true;
           document.body.style.cursor = "grabbing";
           return;
         }
-
-        const isLeftClick = mouseEvent.button === 0;
-        const isMultiSelect = mouseEvent.shiftKey;
         const rect = containerRef.current?.getBoundingClientRect();
-
-        if (isLeftClick && rect) {
-          const rawStart = screenToGrid(
+        if (mouseEvent.button === 0 && rect) {
+          const raw = GridManager.screenToGrid(
             x - rect.left,
             y - rect.top,
             offset.x,
             offset.y,
             zoom
           );
-
-          const start = snapToCharStart(rawStart, grid);
-
+          const start = GridManager.snapToCharStart(raw, grid);
           if (tool === "select") {
             event.preventDefault();
-            if (!isMultiSelect) clearSelections();
+            if (!mouseEvent.shiftKey) clearSelections();
             setDraggingSelection({ start, end: start });
             dragStartGrid.current = start;
             setTextCursor(null);
             return;
           }
-
           if (tool === "fill") {
             if (store.selections.length > 0) fillSelections();
             return;
           }
-
           clearSelections();
           setTextCursor(null);
           dragStartGrid.current = start;
           lastGrid.current = start;
-          lineAxisRef.current = null;
-
-          if (tool === "brush") {
+          if (tool === "brush")
             addScratchPoints([{ ...start, char: brushChar }]);
-          } else if (tool === "eraser") {
-            erasePoints([start]);
-          }
+          else if (tool === "eraser") erasePoints([start]);
         }
       },
       onDrag: ({ xy: [x, y], delta: [dx, dy] }) => {
         if (isPanningRef.current) {
-          setOffset((prev: Point) => ({ x: prev.x + dx, y: prev.y + dy }));
+          setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
           return;
         }
-
         const rect = containerRef.current?.getBoundingClientRect();
         if (rect && dragStartGrid.current) {
-          const rawEnd = screenToGrid(
+          const raw = GridManager.screenToGrid(
             x - rect.left,
             y - rect.top,
             offset.x,
             offset.y,
             zoom
           );
-
-          const currentGrid = snapToCharStart(rawEnd, grid);
-
+          const currentGrid = GridManager.snapToCharStart(raw, grid);
           if (tool === "select") {
             setDraggingSelection({
               start: dragStartGrid.current,
               end: currentGrid,
             });
-            return;
-          }
-
-          if (tool === "brush" || tool === "eraser") {
+          } else if (tool === "brush" || tool === "eraser") {
             throttledDraw(currentGrid);
           } else if (tool === "box") {
-            const points = getBoxPoints(dragStartGrid.current, currentGrid);
-            setScratchLayer(points);
+            setScratchLayer(getBoxPoints(dragStartGrid.current, currentGrid));
           } else if (tool === "line") {
             if (!lineAxisRef.current) {
-              const absDx = Math.abs(currentGrid.x - dragStartGrid.current.x);
-              const absDy = Math.abs(currentGrid.y - dragStartGrid.current.y);
-              if (absDx > 0 || absDy > 0) {
-                lineAxisRef.current = absDy > absDx ? "vertical" : "horizontal";
-              }
+              const adx = Math.abs(currentGrid.x - dragStartGrid.current.x);
+              const ady = Math.abs(currentGrid.y - dragStartGrid.current.y);
+              if (adx > 0 || ady > 0)
+                lineAxisRef.current = ady > adx ? "vertical" : "horizontal";
             }
-            const isVerticalFirst = lineAxisRef.current === "vertical";
-            const points = getOrthogonalLinePoints(
-              dragStartGrid.current,
-              currentGrid,
-              isVerticalFirst
+            setScratchLayer(
+              getOrthogonalLinePoints(
+                dragStartGrid.current,
+                currentGrid,
+                lineAxisRef.current === "vertical"
+              )
             );
-            setScratchLayer(points);
           }
         }
       },
@@ -181,22 +154,17 @@ export const useCanvasInteraction = (
           document.body.style.cursor = "auto";
           return;
         }
-
-        const mouseEvent = event as MouseEvent;
-        if (mouseEvent.button === 0) {
+        if ((event as MouseEvent).button === 0) {
           if (tool === "select" && draggingSelection) {
-            const { start, end } = draggingSelection;
-            if (start.x === end.x && start.y === end.y) {
-              setTextCursor(start);
-            } else {
-              addSelection(draggingSelection);
-            }
+            if (
+              draggingSelection.start.x === draggingSelection.end.x &&
+              draggingSelection.start.y === draggingSelection.end.y
+            )
+              setTextCursor(draggingSelection.start);
+            else addSelection(draggingSelection);
             setDraggingSelection(null);
-          } else if (tool !== "fill" && tool !== "eraser") {
-            commitScratch();
-          } else if (tool === "eraser") {
-            forceHistorySave();
-          }
+          } else if (tool !== "fill" && tool !== "eraser") commitScratch();
+          else if (tool === "eraser") forceHistorySave();
           dragStartGrid.current = null;
           lastGrid.current = null;
           lineAxisRef.current = null;
@@ -206,13 +174,9 @@ export const useCanvasInteraction = (
       onWheel: ({ delta: [, dy], event }) => {
         if (isCtrlOrMeta(event)) {
           event.preventDefault();
-          setZoom((prev: number) => prev * (1 - dy * 0.002));
-        } else {
-          setOffset((prev: Point) => ({
-            x: prev.x - event.deltaX,
-            y: prev.y - event.deltaY,
-          }));
-        }
+          setZoom((p) => p * (1 - dy * 0.002));
+        } else
+          setOffset((p) => ({ x: p.x - event.deltaX, y: p.y - event.deltaY }));
       },
     },
     { target: containerRef, eventOptions: { passive: false } }
