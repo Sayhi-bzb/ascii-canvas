@@ -24,7 +24,6 @@ export const useCanvasInteraction = (
     setTextCursor,
     addSelection,
     clearSelections,
-    fillSelections,
     erasePoints,
     offset,
     zoom,
@@ -52,6 +51,7 @@ export const useCanvasInteraction = (
         currentGrid.x,
         currentGrid.y
       );
+
       if (tool === "brush") {
         addScratchPoints(points.map((p) => ({ ...p, char: brushChar })));
       } else if (tool === "eraser") {
@@ -76,6 +76,7 @@ export const useCanvasInteraction = (
           document.body.style.cursor = "grabbing";
           return;
         }
+
         const rect = containerRef.current?.getBoundingClientRect();
         if (mouseEvent.button === 0 && rect) {
           const raw = GridManager.screenToGrid(
@@ -86,22 +87,20 @@ export const useCanvasInteraction = (
             zoom
           );
           const start = GridManager.snapToCharStart(raw, grid);
+
           if (tool === "select") {
-            event.preventDefault();
             if (!mouseEvent.shiftKey) clearSelections();
             setDraggingSelection({ start, end: start });
             dragStartGrid.current = start;
             setTextCursor(null);
             return;
           }
-          if (tool === "fill") {
-            if (store.selections.length > 0) fillSelections();
-            return;
-          }
+
           clearSelections();
           setTextCursor(null);
           dragStartGrid.current = start;
           lastGrid.current = start;
+
           if (tool === "brush")
             addScratchPoints([{ ...start, char: brushChar }]);
           else if (tool === "eraser") erasePoints([start]);
@@ -112,6 +111,7 @@ export const useCanvasInteraction = (
           setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
           return;
         }
+
         const rect = containerRef.current?.getBoundingClientRect();
         if (rect && dragStartGrid.current) {
           const raw = GridManager.screenToGrid(
@@ -122,6 +122,7 @@ export const useCanvasInteraction = (
             zoom
           );
           const currentGrid = GridManager.snapToCharStart(raw, grid);
+
           if (tool === "select") {
             setDraggingSelection({
               start: dragStartGrid.current,
@@ -159,12 +160,17 @@ export const useCanvasInteraction = (
             if (
               draggingSelection.start.x === draggingSelection.end.x &&
               draggingSelection.start.y === draggingSelection.end.y
-            )
+            ) {
               setTextCursor(draggingSelection.start);
-            else addSelection(draggingSelection);
+            } else {
+              addSelection(draggingSelection);
+            }
             setDraggingSelection(null);
-          } else if (tool !== "fill" && tool !== "eraser") commitScratch();
-          else if (tool === "eraser") forceHistorySave();
+          } else if (tool !== "fill" && tool !== "eraser") {
+            commitScratch();
+          } else if (tool === "eraser") {
+            forceHistorySave();
+          }
           dragStartGrid.current = null;
           lastGrid.current = null;
           lineAxisRef.current = null;
@@ -175,8 +181,12 @@ export const useCanvasInteraction = (
         if (isCtrlOrMeta(event)) {
           event.preventDefault();
           setZoom((p) => p * (1 - dy * 0.002));
-        } else
-          setOffset((p) => ({ x: p.x - event.deltaX, y: p.y - event.deltaY }));
+        } else {
+          setOffset((p) => ({
+            x: p.x - (event as WheelEvent).deltaX,
+            y: p.y - (event as WheelEvent).deltaY,
+          }));
+        }
       },
     },
     { target: containerRef, eventOptions: { passive: false } }

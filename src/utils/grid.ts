@@ -37,10 +37,8 @@ export const GridManager = {
     return { x, y };
   },
 
-  // 统一的乐高尺寸检测：1 = 1x1, 2 = 1x2
   getCharWidth(char: string): number {
     if (!char) return 1;
-    // 涵盖：CJK、全角符号、Emoji、Nerd Font(PUA区)
     const isWide =
       /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef\ue000-\uf8ff]/.test(char) ||
       /\p{Emoji_Presentation}/u.test(char);
@@ -51,11 +49,9 @@ export const GridManager = {
     return this.getCharWidth(char) === 2;
   },
 
-  // 核心逻辑：寻找坐标点的“法定房东”
-  // 如果点击了 1x2 建筑的右半部分，返回左半部分的坐标
   snapToCharStart(pos: Point, grid: GridMap): Point {
-    const charLeft = grid.get(this.toKey(pos.x - 1, pos.y));
-    if (charLeft && this.isWideChar(charLeft)) {
+    const charBefore = grid.get(this.toKey(pos.x - 1, pos.y));
+    if (charBefore && this.isWideChar(charBefore)) {
       return { ...pos, x: pos.x - 1 };
     }
     return pos;

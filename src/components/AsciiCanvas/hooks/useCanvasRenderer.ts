@@ -38,15 +38,12 @@ export const useCanvasRenderer = (
     ctx.resetTransform();
     ctx.scale(dpr, dpr);
 
-    // 1. 清理背景
     ctx.fillStyle = BACKGROUND_COLOR;
     ctx.fillRect(0, 0, size.width, size.height);
 
     const sw = CELL_WIDTH * zoom;
     const sh = CELL_HEIGHT * zoom;
 
-    // 2. 绘制动态对齐网格 (视野内渲染)
-    // 计算当前视野内可见的格点范围
     const startX = Math.floor(-offset.x / sw);
     const endX = Math.ceil((size.width - offset.x) / sw);
     const startY = Math.floor(-offset.y / sh);
@@ -55,15 +52,12 @@ export const useCanvasRenderer = (
     ctx.beginPath();
     ctx.strokeStyle = GRID_COLOR;
     ctx.lineWidth = 1;
-
-    // 绘制垂直线
     for (let x = startX; x <= endX; x++) {
       const posX = Math.round(x * sw + offset.x);
       ctx.moveTo(posX, 0);
       ctx.lineTo(posX, size.height);
     }
 
-    // 绘制水平线
     for (let y = startY; y <= endY; y++) {
       const posY = Math.round(y * sh + offset.y);
       ctx.moveTo(0, posY);
@@ -71,12 +65,10 @@ export const useCanvasRenderer = (
     }
     ctx.stroke();
 
-    // 3. 设置字体样式
     ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
 
-    // 4. 渲染数据层 (字符建筑)
     const renderLayer = (layer: GridMap, color: string) => {
       ctx.fillStyle = color;
 
@@ -84,13 +76,11 @@ export const useCanvasRenderer = (
         if (!char || char === " ") continue;
         const { x, y } = GridManager.fromKey(key);
 
-        // 剔除不在视野范围内的地块
         if (x < startX || x > endX || y < startY || y > endY) continue;
 
         const pos = GridManager.gridToScreen(x, y, offset.x, offset.y, zoom);
         const wide = GridManager.isWideChar(char);
 
-        // 使用与网格线一致的取整策略
         const centerX = Math.round(pos.x + (wide ? sw : sw / 2));
         const centerY = Math.round(pos.y + sh / 2);
 
@@ -101,7 +91,6 @@ export const useCanvasRenderer = (
     renderLayer(grid, COLOR_PRIMARY_TEXT);
     if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
 
-    // 5. 渲染选区
     const drawSel = (area: SelectionArea) => {
       const { minX, minY, maxX, maxY } = getSelectionBounds(area);
       const pos = GridManager.gridToScreen(
@@ -137,7 +126,6 @@ export const useCanvasRenderer = (
     selections.forEach(drawSel);
     if (draggingSelection) drawSel(draggingSelection);
 
-    // 6. 渲染输入光标
     if (textCursor) {
       const pos = GridManager.gridToScreen(
         textCursor.x,
@@ -165,7 +153,6 @@ export const useCanvasRenderer = (
       }
     }
 
-    // 7. 绘制城市原点标记 (0,0)
     ctx.fillStyle = COLOR_ORIGIN_MARKER;
     const originX = Math.round(offset.x);
     const originY = Math.round(offset.y);

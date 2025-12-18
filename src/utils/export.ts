@@ -19,12 +19,11 @@ const generateStringFromBounds = (
       if (char) {
         line += char;
         const width = GridManager.getCharWidth(char);
-        if (width === 2) x++; // 跳过占用的影子地块
+        if (width === 2) x++;
       } else {
         line += " ";
       }
     }
-    // 移除行尾无用的“空地”
     lines.push(line.replace(/\s+$/, ""));
   }
   return lines.join("\n");

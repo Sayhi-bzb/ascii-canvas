@@ -93,7 +93,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
       performTransaction(() => {
         scratchLayer.forEach((value, key) => {
           const { x, y } = GridManager.fromKey(key);
-          // 放置前：清理左侧可能存在的 1x2 影子
           const leftChar = yGrid.get(GridManager.toKey(x - 1, y));
           if (leftChar && GridManager.isWideChar(leftChar))
             yGrid.delete(GridManager.toKey(x - 1, y));
@@ -102,7 +101,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
             yGrid.delete(key);
           } else {
             yGrid.set(key, value);
-            // 放置后：如果是 1x2，强制清理右侧地块
             if (GridManager.isWideChar(value))
               yGrid.delete(GridManager.toKey(x + 1, y));
           }
@@ -139,7 +137,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
             continue;
           }
           const { x, y } = cursor;
-          // 统一清理逻辑：覆盖老建筑
           const leftChar = yGrid.get(GridManager.toKey(x - 1, y));
           if (leftChar && GridManager.isWideChar(leftChar))
             yGrid.delete(GridManager.toKey(x - 1, y));
@@ -223,7 +220,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => {
           const { minX, maxX, minY, maxY } = getSelectionBounds(area);
           for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {
-              // 删除逻辑：如果删到了宽字符的影子，也要把本体删了
               const head = GridManager.snapToCharStart({ x, y }, get().grid);
               yGrid.delete(GridManager.toKey(head.x, head.y));
             }
