@@ -136,11 +136,17 @@ body,
 }
 
 /* 
-  -- 新增的《空间规划法》 --
-  市长批示：为了保证核心城区（画布）的稳定性，
-  侧边栏的占位区块（sidebar-gap）宽度应始终为零，
-  使其不再挤压主内容区，实现悬浮效果。
+  -- 空间规划法 2.0 --
+  市长批示：
+  1. 侧边栏的占位区块宽度永远为零。
+  2. 强制侧边栏内部容器 (sidebar-container) 使用绝对定位，
+     使其相对于父级 relative 容器进行滑动，解决折叠失效问题。
 */
 [data-slot="sidebar-gap"] {
   width: 0 !important;
+}
+
+[data-slot="sidebar-container"] {
+  position: absolute !important;
+  height: 100% !important;
 }

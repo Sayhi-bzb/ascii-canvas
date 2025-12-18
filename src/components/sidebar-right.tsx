@@ -14,7 +14,6 @@ import { Button } from "./ui/button";
 export function SidebarRight({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
-  // 获取当前(右侧)上下文的 toggle 方法
   const { toggleSidebar } = useSidebar();
   const hasSelection = false;
 
@@ -22,17 +21,11 @@ export function SidebarRight({
     <Sidebar
       collapsible="offcanvas"
       side="right"
-      variant="sidebar"
-      // 关键样式：
-      // 1. h-full: 填满父容器高度
-      // 2. pointer-events-auto: 恢复鼠标交互（因为父容器是 none）
-      // 3. border-l: 左边框
-      className="h-full border-l bg-sidebar pointer-events-auto"
+      className="absolute right-0 top-0 h-full z-40 border-l bg-sidebar pointer-events-auto"
       {...props}
     >
       <SidebarHeader className="h-14 border-b flex flex-row items-center justify-between px-4">
         <div className="text-sm font-semibold tracking-tight">Properties</div>
-        {/* 关闭按钮 */}
         <Button
           variant="ghost"
           size="icon"
@@ -43,7 +36,8 @@ export function SidebarRight({
         </Button>
       </SidebarHeader>
 
-      <SidebarContent className="p-4">
+      {/* 修正点：增加 overflow-x-hidden 防止水平滚动条 */}
+      <SidebarContent className="p-4 overflow-x-hidden">
         {hasSelection ? (
           <div className="flex flex-col gap-6">
             <div className="grid gap-4">
@@ -74,34 +68,6 @@ export function SidebarRight({
                   <Input
                     id="pos-y"
                     defaultValue="80"
-                    className="h-8 text-xs px-2"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label
-                    htmlFor="width"
-                    className="text-[10px] text-muted-foreground uppercase"
-                  >
-                    W
-                  </Label>
-                  <Input
-                    id="width"
-                    defaultValue="250"
-                    className="h-8 text-xs px-2"
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label
-                    htmlFor="height"
-                    className="text-[10px] text-muted-foreground uppercase"
-                  >
-                    H
-                  </Label>
-                  <Input
-                    id="height"
-                    defaultValue="150"
                     className="h-8 text-xs px-2"
                   />
                 </div>

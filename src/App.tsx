@@ -16,11 +16,8 @@ import { SiteHeader } from "./components/site-header";
 
 function App() {
   const {
-    zoom,
-    offset,
     tool,
     grid,
-    textCursor,
     setTool,
     clearCanvas,
     fillSelectionsWithChar,
@@ -30,8 +27,6 @@ function App() {
 
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
-
-  // 新增：右侧边栏的独立状态
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
   useEffect(() => {
@@ -114,22 +109,8 @@ function App() {
     });
   };
 
-  const statusBar = (
-    <div className="pointer-events-none select-none font-mono text-xs text-gray-400 bg-white/50 p-2 rounded backdrop-blur-sm">
-      Pos: {offset.x.toFixed(0)}, {offset.y.toFixed(0)} | Zoom:{" "}
-      {(zoom * 100).toFixed(0)}% <br />
-      Objects: {grid.size} <br />
-      {!!textCursor && (
-        <span className="text-blue-600 font-bold animate-pulse">
-          Mode: Text Input (Click to focus)
-        </span>
-      )}
-    </div>
-  );
-
   return (
     <div className="[--header-height:3.5rem] h-full w-full">
-      {/* 主 Context (控制左侧边栏) */}
       <SidebarProvider className="flex flex-col h-full">
         <SiteHeader
           isRightOpen={isRightPanelOpen}
@@ -138,9 +119,8 @@ function App() {
         <div className="flex flex-1 overflow-hidden relative">
           <SidebarLeft />
 
-          <SidebarInset className="h-full w-full">
+          <SidebarInset className="h-full w-full overflow-hidden">
             <AppLayout
-              statusBar={statusBar}
               canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
             >
               <Toolbar
@@ -156,15 +136,10 @@ function App() {
             </AppLayout>
           </SidebarInset>
 
-          {/* 独立 Context (控制右侧边栏) */}
-          {/* 
-            pointer-events-none: 确保透明区域不拦截鼠标
-            min-h-0: 覆盖默认的 min-h-svh，防止撑开页面 
-          */}
           <SidebarProvider
             open={isRightPanelOpen}
             onOpenChange={setIsRightPanelOpen}
-            className="absolute right-0 top-0 h-full w-auto min-h-0 z-50 pointer-events-none"
+            className="absolute top-0 right-0 h-full w-auto min-h-0 z-50 pointer-events-none"
           >
             <SidebarRight />
           </SidebarProvider>
