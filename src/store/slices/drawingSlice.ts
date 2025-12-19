@@ -4,11 +4,13 @@ import { z } from "zod";
 import type { CanvasState, DrawingSlice } from "../interfaces";
 import { transactWithHistory, ySceneRoot } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
-import { GridPointSchema } from "../../types";
+import { GridPointSchema, type GridPoint } from "../../types";
 import {
   getNearestValidContainer,
   findNodeById,
   createYCanvasNode,
+  canMergeStrokeToNode,
+  isNodeLocked,
 } from "../../utils/scene";
 
 export const createDrawingSlice: StateCreator<
@@ -22,7 +24,7 @@ export const createDrawingSlice: StateCreator<
   setScratchLayer: (rawPoints) => {
     const points = z.array(GridPointSchema).parse(rawPoints);
     const layer = new Map<string, string>();
-    points.forEach((p) => layer.set(GridManager.toKey(p.x, p.y), p.char));
+    GridManager.setPoints(layer, points);
     set({ scratchLayer: layer });
   },
 
@@ -30,7 +32,7 @@ export const createDrawingSlice: StateCreator<
     const points = z.array(GridPointSchema).parse(rawPoints);
     set((state) => {
       const layer = new Map(state.scratchLayer || []);
-      points.forEach((p) => layer.set(GridManager.toKey(p.x, p.y), p.char));
+      GridManager.setPoints(layer, points);
       return { scratchLayer: layer };
     });
   },
@@ -39,79 +41,75 @@ export const createDrawingSlice: StateCreator<
     const { scratchLayer, activeNodeId, tool } = get();
     if (!scratchLayer || scratchLayer.size === 0) return;
 
+    const points: GridPoint[] = [];
+    GridManager.iterate(scratchLayer, (char, x, y) =>
+      points.push({ x, y, char })
+    );
+    if (points.length === 0) return;
+
     transactWithHistory(() => {
       let container = getNearestValidContainer(ySceneRoot, activeNodeId);
 
       if (container.get("type") === "root") {
-        const currentLayers = ySceneRoot.get("children") as Y.Array<
+        const rootChildren = container.get("children") as Y.Array<
           Y.Map<unknown>
         >;
         const autoLayer = createYCanvasNode(
           "layer",
-          `Layer ${currentLayers.length + 1}`
+          `Layer ${rootChildren.length + 1}`
         );
-        currentLayers.push([autoLayer]);
+        rootChildren.push([autoLayer]);
         container = autoLayer;
       }
 
-      const { minX, minY, maxX, maxY } =
-        GridManager.getGridBounds(scratchLayer);
+      const activeNode = activeNodeId
+        ? findNodeById(ySceneRoot, activeNodeId)
+        : null;
+      const isPathTool =
+        tool === "brush" || tool === "line" || tool === "stepline";
+      const shouldMerge = isPathTool && canMergeStrokeToNode(activeNode);
 
-      const pathData = [] as { x: number; y: number; char: string }[];
-      if (
-        tool === "brush" ||
-        tool === "line" ||
-        tool === "stepline" ||
-        tool === "eraser"
-      ) {
-        scratchLayer.forEach((char, key) => {
-          const { x, y } = GridManager.fromKey(key);
-          pathData.push({ x, y, char });
-        });
-      }
+      if (shouldMerge && activeNode) {
+        const targetMap = activeNode.get("pathData") as Y.Map<string>;
+        const nodeX = (activeNode.get("x") as number) || 0;
+        const nodeY = (activeNode.get("y") as number) || 0;
 
-      let newNode: Y.Map<unknown> | null = null;
+        const localPoints = GridManager.toLocalPoints(points, nodeX, nodeY);
+        GridManager.setPoints(targetMap, localPoints);
+      } else {
+        const { minX, minY, maxX, maxY } =
+          GridManager.getGridBounds(scratchLayer);
+        let newNode: Y.Map<unknown> | null = null;
 
-      if (tool === "brush") {
-        const activeNode = activeNodeId
-          ? findNodeById(ySceneRoot, activeNodeId)
-          : null;
-        if (
-          activeNode &&
-          activeNode.get("type") === "shape-path" &&
-          !(activeNode.get("isLocked") as boolean)
-        ) {
-          const pathDataMap = activeNode.get("pathData") as Y.Map<string>;
-          scratchLayer.forEach((char, key) => pathDataMap.set(key, char));
-          set({ scratchLayer: null });
-          return;
+        if (isPathTool) {
+          const localPoints = GridManager.toLocalPoints(points, minX, minY);
+          newNode = createYCanvasNode(
+            "shape-path",
+            tool === "brush" ? "Path" : "Line",
+            { x: minX, y: minY, pathData: localPoints }
+          );
+        } else if (tool === "box" || tool === "circle") {
+          newNode = createYCanvasNode(
+            tool === "box" ? "shape-box" : "shape-circle",
+            tool === "box" ? "Box" : "Circle",
+            {
+              x: minX,
+              y: minY,
+              width: maxX - minX + 1,
+              height: maxY - minY + 1,
+            }
+          );
         }
-        newNode = createYCanvasNode("shape-path", "Path", { pathData });
-      } else if (tool === "box") {
-        newNode = createYCanvasNode("shape-box", "Box", {
-          x: minX,
-          y: minY,
-          width: maxX - minX + 1,
-          height: maxY - minY + 1,
-        });
-      } else if (tool === "circle") {
-        newNode = createYCanvasNode("shape-circle", "Circle", {
-          x: minX,
-          y: minY,
-          width: maxX - minX + 1,
-          height: maxY - minY + 1,
-        });
-      } else if (tool === "line" || tool === "stepline") {
-        newNode = createYCanvasNode(
-          "shape-path",
-          tool === "line" ? "Line" : "Step Line",
-          { pathData }
-        );
-      }
 
-      if (newNode) {
-        (container.get("children") as Y.Array<Y.Map<unknown>>).push([newNode]);
-        set({ activeNodeId: newNode.get("id") as string });
+        if (newNode) {
+          let children = container.get("children") as Y.Array<Y.Map<unknown>>;
+          if (!children) {
+            children = new Y.Array<Y.Map<unknown>>();
+            container.set("children", children);
+          }
+          children.push([newNode]);
+          set({ activeNodeId: newNode.get("id") as string });
+        }
       }
     });
 
@@ -123,14 +121,13 @@ export const createDrawingSlice: StateCreator<
   clearCanvas: () => {
     const { activeNodeId } = get();
     const node = activeNodeId ? findNodeById(ySceneRoot, activeNodeId) : null;
-    if (node) {
+
+    if (node && !isNodeLocked(node)) {
       transactWithHistory(() => {
         const type = node.get("type") as string;
         if (type === "shape-path") {
           (node.get("pathData") as Y.Map<string>).clear();
-        } else if (type === "layer") {
-          const children = node.get("children") as Y.Array<Y.Map<unknown>>;
-          if (children) children.delete(0, children.length);
+        } else {
           const content = node.get("content") as Y.Map<string>;
           if (content) content.clear();
         }
@@ -141,10 +138,16 @@ export const createDrawingSlice: StateCreator<
   erasePoints: (points) => {
     const { activeNodeId } = get();
     const node = activeNodeId ? findNodeById(ySceneRoot, activeNodeId) : null;
-    if (node && node.get("type") === "shape-path") {
+
+    if (canMergeStrokeToNode(node)) {
       transactWithHistory(() => {
-        const pathData = node.get("pathData") as Y.Map<string>;
-        points.forEach((p) => pathData.delete(GridManager.toKey(p.x, p.y)));
+        const pathData = node!.get("pathData") as Y.Map<string>;
+        const nodeX = (node!.get("x") as number) || 0;
+        const nodeY = (node!.get("y") as number) || 0;
+
+        points.forEach((p) =>
+          pathData.delete(GridManager.toKey(p.x - nodeX, p.y - nodeY))
+        );
       });
     }
   },

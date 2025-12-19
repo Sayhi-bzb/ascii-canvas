@@ -7,9 +7,7 @@ const traverseScene = (
   root: Y.Map<unknown>,
   predicate: (node: Y.Map<unknown>) => boolean
 ): { node: Y.Map<unknown>; parent: Y.Map<unknown> | null } | null => {
-  if (predicate(root)) {
-    return { node: root, parent: null };
-  }
+  if (predicate(root)) return { node: root, parent: null };
 
   const children = root.get("children");
   if (children instanceof Y.Array) {
@@ -19,32 +17,35 @@ const traverseScene = (
         if (predicate(child as Y.Map<unknown>)) {
           return { node: child as Y.Map<unknown>, parent: root };
         }
-
         const result = traverseScene(child as Y.Map<unknown>, predicate);
-
-        if (result) {
-          return result;
-        }
+        if (result) return result;
       }
     }
   }
   return null;
 };
 
-export const findNodeById = (
-  root: Y.Map<unknown>,
-  id: string
-): Y.Map<unknown> | null => {
-  const result = traverseScene(root, (node) => node.get("id") === id);
-  return result ? result.node : null;
+export const findNodeById = (root: Y.Map<unknown>, id: string) =>
+  traverseScene(root, (node) => node.get("id") === id)?.node ?? null;
+
+export const findParentNodeById = (root: Y.Map<unknown>, targetId: string) =>
+  traverseScene(root, (node) => node.get("id") === targetId)?.parent ?? null;
+
+export const isNodeLocked = (node: Y.Map<unknown> | null): boolean => {
+  return !!node?.get("isLocked");
 };
 
-export const findParentNodeById = (
-  root: Y.Map<unknown>,
-  targetId: string
-): Y.Map<unknown> | null => {
-  const result = traverseScene(root, (node) => node.get("id") === targetId);
-  return result ? result.parent : null;
+export const isNodeVisible = (node: Y.Map<unknown> | null): boolean => {
+  return node?.get("isVisible") !== false;
+};
+
+export const canMergeStrokeToNode = (node: Y.Map<unknown> | null): boolean => {
+  if (!node) return false;
+  return (
+    node.get("type") === "shape-path" &&
+    !isNodeLocked(node) &&
+    isNodeVisible(node)
+  );
 };
 
 export const getNearestValidContainer = (
@@ -54,27 +55,25 @@ export const getNearestValidContainer = (
   if (activeId) {
     const activeNode = findNodeById(root, activeId);
     if (activeNode) {
-      const type = activeNode.get("type") as string;
-      if (type === "layer" && !(activeNode.get("isLocked") as boolean))
+      const type = activeNode.get("type") as NodeType;
+
+      if ((type === "layer" || type === "item") && !isNodeLocked(activeNode)) {
         return activeNode;
+      }
+
       if (type.startsWith("shape-")) {
         const parent = findParentNodeById(root, activeId);
-        if (
-          parent &&
-          parent.get("type") === "layer" &&
-          !(parent.get("isLocked") as boolean)
-        )
-          return parent;
+        if (parent && !isNodeLocked(parent)) return parent;
       }
     }
   }
 
-  const result = traverseScene(
-    root,
-    (node) => node.get("type") === "layer" && !(node.get("isLocked") as boolean)
+  return (
+    traverseScene(root, (node) => {
+      const type = node.get("type") as NodeType;
+      return (type === "layer" || type === "item") && !isNodeLocked(node);
+    })?.node ?? root
   );
-
-  return result ? result.node : root;
 };
 
 export const createYCanvasNode = (
@@ -83,9 +82,7 @@ export const createYCanvasNode = (
   props: Partial<CanvasNode> = {}
 ): Y.Map<unknown> => {
   const node = new Y.Map<unknown>();
-  const id = props.id || crypto.randomUUID();
-
-  node.set("id", id);
+  node.set("id", props.id || crypto.randomUUID());
   node.set("type", type);
   node.set("name", name);
   node.set("x", props.x ?? 0);
@@ -95,25 +92,18 @@ export const createYCanvasNode = (
   node.set("isCollapsed", props.isCollapsed ?? false);
   node.set("children", new Y.Array<Y.Map<unknown>>());
 
-  if (type === "layer") {
+  if (type === "layer" || type === "item") {
     node.set("content", new Y.Map<string>());
   }
-
   if (type.startsWith("shape-")) {
     if (props.width !== undefined) node.set("width", props.width);
     if (props.height !== undefined) node.set("height", props.height);
   }
-
   if (type === "shape-path") {
     const pathDataMap = new Y.Map<string>();
-    if (props.pathData) {
-      props.pathData.forEach((p) => {
-        pathDataMap.set(GridManager.toKey(p.x, p.y), p.char);
-      });
-    }
+    if (props.pathData) GridManager.setPoints(pathDataMap, props.pathData);
     node.set("pathData", pathDataMap);
   }
-
   return node;
 };
 
@@ -123,19 +113,15 @@ export const composeScene = (
   globalOffsetY: number = 0,
   resultGrid: GridMap
 ) => {
-  const isVisible = node.get("isVisible") as boolean;
-  if (isVisible === false) return;
+  if (!isNodeVisible(node)) return;
 
-  const localX = (node.get("x") as number) || 0;
-  const localY = (node.get("y") as number) || 0;
-  const type = node.get("type") as string;
-  const currentGlobalX = globalOffsetX + localX;
-  const currentGlobalY = globalOffsetY + localY;
+  const currentGlobalX = globalOffsetX + ((node.get("x") as number) || 0);
+  const currentGlobalY = globalOffsetY + ((node.get("y") as number) || 0);
+  const type = node.get("type") as NodeType;
 
   const content = node.get("content") as Y.Map<string>;
   if (content) {
-    content.forEach((char, key) => {
-      const { x, y } = GridManager.fromKey(key);
+    GridManager.iterate(content, (char, x, y) => {
       resultGrid.set(
         GridManager.toKey(currentGlobalX + x, currentGlobalY + y),
         char
@@ -146,8 +132,7 @@ export const composeScene = (
   if (type === "shape-path") {
     const pathData = node.get("pathData") as Y.Map<string>;
     if (pathData) {
-      pathData.forEach((char, key) => {
-        const { x, y } = GridManager.fromKey(key);
+      GridManager.iterate(pathData, (char, x, y) => {
         resultGrid.set(
           GridManager.toKey(currentGlobalX + x, currentGlobalY + y),
           char
@@ -156,24 +141,17 @@ export const composeScene = (
     }
   }
 
-  if (type === "shape-box") {
+  if (type === "shape-box" || type === "shape-circle") {
     const w = (node.get("width") as number) || 0;
     const h = (node.get("height") as number) || 0;
-    const points = getBoxPoints({ x: 0, y: 0 }, { x: w - 1, y: h - 1 });
-    points.forEach((p) => {
-      resultGrid.set(
-        GridManager.toKey(currentGlobalX + p.x, currentGlobalY + p.y),
-        p.char
-      );
-    });
-  }
+    const points =
+      type === "shape-box"
+        ? getBoxPoints({ x: 0, y: 0 }, { x: w - 1, y: h - 1 })
+        : getCirclePoints(
+            { x: Math.floor(w / 2), y: Math.floor(h / 2) },
+            { x: 0, y: Math.floor(h / 2) }
+          );
 
-  if (type === "shape-circle") {
-    const w = (node.get("width") as number) || 0;
-    const h = (node.get("height") as number) || 0;
-    const center = { x: Math.floor(w / 2), y: Math.floor(h / 2) };
-    const edge = { x: 0, y: center.y };
-    const points = getCirclePoints(center, edge);
     points.forEach((p) => {
       resultGrid.set(
         GridManager.toKey(currentGlobalX + p.x, currentGlobalY + p.y),
@@ -184,62 +162,43 @@ export const composeScene = (
 
   const children = node.get("children");
   if (children instanceof Y.Array) {
-    children.forEach((childNode) => {
-      if (childNode instanceof Y.Map)
-        composeScene(
-          childNode as Y.Map<unknown>,
-          currentGlobalX,
-          currentGlobalY,
-          resultGrid
-        );
+    children.forEach((child) => {
+      if (child instanceof Y.Map)
+        composeScene(child, currentGlobalX, currentGlobalY, resultGrid);
     });
   }
 };
 
 export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
-  const id = node.get("id") as string;
-  const type = node.get("type") as NodeType;
-  const name = node.get("name") as string;
-  const x = (node.get("x") as number) || 0;
-  const y = (node.get("y") as number) || 0;
-  const width = (node.get("width") as number) || 0;
-  const height = (node.get("height") as number) || 0;
-  const isVisible = node.get("isVisible") as boolean;
-  const isLocked = node.get("isLocked") as boolean;
-  const isCollapsed = node.get("isCollapsed") as boolean;
-
-  let pathData: GridPoint[] | undefined = undefined;
+  const pathData: GridPoint[] = [];
   const rawPathData = node.get("pathData");
   if (rawPathData instanceof Y.Map) {
-    pathData = [];
-    rawPathData.forEach((char, key) => {
-      const { x, y: py } = GridManager.fromKey(key);
-      pathData?.push({ x, y: py, char });
-    });
+    GridManager.iterate(rawPathData, (char, x, y) =>
+      pathData.push({ x, y, char })
+    );
   }
 
   const children: CanvasNode[] = [];
   const childrenYArray = node.get("children");
   if (childrenYArray instanceof Y.Array) {
     childrenYArray.forEach((child) => {
-      if (child instanceof Y.Map)
-        children.push(parseSceneGraph(child as Y.Map<unknown>));
+      if (child instanceof Y.Map) children.push(parseSceneGraph(child));
     });
   }
 
   return {
-    id,
-    type,
-    name,
+    id: node.get("id") as string,
+    type: node.get("type") as NodeType,
+    name: node.get("name") as string,
     parentId: null,
     children,
-    x,
-    y,
-    width,
-    height,
-    isVisible,
-    isLocked,
-    isCollapsed,
-    pathData,
+    x: (node.get("x") as number) || 0,
+    y: (node.get("y") as number) || 0,
+    width: node.get("width") as number,
+    height: node.get("height") as number,
+    isVisible: isNodeVisible(node),
+    isLocked: isNodeLocked(node),
+    isCollapsed: node.get("isCollapsed") === true,
+    pathData: pathData.length > 0 ? pathData : undefined,
   };
 };

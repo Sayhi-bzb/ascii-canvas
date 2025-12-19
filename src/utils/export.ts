@@ -18,8 +18,7 @@ const generateStringFromBounds = (
       const char = grid.get(GridManager.toKey(x, y));
       if (char) {
         line += char;
-        const width = GridManager.getCharWidth(char);
-        if (width === 2) x++;
+        if (GridManager.getCharWidth(char) === 2) x++;
       } else {
         line += " ";
       }
@@ -31,7 +30,6 @@ const generateStringFromBounds = (
 
 export const exportToString = (grid: GridMap) => {
   if (grid.size === 0) return "";
-
   const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
 
   return generateStringFromBounds(

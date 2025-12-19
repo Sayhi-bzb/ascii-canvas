@@ -23,6 +23,7 @@ export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
 export const NodeTypeSchema = z.enum([
   "root",
   "layer",
+  "item",
   "shape-box",
   "shape-line",
   "shape-path",

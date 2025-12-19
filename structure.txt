@@ -10,6 +10,7 @@ src
 │   │   ├── left-sidebar
 │   │   │   ├── logo.tsx
 │   │   │   └── sidebar-node.tsx
+│   │   ├── node-status.tsx
 │   │   ├── right-sidebar
 │   │   │   ├── empty-state.tsx
 │   │   │   └── node-properties.tsx
@@ -21,7 +22,6 @@ src
 │       ├── context-menu.tsx
 │       ├── input.tsx
 │       ├── label.tsx
-│       ├── menu-dock.tsx
 │       ├── popover.tsx
 │       ├── separator.tsx
 │       ├── sheet.tsx

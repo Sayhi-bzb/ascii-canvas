@@ -4,6 +4,10 @@ const yDoc = new Y.Doc();
 
 export const ySceneRoot = yDoc.getMap<unknown>("scene-root");
 
+/**
+ * 城市基础建设初始化
+ * 确保核心行政区（Root）和主功能区（item-main）拥有合法的建筑槽位（children）
+ */
 const initializeScene = () => {
   yDoc.transact(() => {
     if (ySceneRoot.has("id")) return;
@@ -13,6 +17,7 @@ const initializeScene = () => {
     ySceneRoot.set("name", "City Root");
     ySceneRoot.set("x", 0);
     ySceneRoot.set("y", 0);
+    ySceneRoot.set("isVisible", true);
 
     const rootChildren = new Y.Array<Y.Map<unknown>>();
     ySceneRoot.set("children", rootChildren);
@@ -27,6 +32,7 @@ const initializeScene = () => {
     defaultLayer.set("y", 0);
     defaultLayer.set("isVisible", true);
     defaultLayer.set("isLocked", false);
+    defaultLayer.set("content", new Y.Map<string>());
 
     const layerChildren = new Y.Array<Y.Map<unknown>>();
     defaultLayer.set("children", layerChildren);
@@ -42,6 +48,9 @@ const initializeScene = () => {
     defaultItem.set("isVisible", true);
     defaultItem.set("isLocked", false);
     defaultItem.set("content", new Y.Map<string>());
+
+    const itemChildren = new Y.Array<Y.Map<unknown>>();
+    defaultItem.set("children", itemChildren);
   });
 };
 
