@@ -89,15 +89,14 @@ export const createDrawingSlice: StateCreator<
       const activeNode = activeNodeId
         ? findNodeById(ySceneRoot, activeNodeId)
         : null;
-      const isPathTool =
-        tool === "brush" || tool === "line" || tool === "stepline";
-      const shouldMerge = isPathTool && canMergeStrokeToNode(activeNode);
+
+      const isBrush = tool === "brush";
+      const shouldMerge = isBrush && canMergeStrokeToNode(activeNode);
 
       if (shouldMerge && activeNode) {
         const targetMap = activeNode.get("pathData") as Y.Map<string>;
         const nodeX = (activeNode.get("x") as number) || 0;
         const nodeY = (activeNode.get("y") as number) || 0;
-
         const localPoints = GridManager.toLocalPoints(points, nodeX, nodeY);
         GridManager.setPoints(targetMap, localPoints);
       } else {
@@ -105,11 +104,11 @@ export const createDrawingSlice: StateCreator<
           GridManager.getGridBounds(scratchLayer);
         let newNode: Y.Map<unknown> | null = null;
 
-        if (isPathTool) {
+        if (tool === "brush" || tool === "line" || tool === "stepline") {
           const localPoints = GridManager.toLocalPoints(points, minX, minY);
           newNode = createYCanvasNode(
             "shape-path",
-            tool === "brush" ? "Path" : "Line",
+            tool === "brush" ? "Path" : tool === "line" ? "Line" : "StepLine",
             { x: minX, y: minY, pathData: localPoints }
           );
         } else if (tool === "box" || tool === "circle") {
