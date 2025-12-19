@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { CanvasState, DrawingSlice } from "../interfaces";
 import { transactWithHistory, ySceneRoot } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
-import { GridPointSchema } from "../../types"; // 移除未使用的 GridPoint
+import { GridPointSchema } from "../../types";
 import { getNearestValidContainer, findNodeById } from "../../utils/scene";
 
 export const createDrawingSlice: StateCreator<

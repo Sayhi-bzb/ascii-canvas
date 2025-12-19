@@ -136,7 +136,7 @@ export const composeScene = (
 
 export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
   const id = node.get("id") as string;
-  const type = node.get("type") as NodeType; // 修复：any -> NodeType
+  const type = node.get("type") as NodeType;
   const name = node.get("name") as string;
   const x = (node.get("x") as number) || 0;
   const y = (node.get("y") as number) || 0;

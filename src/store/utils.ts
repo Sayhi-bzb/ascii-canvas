@@ -9,7 +9,6 @@ export const getActiveGridYMap = (
   const node = findNodeById(ySceneRoot, currentActiveId);
   if (!node) return null;
 
-  // 现在任何 Node 都拥有 content 属性，可以直接返回用于绘图
   const content = node.get("content");
   if (content instanceof Y.Map) {
     return content as Y.Map<string>;

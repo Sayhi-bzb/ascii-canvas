@@ -23,7 +23,6 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
   addNode: (parentId, type, name) => {
     let parent = findNodeById(ySceneRoot, parentId);
 
-    // 逻辑修正：如果要添加到的父节点本身是 shape，则向上寻找真正的容器
     if (parent && (parent.get("type") as string).startsWith("shape-")) {
       const realParent = findParentNodeById(ySceneRoot, parentId);
       if (realParent) parent = realParent;

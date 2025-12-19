@@ -45,7 +45,7 @@ export interface CanvasNode {
   isLocked: boolean;
   isCollapsed: boolean;
   pathData?: GridPoint[];
-  props?: Record<string, unknown>; // 修复：any -> unknown
+  props?: Record<string, unknown>;
   children: CanvasNode[];
 }
 
@@ -63,14 +63,13 @@ export const CanvasNodeSchema: z.ZodType<CanvasNode> = z.lazy(() =>
     isLocked: z.boolean().default(false),
     isCollapsed: z.boolean().default(false),
     pathData: z.array(GridPointSchema).optional(),
-    props: z.record(z.string(), z.unknown()).optional(), // 修复：any -> unknown
+    props: z.record(z.string(), z.unknown()).optional(),
     children: z.array(CanvasNodeSchema),
   })
 );
 
 export type GridMap = Map<string, string>;
 
-// 修复：补全所有使用的工具类型，确保 TypeScript 类型检查通过
 export type ToolType =
   | "select"
   | "fill"
