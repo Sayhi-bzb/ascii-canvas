@@ -126,7 +126,6 @@ export const composeScene = (
   const currentGlobalY = globalOffsetY + ((node.get("y") as number) || 0);
   const type = node.get("type") as NodeType;
 
-  // 1. Render raster content (Layers, Items)
   const content = node.get("content") as Y.Map<string>;
   if (content) {
     GridManager.iterate(content, (char, x, y) => {
@@ -137,7 +136,6 @@ export const composeScene = (
     });
   }
 
-  // 2. Render Path Shapes
   if (type === "shape-path") {
     const pathData = node.get("pathData") as Y.Map<string>;
     if (pathData) {
@@ -150,7 +148,6 @@ export const composeScene = (
     }
   }
 
-  // 3. Render Geometric Shapes (Box, Circle)
   if (type === "shape-box" || type === "shape-circle") {
     const w = (node.get("width") as number) || 0;
     const h = (node.get("height") as number) || 0;
@@ -170,13 +167,11 @@ export const composeScene = (
     });
   }
 
-  // 4. Render Text Shapes (New!)
   if (type === "shape-text") {
     const text = (node.get("text") as string) || "";
     let lineIdx = 0;
     let charIdx = 0;
 
-    // Simple rendering: treat text as starting from (0,0) relative to node
     for (const char of text) {
       if (char === "\n") {
         lineIdx++;
@@ -187,8 +182,6 @@ export const composeScene = (
       const targetX = currentGlobalX + charIdx;
       const targetY = currentGlobalY + lineIdx;
 
-      // Handle wide chars occupying next cell logic if needed,
-      // but for composition we just set the key.
       resultGrid.set(GridManager.toKey(targetX, targetY), char);
 
       charIdx += GridManager.getCharWidth(char);
@@ -248,6 +241,6 @@ export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
     isCollapsed: node.get("isCollapsed") === true,
     content,
     pathData,
-    text: node.get("text") as string | undefined, // 读取文本
+    text: node.get("text") as string | undefined,
   };
 };

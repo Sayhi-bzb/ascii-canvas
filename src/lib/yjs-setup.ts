@@ -4,10 +4,6 @@ const yDoc = new Y.Doc();
 
 export const ySceneRoot = yDoc.getMap<unknown>("scene-root");
 
-/**
- * 城市基础建设初始化
- * 确保核心行政区（Root）和主功能区（item-main）拥有合法的建筑槽位（children）
- */
 const initializeScene = () => {
   yDoc.transact(() => {
     if (ySceneRoot.has("id")) return;

@@ -1,10 +1,6 @@
 import { CELL_WIDTH, CELL_HEIGHT } from "../lib/constants";
 import type { Point, GridMap, GridPoint } from "../types";
 
-/**
- * 城市网格管理器
- * 负责地理坐标与地块编号之间的转换，以及批量的地政操作
- */
 export const GridManager = {
   screenToGrid(
     screenX: number,
@@ -41,10 +37,6 @@ export const GridManager = {
     return { x, y };
   },
 
-  /**
-   * 智能迭代器：支持原生 Map 和 Y.Map
-   * 自动处理坐标转换，让业务逻辑只关注 x, y 坐标
-   */
   iterate<T>(
     container: { forEach: (cb: (value: T, key: string) => void) => void },
     callback: (value: T, x: number, y: number) => void
@@ -55,9 +47,6 @@ export const GridManager = {
     });
   },
 
-  /**
-   * 批量录入地块信息
-   */
   setPoints(
     target: { set: (key: string, value: string) => void },
     points: GridPoint[]
@@ -67,10 +56,6 @@ export const GridManager = {
     });
   },
 
-  /**
-   * 坐标系转换：将绝对坐标点转换为相对于原点(originX, originY)的局部坐标点
-   * 解决了代码中随处可见的 x - nodeX 冗余计算
-   */
   toLocalPoints(
     points: GridPoint[],
     originX: number,
