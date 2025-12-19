@@ -3,7 +3,7 @@ import * as Y from "yjs";
 import { toast } from "sonner";
 import type { CanvasState, NodeSlice } from "../interfaces";
 import { ySceneRoot, transactWithHistory } from "../../lib/yjs-setup";
-import { findNodeById } from "../../utils/scene";
+import { findNodeById, findParentNodeById } from "../../utils/scene";
 
 export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
   set
@@ -20,8 +20,15 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
     });
   },
 
-  addNode: (parentId, _type, name) => {
-    const parent = findNodeById(ySceneRoot, parentId);
+  addNode: (parentId, type, name) => {
+    let parent = findNodeById(ySceneRoot, parentId);
+
+    // 逻辑修正：如果要添加到的父节点本身是 shape，则向上寻找真正的容器
+    if (parent && (parent.get("type") as string).startsWith("shape-")) {
+      const realParent = findParentNodeById(ySceneRoot, parentId);
+      if (realParent) parent = realParent;
+    }
+
     if (!parent) return;
     const children = parent.get("children") as Y.Array<Y.Map<unknown>>;
 
@@ -30,16 +37,24 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
       const id = crypto.randomUUID();
 
       newNode.set("id", id);
-      newNode.set("type", "layer");
+      newNode.set("type", type);
       newNode.set("name", name);
       newNode.set("x", 0);
       newNode.set("y", 0);
+
+      if (type.startsWith("shape-")) {
+        newNode.set("width", 10);
+        newNode.set("height", 5);
+      }
+
       newNode.set("isVisible", true);
       newNode.set("isLocked", false);
       newNode.set("isCollapsed", false);
 
-      // 每一个 Layer 既是容器也是画布
-      newNode.set("content", new Y.Map<string>());
+      if (type === "layer") {
+        newNode.set("content", new Y.Map<string>());
+      }
+
       newNode.set("children", new Y.Array<Y.Map<unknown>>());
 
       children.push([newNode]);
@@ -68,7 +83,7 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
     transactWithHistory(() => {
       if (findAndRemove(ySceneRoot)) {
         set({ activeNodeId: "item-main" });
-        toast.success("Layer deleted");
+        toast.success("Node deleted");
       }
     });
   },
