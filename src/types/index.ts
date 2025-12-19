@@ -49,6 +49,7 @@ export interface CanvasNode {
   isCollapsed: boolean;
   content?: GridMap;
   pathData?: GridMap;
+  text?: string; // 新增：用于存储 shape-text 的文本内容
   props?: Record<string, unknown>;
   children: CanvasNode[];
 }
@@ -68,6 +69,7 @@ export const CanvasNodeSchema: z.ZodType<CanvasNode> = z.lazy(() =>
     isCollapsed: z.boolean().default(false),
     content: z.instanceof(Map).optional() as z.ZodType<GridMap | undefined>,
     pathData: z.instanceof(Map).optional() as z.ZodType<GridMap | undefined>,
+    text: z.string().optional(), // 新增验证
     props: z.record(z.string(), z.unknown()).optional(),
     children: z.array(CanvasNodeSchema),
   })

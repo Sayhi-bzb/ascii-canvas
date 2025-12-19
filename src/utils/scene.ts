@@ -108,6 +108,9 @@ export const createYCanvasNode = (
     if (props.pathData) GridManager.setPoints(pathDataMap, props.pathData);
     node.set("pathData", pathDataMap);
   }
+  if (type === "shape-text") {
+    node.set("text", props.text || "");
+  }
   return node;
 };
 
@@ -123,6 +126,7 @@ export const composeScene = (
   const currentGlobalY = globalOffsetY + ((node.get("y") as number) || 0);
   const type = node.get("type") as NodeType;
 
+  // 1. Render raster content (Layers, Items)
   const content = node.get("content") as Y.Map<string>;
   if (content) {
     GridManager.iterate(content, (char, x, y) => {
@@ -133,6 +137,7 @@ export const composeScene = (
     });
   }
 
+  // 2. Render Path Shapes
   if (type === "shape-path") {
     const pathData = node.get("pathData") as Y.Map<string>;
     if (pathData) {
@@ -145,6 +150,7 @@ export const composeScene = (
     }
   }
 
+  // 3. Render Geometric Shapes (Box, Circle)
   if (type === "shape-box" || type === "shape-circle") {
     const w = (node.get("width") as number) || 0;
     const h = (node.get("height") as number) || 0;
@@ -162,6 +168,31 @@ export const composeScene = (
         p.char
       );
     });
+  }
+
+  // 4. Render Text Shapes (New!)
+  if (type === "shape-text") {
+    const text = (node.get("text") as string) || "";
+    let lineIdx = 0;
+    let charIdx = 0;
+
+    // Simple rendering: treat text as starting from (0,0) relative to node
+    for (const char of text) {
+      if (char === "\n") {
+        lineIdx++;
+        charIdx = 0;
+        continue;
+      }
+
+      const targetX = currentGlobalX + charIdx;
+      const targetY = currentGlobalY + lineIdx;
+
+      // Handle wide chars occupying next cell logic if needed,
+      // but for composition we just set the key.
+      resultGrid.set(GridManager.toKey(targetX, targetY), char);
+
+      charIdx += GridManager.getCharWidth(char);
+    }
   }
 
   const children = node.get("children");
@@ -217,5 +248,6 @@ export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
     isCollapsed: node.get("isCollapsed") === true,
     content,
     pathData,
+    text: node.get("text") as string | undefined, // 读取文本
   };
 };

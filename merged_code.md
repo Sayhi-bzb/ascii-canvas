@@ -1,1638 +1,3 @@
-```src/components/ToolBar/dock.tsx
-"use client";
-
-import { useState, useRef, useEffect, useMemo } from "react";
-import {
-  MousePointer2,
-  Square,
-  Minus,
-  Pencil,
-  Eraser,
-  PaintBucket,
-  Undo2,
-  Download,
-  LineSquiggle,
-  Circle as CircleIcon,
-  ChevronDown,
-  Check,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { ToolType } from "@/types";
-import { useCanvasStore } from "@/store/canvasStore";
-import { Input } from "@/components/ui/input";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-
-interface ToolbarProps {
-  tool: ToolType;
-  setTool: (tool: ToolType) => void;
-  onUndo: () => void;
-  onExport: () => void;
-}
-
-export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
-  const { brushChar, setBrushChar } = useCanvasStore();
-  const [lastUsedShape, setLastUsedShape] = useState<ToolType>("box");
-  const [openSubMenuId, setOpenSubMenuId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const materialPresets = ["*", ".", "@", "▒"];
-  const [customChar, setCustomChar] = useState(() =>
-    materialPresets.includes(brushChar) ? "" : brushChar
-  );
-
-  const shapeTools: ToolType[] = ["box", "circle", "line", "stepline"];
-  const isShapeGroupActive = shapeTools.includes(tool);
-
-  const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
-  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  const getToolMeta = (type: ToolType) => {
-    switch (type) {
-      case "box":
-        return { icon: Square, label: "Rectangle", shortcut: "R" };
-      case "circle":
-        return { icon: CircleIcon, label: "Circle", shortcut: "O" };
-      case "line":
-        return { icon: Minus, label: "Line", shortcut: "L" };
-      case "stepline":
-        return { icon: LineSquiggle, label: "Curve", shortcut: "S" };
-      default:
-        return { icon: Square, label: "Shape", shortcut: "" };
-    }
-  };
-
-  const activeShapeMeta = getToolMeta(
-    isShapeGroupActive ? tool : lastUsedShape
-  );
-
-  const navItems = [
-    {
-      id: "select",
-      label: "Select (V)",
-      icon: MousePointer2,
-      onClick: () => setTool("select"),
-    },
-    {
-      id: "brush",
-      label: `Brush (${brushChar})`,
-      icon: Pencil,
-      onClick: () => setTool("brush"),
-      hasSub: true,
-    },
-    {
-      id: "shape-group",
-      label: activeShapeMeta.label,
-      icon: activeShapeMeta.icon,
-      onClick: () => setTool(isShapeGroupActive ? tool : lastUsedShape),
-      hasSub: true,
-    },
-    {
-      id: "fill",
-      label: "Fill (G)",
-      icon: PaintBucket,
-      onClick: () => setTool("fill"),
-    },
-    {
-      id: "eraser",
-      label: "Eraser (E)",
-      icon: Eraser,
-      onClick: () => setTool("eraser"),
-    },
-    { id: "undo", label: "Undo", icon: Undo2, onClick: onUndo },
-    { id: "export", label: "Export", icon: Download, onClick: onExport },
-  ];
-
-  const activeIndex = useMemo(() => {
-    const currentId = isShapeGroupActive ? "shape-group" : tool;
-    const idx = navItems.findIndex((item) => item.id === currentId);
-    return idx !== -1 ? idx : 0;
-  }, [tool, isShapeGroupActive]);
-
-  useEffect(() => {
-    const updateIndicator = () => {
-      const activeEl = itemRefs.current[activeIndex];
-      const container = activeEl?.closest("nav");
-      if (activeEl && container) {
-        const rect = activeEl.getBoundingClientRect();
-        const contRect = container.getBoundingClientRect();
-        const width = 20;
-        const left = rect.left - contRect.left + (rect.width - width) / 2;
-        setIndicatorStyle({ width, left });
-      }
-    };
-    updateIndicator();
-    const timer = setTimeout(updateIndicator, 16);
-    window.addEventListener("resize", updateIndicator);
-    return () => {
-      window.removeEventListener("resize", updateIndicator);
-      clearTimeout(timer);
-    };
-  }, [activeIndex]);
-
-  return (
-    <TooltipProvider delayDuration={200}>
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-        <nav className="relative flex items-center gap-1 p-1.5 rounded-2xl bg-background/80 backdrop-blur-md border border-primary/10 shadow-2xl pointer-events-auto">
-          {navItems.map((item, index) => {
-            const isActive = index === activeIndex;
-            const Icon = item.icon;
-
-            return (
-              <div
-                key={item.id}
-                className={cn(
-                  "relative flex items-center rounded-lg transition-all",
-                  isActive
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      ref={(el) => {
-                        itemRefs.current[index] = el;
-                      }}
-                      onClick={item.onClick}
-                      className={cn(
-                        "flex items-center justify-center h-9 px-3 outline-none rounded-l-lg transition-colors",
-                        !item.hasSub && "rounded-lg",
-                        !isActive && "hover:bg-muted/50"
-                      )}
-                    >
-                      <Icon className="size-5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
-                    {item.label}
-                  </TooltipContent>
-                </Tooltip>
-
-                {item.hasSub && (
-                  <Popover
-                    open={openSubMenuId === item.id}
-                    onOpenChange={(o) => setOpenSubMenuId(o ? item.id : null)}
-                  >
-                    <PopoverTrigger asChild>
-                      <button
-                        className={cn(
-                          "flex items-center justify-center h-9 px-1 border-l border-transparent hover:border-border/40 outline-none rounded-r-lg opacity-30 hover:opacity-100 transition-all",
-                          openSubMenuId === item.id && "bg-muted/50 opacity-100"
-                        )}
-                      >
-                        <ChevronDown className="size-3" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side="top"
-                      align="start"
-                      sideOffset={12}
-                      className="w-auto p-1 flex flex-col gap-0.5 rounded-xl bg-popover/95 backdrop-blur-md border shadow-xl z-50 overflow-hidden min-w-[100px]"
-                    >
-                      {item.id === "brush" ? (
-                        <>
-                          <button
-                            onClick={() => {
-                              setBrushChar(customChar);
-                              setTool("brush");
-                              inputRef.current?.focus();
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
-                              brushChar === customChar && customChar !== ""
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                            )}
-                          >
-                            <div className="size-3.5 flex items-center justify-center shrink-0">
-                              {brushChar === customChar &&
-                                customChar !== "" && (
-                                  <Check className="size-3.5 stroke-[3]" />
-                                )}
-                            </div>
-                            <div className="flex-1 px-1">
-                              <Input
-                                ref={inputRef}
-                                className="h-6 w-14 text-center p-0 font-mono text-base font-bold border-none shadow-none ring-0 focus-visible:ring-0 bg-muted/40 hover:bg-muted/60 rounded-sm text-inherit placeholder:text-muted-foreground/50 placeholder:text-[10px] placeholder:font-sans"
-                                placeholder="Custom"
-                                maxLength={2}
-                                value={customChar}
-                                onChange={(e) => {
-                                  setCustomChar(e.target.value);
-                                  setBrushChar(e.target.value);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </div>
-                          </button>
-                          {materialPresets.map((char) => (
-                            <button
-                              key={char}
-                              onClick={() => {
-                                setBrushChar(char);
-                                setTool("brush");
-                              }}
-                              className={cn(
-                                "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
-                                brushChar === char
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                              )}
-                            >
-                              <div className="size-3.5 flex items-center justify-center shrink-0">
-                                {brushChar === char && (
-                                  <Check className="size-3.5 stroke-[3]" />
-                                )}
-                              </div>
-                              <span className="flex-1 font-mono font-bold text-lg text-center leading-none">
-                                {char}
-                              </span>
-                            </button>
-                          ))}
-                        </>
-                      ) : (
-                        shapeTools.map((st) => {
-                          const meta = getToolMeta(st);
-                          const isSubActive = tool === st;
-                          return (
-                            <button
-                              key={st}
-                              onClick={() => {
-                                setTool(st);
-                                setLastUsedShape(st);
-                              }}
-                              className={cn(
-                                "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
-                                isSubActive
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                              )}
-                            >
-                              <div className="size-3.5 flex items-center justify-center shrink-0">
-                                {isSubActive && (
-                                  <Check className="size-3.5 stroke-[3]" />
-                                )}
-                              </div>
-                              <meta.icon className="size-4 shrink-0" />
-                              <span className="flex-1 text-left text-sm font-medium pr-4 whitespace-nowrap ml-1">
-                                {meta.label}
-                              </span>
-                              <span className="text-[10px] opacity-40 font-mono">
-                                {meta.shortcut}
-                              </span>
-                            </button>
-                          );
-                        })
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                )}
-              </div>
-            );
-          })}
-
-          <div
-            className="absolute bottom-1 left-0 bg-primary rounded-full transition-all duration-300 ease-out pointer-events-none"
-            style={{
-              width: `${indicatorStyle.width}px`,
-              transform: `translateX(${indicatorStyle.left}px)`,
-              height: "2px",
-            }}
-          />
-        </nav>
-      </div>
-    </TooltipProvider>
-  );
-}
-```
----
-```src/components/ToolBar/node-status.tsx
-import { Eye, EyeOff, Lock, Unlock } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-interface StatusIconProps {
-  active: boolean;
-  className?: string;
-}
-
-export const VisibilityIcon = ({ active, className }: StatusIconProps) => {
-  const Icon = active ? Eye : EyeOff;
-  return <Icon className={cn("shrink-0", className)} />;
-};
-
-export const LockIcon = ({ active, className }: StatusIconProps) => {
-  const Icon = active ? Lock : Unlock;
-  return <Icon className={cn("shrink-0", className)} />;
-};
-```
----
-```src/components/ToolBar/sidebar-left.tsx
-"use client";
-
-import * as React from "react";
-import { Plus, MoreHorizontal, Settings2 } from "lucide-react";
-import {
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  useSidebar,
-  SidebarStandard,
-} from "@/components/ui/sidebar";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import { cn } from "@/lib/utils";
-import { useCanvasStore } from "@/store/canvasStore";
-import { Logo } from "./left-sidebar/logo";
-import { SceneTreeNode } from "./left-sidebar/sidebar-node";
-
-export function SidebarLeft() {
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
-  const { sceneGraph, addNode } = useCanvasStore();
-
-  const footer = (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton tooltip="Canvas Settings">
-          <Settings2 className="size-4" />
-          {!isCollapsed && <span>Settings</span>}
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-      <SidebarMenuItem>
-        <SidebarMenuButton tooltip="More options">
-          <MoreHorizontal className="size-4" />
-          {!isCollapsed && <span>Management</span>}
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
-  );
-
-  return (
-    <SidebarStandard
-      variant="floating"
-      icon={<Logo className="h-8 w-8" />}
-      title="ASCII Studio"
-      footer={footer}
-    >
-      <ContextMenu>
-        <ContextMenuTrigger className="flex-1 overflow-hidden h-full">
-          <div className="flex flex-col gap-1">
-            {!isCollapsed && (
-              <div className="px-2 mb-2">
-                <span className="text-[10px] font-bold uppercase text-muted-foreground/60 tracking-widest">
-                  Scene Graph
-                </span>
-              </div>
-            )}
-
-            <div
-              className={cn(
-                "flex flex-col gap-0.5",
-                isCollapsed && "items-center"
-              )}
-            >
-              {sceneGraph ? (
-                sceneGraph.children.map((child) => (
-                  <SceneTreeNode
-                    key={child.id}
-                    node={child}
-                    isSidebarCollapsed={isCollapsed}
-                  />
-                ))
-              ) : (
-                <div className="p-4 text-xs text-muted-foreground text-center">
-                  Loading...
-                </div>
-              )}
-            </div>
-          </div>
-        </ContextMenuTrigger>
-
-        <ContextMenuContent>
-          <ContextMenuItem
-            onClick={() => addNode("root", "layer", "New Layer")}
-          >
-            <Plus className="mr-2 size-3.5" />
-            New Layer
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-    </SidebarStandard>
-  );
-}
-```
----
-```src/components/ToolBar/sidebar-right.tsx
-"use client";
-
-import * as React from "react";
-import { Trash2, Share2, Settings2 } from "lucide-react";
-import {
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  useSidebar,
-  SidebarStandard,
-} from "@/components/ui/sidebar";
-import { useCanvasStore } from "@/store/canvasStore";
-import type { CanvasNode } from "@/types";
-import { NodeProperties } from "./right-sidebar/node-properties";
-import { EmptyState } from "./right-sidebar/empty-state";
-
-const findNodeInTree = (node: CanvasNode, id: string): CanvasNode | null => {
-  if (node.id === id) return node;
-  if (node.children) {
-    for (const child of node.children) {
-      const found = findNodeInTree(child, id);
-      if (found) return found;
-    }
-  }
-  return null;
-};
-
-export function SidebarRight({
-  ...props
-}: React.ComponentProps<typeof SidebarStandard>) {
-  const { activeNodeId, sceneGraph, deleteNode } = useCanvasStore();
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
-
-  const activeNode = React.useMemo(() => {
-    if (!activeNodeId || !sceneGraph) return null;
-    return findNodeInTree(sceneGraph, activeNodeId);
-  }, [activeNodeId, sceneGraph]);
-
-  const footer = (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton
-          tooltip="Delete Selected"
-          disabled={!activeNode || activeNode.id === "root"}
-          onClick={() => activeNode && deleteNode(activeNode.id)}
-          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-        >
-          <Trash2 className="size-4" />
-          {!isCollapsed && <span>Delete Object</span>}
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-      <SidebarMenuItem>
-        <SidebarMenuButton tooltip="Share Component" disabled={!activeNode}>
-          <Share2 className="size-4" />
-          {!isCollapsed && <span>Export Selection</span>}
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
-  );
-
-  return (
-    <SidebarStandard
-      variant="floating"
-      side="right"
-      title="Properties"
-      className="pointer-events-auto"
-      icon={
-        <div className="flex items-center justify-center rounded-lg bg-accent p-1.5 shrink-0">
-          <Settings2 className="size-4 text-accent-foreground" />
-        </div>
-      }
-      footer={footer}
-      {...props}
-    >
-      <div className="p-2 overflow-x-hidden">
-        {activeNode ? (
-          <NodeProperties node={activeNode} isCollapsed={isCollapsed} />
-        ) : (
-          <EmptyState />
-        )}
-      </div>
-    </SidebarStandard>
-  );
-}
-```
----
-```src/components/ToolBar/left-sidebar/logo.tsx
-import { Box } from "lucide-react";
-
-export function Logo({ className }: { className?: string }) {
-  return (
-    <div
-      className={`flex items-center justify-center rounded-lg bg-primary p-1 ${className}`}
-    >
-      <Box className="size-5 text-primary-foreground" />
-    </div>
-  );
-}
-```
----
-```src/components/ToolBar/left-sidebar/sidebar-node.tsx
-import * as React from "react";
-import { Layers, ChevronRight, Plus, Trash2 } from "lucide-react";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
-import { useCanvasStore } from "@/store/canvasStore";
-import type { CanvasNode } from "@/types";
-import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { VisibilityIcon, LockIcon } from "../node-status";
-
-interface SceneTreeNodeProps {
-  node: CanvasNode;
-  depth?: number;
-  isSidebarCollapsed?: boolean;
-}
-
-export const SceneTreeNode = ({
-  node,
-  depth = 0,
-  isSidebarCollapsed,
-}: SceneTreeNodeProps) => {
-  const { activeNodeId, setActiveNode, addNode, deleteNode, updateNode } =
-    useCanvasStore();
-
-  const isActive = activeNodeId === node.id;
-  const hasChildren = node.children && node.children.length > 0;
-
-  const handleSelect = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setActiveNode(node.id);
-  };
-
-  if (isSidebarCollapsed) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className={cn(
-              "flex items-center justify-center size-9 rounded-md cursor-pointer transition-colors",
-              isActive
-                ? "bg-accent text-accent-foreground"
-                : "hover:bg-muted/50",
-              !node.isVisible && "opacity-50"
-            )}
-            onClick={handleSelect}
-          >
-            <Layers
-              className={cn(
-                "size-4",
-                isActive ? "text-primary" : "text-muted-foreground"
-              )}
-            />
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          <p>{node.name}</p>
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  const nodeContent = (
-    <div
-      className={cn(
-        "flex w-full items-center gap-2 p-1.5 cursor-pointer rounded-md transition-all text-sm group select-none relative",
-        isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted/50",
-        !node.isVisible && "opacity-50"
-      )}
-      onClick={handleSelect}
-    >
-      <div
-        className="flex items-center gap-2 flex-1 min-w-0"
-        style={{ paddingLeft: `${depth * 12}px` }}
-      >
-        {hasChildren && (
-          <div className="size-4 flex items-center justify-center">
-            <ChevronRight
-              className={cn(
-                "size-3 transition-transform text-muted-foreground",
-                "group-data-[state=open]:rotate-90"
-              )}
-            />
-          </div>
-        )}
-        {!hasChildren && <div className="size-4" />}
-        <Layers
-          className={cn(
-            "size-4",
-            isActive ? "text-primary" : "text-muted-foreground"
-          )}
-        />
-        <span
-          className={cn("truncate", isActive ? "font-semibold" : "font-normal")}
-        >
-          {node.name}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6 h-6 w-6 text-muted-foreground"
-          onClick={(e) => {
-            e.stopPropagation();
-            updateNode(node.id, { isVisible: !node.isVisible });
-          }}
-        >
-          <VisibilityIcon active={node.isVisible} className="size-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6 h-6 w-6 text-muted-foreground"
-          onClick={(e) => {
-            e.stopPropagation();
-            updateNode(node.id, { isLocked: !node.isLocked });
-          }}
-        >
-          <LockIcon active={node.isLocked} className="size-3" />
-        </Button>
-      </div>
-    </div>
-  );
-
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger className="w-full">
-        {hasChildren ? (
-          <Collapsible defaultOpen className="w-full">
-            <CollapsibleTrigger asChild>{nodeContent}</CollapsibleTrigger>
-            <CollapsibleContent>
-              {node.children.map((child) => (
-                <SceneTreeNode key={child.id} node={child} depth={depth + 1} />
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        ) : (
-          nodeContent
-        )}
-      </ContextMenuTrigger>
-
-      <ContextMenuContent className="w-48">
-        <ContextMenuItem
-          className="gap-2"
-          onClick={() => addNode(node.id, "layer", "New Layer")}
-        >
-          <Plus className="size-3.5" />
-          <span>Add Layer</span>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          variant="destructive"
-          disabled={node.id === "root"}
-          onClick={() => deleteNode(node.id)}
-          className="gap-2"
-        >
-          <Trash2 className="size-3.5" />
-          <span>Delete Layer</span>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  );
-};
-```
----
-```src/components/ToolBar/right-sidebar/empty-state.tsx
-export const EmptyState = () => {
-  return (
-    <div className="flex flex-col h-full items-center justify-center gap-2 text-muted-foreground/60">
-      <div className="p-3 border-2 border-dashed rounded-lg">
-        <div className="size-8 rounded bg-muted/50" />
-      </div>
-      <p className="text-xs font-medium">Select an object</p>
-    </div>
-  );
-};
-```
----
-```src/components/ToolBar/right-sidebar/node-properties.tsx
-import { SidebarSeparator } from "@/components/ui/sidebar";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import type { CanvasNode } from "@/types";
-import { VisibilityIcon, LockIcon } from "../node-status";
-
-interface NodePropertiesProps {
-  node: CanvasNode;
-  isCollapsed?: boolean;
-}
-
-export const NodeProperties = ({ node, isCollapsed }: NodePropertiesProps) => {
-  const isRoot = node.type === "root";
-
-  if (isCollapsed) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-2">
-        <div
-          className="size-2 rounded-full bg-blue-500 animate-pulse"
-          title="Object Selected"
-        />
-        <SidebarSeparator />
-        <div className="flex flex-col gap-2">
-          <LockIcon
-            active={node.isLocked}
-            className="size-4 text-muted-foreground"
-          />
-          <VisibilityIcon
-            active={node.isVisible}
-            className="size-4 text-muted-foreground"
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold truncate max-w-35">
-          {node.name}
-        </span>
-      </div>
-
-      <SidebarSeparator className="mx-0" />
-
-      <div className="grid gap-4">
-        <div className="text-[10px] font-bold uppercase text-muted-foreground/60 tracking-widest">
-          Transform {isRoot && "(Fixed)"}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="grid gap-1.5">
-            <Label
-              htmlFor="pos-x"
-              className="text-[10px] text-muted-foreground uppercase font-bold"
-            >
-              X
-            </Label>
-            <Input
-              id="pos-x"
-              value={node.x}
-              disabled
-              className="h-8 text-xs bg-muted/30"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label
-              htmlFor="pos-y"
-              className="text-[10px] text-muted-foreground uppercase font-bold"
-            >
-              Y
-            </Label>
-            <Input
-              id="pos-y"
-              value={node.y}
-              disabled
-              className="h-8 text-xs bg-muted/30"
-            />
-          </div>
-        </div>
-      </div>
-
-      <SidebarSeparator className="mx-0" />
-
-      <div className="grid gap-4">
-        <div className="text-[10px] font-bold uppercase text-muted-foreground/60 tracking-widest">
-          Hierarchy
-        </div>
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs items-center">
-            <span className="text-muted-foreground">Type</span>
-            <span className="capitalize font-medium px-2 py-0.5 bg-secondary rounded text-[10px]">
-              {node.type}
-            </span>
-          </div>
-          <div className="flex justify-between text-xs items-center">
-            <span className="text-muted-foreground">ID</span>
-            <span className="font-mono text-[10px] text-muted-foreground/60 truncate max-w-25">
-              {node.id}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-```
----
-```src/components/AsciiCanvas/index.tsx
-import { useRef, useMemo, useEffect } from "react";
-import { useSize, useEventListener } from "ahooks";
-import { useCanvasStore } from "../../store/canvasStore";
-import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
-import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
-import { GridManager } from "../../utils/grid";
-import { toast } from "sonner";
-import { isCtrlOrMeta } from "../../utils/event";
-
-interface AsciiCanvasProps {
-  onUndo: () => void;
-  onRedo: () => void;
-}
-
-export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const isComposing = useRef(false);
-
-  const size = useSize(containerRef);
-  const store = useCanvasStore();
-  const {
-    textCursor,
-    writeTextString,
-    backspaceText,
-    newlineText,
-    moveTextCursor,
-    setTextCursor,
-    selections,
-    deleteSelection,
-    grid,
-    erasePoints,
-    copySelectionToClipboard,
-    cutSelectionToClipboard,
-  } = store;
-
-  const { draggingSelection } = useCanvasInteraction(store, containerRef);
-  useCanvasRenderer(canvasRef, size, store, draggingSelection);
-
-  useEffect(() => {
-    if (textCursor && textareaRef.current) {
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 0);
-    } else if (textareaRef.current) {
-      textareaRef.current.blur();
-    }
-  }, [textCursor]);
-
-  const handleCopy = (e: ClipboardEvent) => {
-    if (selections.length > 0) {
-      e.preventDefault();
-      copySelectionToClipboard();
-      return;
-    }
-
-    if (textCursor) {
-      e.preventDefault();
-      const key = GridManager.toKey(textCursor.x, textCursor.y);
-      const char = grid.get(key) || " ";
-      navigator.clipboard.writeText(char).then(() => {
-        toast.success("Copied Char!", {
-          description: `Character '${char}' copied.`,
-        });
-      });
-    }
-  };
-  useEventListener("copy", handleCopy);
-
-  const handleCut = (e: ClipboardEvent) => {
-    if (selections.length > 0) {
-      e.preventDefault();
-      cutSelectionToClipboard();
-      return;
-    }
-
-    if (textCursor) {
-      e.preventDefault();
-      const key = GridManager.toKey(textCursor.x, textCursor.y);
-      const char = grid.get(key) || " ";
-      navigator.clipboard.writeText(char).then(() => {
-        erasePoints([textCursor]);
-        toast.success("Cut Char!", {
-          description: "Character moved to clipboard.",
-        });
-      });
-    }
-  };
-  useEventListener("cut", handleCut);
-
-  const handlePaste = (e: ClipboardEvent) => {
-    if (isComposing.current) return;
-
-    e.preventDefault();
-    const text = e.clipboardData?.getData("text");
-    if (!text) return;
-
-    let pasteStartPos = textCursor;
-
-    if (!pasteStartPos && selections.length > 0) {
-      const firstSelection = selections[0];
-      pasteStartPos = {
-        x: Math.min(firstSelection.start.x, firstSelection.end.x),
-        y: Math.min(firstSelection.start.y, firstSelection.end.y),
-      };
-    }
-
-    if (pasteStartPos) {
-      writeTextString(text, pasteStartPos);
-      toast.success("Pasted!", {
-        description: "Content inserted from clipboard.",
-      });
-    } else {
-      toast.warning("Where to paste?", {
-        description: "Please select an area or click to place cursor first.",
-      });
-    }
-  };
-  useEventListener("paste", handlePaste);
-
-  const textareaStyle: React.CSSProperties = useMemo(() => {
-    if (!textCursor || !size) return { display: "none" };
-
-    const { x, y } = GridManager.gridToScreen(
-      textCursor.x,
-      textCursor.y,
-      store.offset.x,
-      store.offset.y,
-      store.zoom
-    );
-
-    return {
-      position: "absolute",
-      left: `${x}px`,
-      top: `${y}px`,
-      width: "1px",
-      height: "1px",
-      opacity: 0,
-      pointerEvents: "none",
-      zIndex: -1,
-    };
-  }, [textCursor, store.offset, store.zoom, size]);
-
-  const handleCompositionStart = () => {
-    isComposing.current = true;
-  };
-
-  const handleCompositionEnd = (
-    e: React.CompositionEvent<HTMLTextAreaElement>
-  ) => {
-    isComposing.current = false;
-    const value = e.data;
-    if (value) {
-      writeTextString(value);
-      if (textareaRef.current) textareaRef.current.value = "";
-    }
-  };
-
-  const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
-    if (isComposing.current) return;
-    const textarea = e.currentTarget;
-    const value = textarea.value;
-    if (value) {
-      writeTextString(value);
-      textarea.value = "";
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    e.stopPropagation();
-    if (isComposing.current) return;
-
-    const isUndo =
-      isCtrlOrMeta(e) && !e.shiftKey && e.key.toLowerCase() === "z";
-    const isRedo =
-      (isCtrlOrMeta(e) && e.shiftKey && e.key.toLowerCase() === "z") ||
-      (isCtrlOrMeta(e) && e.key.toLowerCase() === "y");
-
-    if (isUndo) {
-      e.preventDefault();
-      onUndo();
-      return;
-    }
-    if (isRedo) {
-      e.preventDefault();
-      onRedo();
-      return;
-    }
-
-    if (e.key === "Delete") {
-      if (selections.length > 0) {
-        e.preventDefault();
-        deleteSelection();
-        return;
-      }
-    }
-
-    if (e.key === "Backspace") {
-      if (selections.length > 0 && !textCursor) {
-        e.preventDefault();
-        deleteSelection();
-        return;
-      }
-      if (textCursor) {
-        e.preventDefault();
-        backspaceText();
-      }
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      newlineText();
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      moveTextCursor(0, -1);
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      moveTextCursor(0, 1);
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      moveTextCursor(-1, 0);
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      moveTextCursor(1, 0);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      setTextCursor(null);
-    }
-  };
-
-  useEventListener("keydown", (e: KeyboardEvent) => {
-    if (e.key === "Delete" || e.key === "Backspace") {
-      const activeTag = document.activeElement?.tagName.toLowerCase();
-      if (
-        activeTag !== "input" &&
-        activeTag !== "textarea" &&
-        selections.length > 0
-      ) {
-        e.preventDefault();
-        deleteSelection();
-      }
-    }
-  });
-
-  return (
-    <div
-      ref={containerRef}
-      style={{ touchAction: "none" }}
-      className="w-full h-full overflow-hidden bg-gray-50 touch-none select-none cursor-default"
-    >
-      <canvas ref={canvasRef} />
-      <textarea
-        ref={textareaRef}
-        style={textareaStyle}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
-        onInput={handleInput}
-        onKeyDown={handleKeyDown}
-        autoCapitalize="off"
-        autoComplete="off"
-        autoCorrect="off"
-        spellCheck="false"
-      />
-    </div>
-  );
-};
-```
----
-```src/components/AsciiCanvas/hooks/useCanvasInteraction.ts
-import { useRef, useState } from "react";
-import { useGesture } from "@use-gesture/react";
-import { useCreation, useThrottleFn } from "ahooks";
-import { GridManager } from "../../../utils/grid";
-import {
-  getBoxPoints,
-  getLShapeLinePoints,
-  getStepLinePoints,
-  getCirclePoints,
-} from "../../../utils/shapes";
-import type { Point, SelectionArea } from "../../../types";
-import { type CanvasState } from "../../../store/canvasStore";
-import { forceHistorySave } from "../../../lib/yjs-setup";
-import bresenham from "bresenham";
-import { isCtrlOrMeta } from "../../../utils/event";
-
-export const useCanvasInteraction = (
-  store: CanvasState,
-  containerRef: React.RefObject<HTMLDivElement | null>
-) => {
-  const {
-    tool,
-    brushChar,
-    setOffset,
-    setZoom,
-    setScratchLayer,
-    addScratchPoints,
-    commitScratch,
-    setTextCursor,
-    addSelection,
-    clearSelections,
-    erasePoints,
-    offset,
-    zoom,
-    grid,
-  } = store;
-
-  const dragStartGrid = useRef<Point | null>(null);
-  const lastGrid = useRef<Point | null>(null);
-  const isPanningRef = useRef(false);
-  const lineAxisRef = useRef<"vertical" | "horizontal" | null>(null);
-  const [draggingSelection, setDraggingSelection] =
-    useState<SelectionArea | null>(null);
-
-  const handleDrawing = useCreation(
-    () => (currentGrid: Point) => {
-      if (
-        !lastGrid.current ||
-        (currentGrid.x === lastGrid.current.x &&
-          currentGrid.y === lastGrid.current.y)
-      )
-        return;
-
-      const points = bresenham(
-        lastGrid.current.x,
-        lastGrid.current.y,
-        currentGrid.x,
-        currentGrid.y
-      );
-
-      if (tool === "brush") {
-        addScratchPoints(points.map((p) => ({ ...p, char: brushChar })));
-      } else if (tool === "eraser") {
-        erasePoints(points);
-      }
-      lastGrid.current = currentGrid;
-    },
-    [tool, brushChar, addScratchPoints, erasePoints]
-  );
-
-  const { run: throttledDraw } = useThrottleFn(handleDrawing, {
-    wait: 8,
-    trailing: true,
-  });
-
-  const bind = useGesture(
-    {
-      onDragStart: ({ xy: [x, y], event }) => {
-        const mouseEvent = event as MouseEvent;
-        if (mouseEvent.button === 1 || isCtrlOrMeta(mouseEvent)) {
-          isPanningRef.current = true;
-          document.body.style.cursor = "grabbing";
-          return;
-        }
-
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (mouseEvent.button === 0 && rect) {
-          const raw = GridManager.screenToGrid(
-            x - rect.left,
-            y - rect.top,
-            offset.x,
-            offset.y,
-            zoom
-          );
-          const start = GridManager.snapToCharStart(raw, grid);
-
-          if (tool === "select") {
-            if (!mouseEvent.shiftKey) clearSelections();
-            setDraggingSelection({ start, end: start });
-            dragStartGrid.current = start;
-            setTextCursor(null);
-            return;
-          }
-
-          clearSelections();
-          setTextCursor(null);
-          dragStartGrid.current = start;
-          lastGrid.current = start;
-          lineAxisRef.current = null;
-
-          if (tool === "brush")
-            addScratchPoints([{ ...start, char: brushChar }]);
-          else if (tool === "eraser") erasePoints([start]);
-        }
-      },
-      onDrag: ({ xy: [x, y], delta: [dx, dy] }) => {
-        if (isPanningRef.current) {
-          setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-          return;
-        }
-
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (rect && dragStartGrid.current) {
-          const raw = GridManager.screenToGrid(
-            x - rect.left,
-            y - rect.top,
-            offset.x,
-            offset.y,
-            zoom
-          );
-          const currentGrid = GridManager.snapToCharStart(raw, grid);
-
-          if (tool === "select") {
-            setDraggingSelection({
-              start: dragStartGrid.current,
-              end: currentGrid,
-            });
-          } else if (tool === "brush" || tool === "eraser") {
-            throttledDraw(currentGrid);
-          } else if (tool === "box") {
-            setScratchLayer(getBoxPoints(dragStartGrid.current, currentGrid));
-          } else if (tool === "circle") {
-            setScratchLayer(
-              getCirclePoints(dragStartGrid.current, currentGrid)
-            );
-          } else if (tool === "line") {
-            if (!lineAxisRef.current) {
-              const adx = Math.abs(currentGrid.x - dragStartGrid.current.x);
-              const ady = Math.abs(currentGrid.y - dragStartGrid.current.y);
-              if (adx > 0 || ady > 0) {
-                lineAxisRef.current = ady > adx ? "vertical" : "horizontal";
-              }
-            }
-            setScratchLayer(
-              getLShapeLinePoints(
-                dragStartGrid.current,
-                currentGrid,
-                lineAxisRef.current === "vertical"
-              )
-            );
-          } else if (tool === "stepline") {
-            setScratchLayer(
-              getStepLinePoints(dragStartGrid.current, currentGrid)
-            );
-          }
-        }
-      },
-      onDragEnd: ({ event }) => {
-        if (isPanningRef.current) {
-          isPanningRef.current = false;
-          document.body.style.cursor = "auto";
-          return;
-        }
-        if ((event as MouseEvent).button === 0) {
-          if (tool === "select" && draggingSelection) {
-            if (
-              draggingSelection.start.x === draggingSelection.end.x &&
-              draggingSelection.start.y === draggingSelection.end.y
-            ) {
-              setTextCursor(draggingSelection.start);
-            } else {
-              addSelection(draggingSelection);
-            }
-            setDraggingSelection(null);
-          } else if (
-            tool === "brush" ||
-            tool === "box" ||
-            tool === "circle" ||
-            tool === "line" ||
-            tool === "stepline"
-          ) {
-            commitScratch();
-          } else if (tool === "eraser") {
-            forceHistorySave();
-          }
-          dragStartGrid.current = null;
-          lastGrid.current = null;
-          lineAxisRef.current = null;
-        }
-        document.body.style.cursor = "auto";
-      },
-      onWheel: ({ delta: [, dy], event }) => {
-        if (isCtrlOrMeta(event)) {
-          event.preventDefault();
-          setZoom((p) => p * (1 - dy * 0.002));
-        } else {
-          setOffset((p) => ({
-            x: p.x - (event as WheelEvent).deltaX,
-            y: p.y - (event as WheelEvent).deltaY,
-          }));
-        }
-      },
-    },
-    { target: containerRef, eventOptions: { passive: false } }
-  );
-
-  return { bind, draggingSelection };
-};
-```
----
-```src/components/AsciiCanvas/hooks/useCanvasRenderer.ts
-import { useEffect } from "react";
-import {
-  BACKGROUND_COLOR,
-  CELL_HEIGHT,
-  CELL_WIDTH,
-  COLOR_ORIGIN_MARKER,
-  COLOR_PRIMARY_TEXT,
-  COLOR_SCRATCH_LAYER,
-  COLOR_SELECTION_BG,
-  COLOR_SELECTION_BORDER,
-  COLOR_TEXT_CURSOR_BG,
-  COLOR_TEXT_CURSOR_FG,
-  FONT_SIZE,
-  GRID_COLOR,
-} from "../../../lib/constants";
-import { type CanvasState } from "../../../store/canvasStore";
-import { GridManager } from "../../../utils/grid";
-import type { SelectionArea, GridMap } from "../../../types";
-import { getSelectionBounds } from "../../../utils/selection";
-
-export const useCanvasRenderer = (
-  canvasRef: React.RefObject<HTMLCanvasElement | null>,
-  size: { width: number; height: number } | undefined,
-  store: CanvasState,
-  draggingSelection: SelectionArea | null
-) => {
-  const { offset, zoom, grid, scratchLayer, textCursor, selections } = store;
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx || !size || size.width === 0 || size.height === 0)
-      return;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = size.width * dpr;
-    canvas.height = size.height * dpr;
-    ctx.resetTransform();
-    ctx.scale(dpr, dpr);
-
-    ctx.fillStyle = BACKGROUND_COLOR;
-    ctx.fillRect(0, 0, size.width, size.height);
-
-    const sw = CELL_WIDTH * zoom;
-    const sh = CELL_HEIGHT * zoom;
-
-    const startX = Math.floor(-offset.x / sw);
-    const endX = Math.ceil((size.width - offset.x) / sw);
-    const startY = Math.floor(-offset.y / sh);
-    const endY = Math.ceil((size.height - offset.y) / sh);
-
-    ctx.beginPath();
-    ctx.strokeStyle = GRID_COLOR;
-    ctx.lineWidth = 1;
-    for (let x = startX; x <= endX; x++) {
-      const posX = Math.round(x * sw + offset.x);
-      ctx.moveTo(posX, 0);
-      ctx.lineTo(posX, size.height);
-    }
-
-    for (let y = startY; y <= endY; y++) {
-      const posY = Math.round(y * sh + offset.y);
-      ctx.moveTo(0, posY);
-      ctx.lineTo(size.width, posY);
-    }
-    ctx.stroke();
-
-    ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
-
-    const renderLayer = (layer: GridMap, color: string) => {
-      ctx.fillStyle = color;
-
-      for (const [key, char] of layer.entries()) {
-        if (!char || char === " ") continue;
-        const { x, y } = GridManager.fromKey(key);
-
-        if (x < startX || x > endX || y < startY || y > endY) continue;
-
-        const pos = GridManager.gridToScreen(x, y, offset.x, offset.y, zoom);
-        const wide = GridManager.isWideChar(char);
-
-        const centerX = Math.round(pos.x + (wide ? sw : sw / 2));
-        const centerY = Math.round(pos.y + sh / 2);
-
-        ctx.fillText(char, centerX, centerY);
-      }
-    };
-
-    renderLayer(grid, COLOR_PRIMARY_TEXT);
-    if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
-
-    const drawSel = (area: SelectionArea) => {
-      const { minX, minY, maxX, maxY } = getSelectionBounds(area);
-      const pos = GridManager.gridToScreen(
-        minX,
-        minY,
-        offset.x,
-        offset.y,
-        zoom
-      );
-      const w = (maxX - minX + 1) * sw;
-      const h = (maxY - minY + 1) * sh;
-
-      ctx.fillStyle = COLOR_SELECTION_BG;
-      ctx.fillRect(
-        Math.round(pos.x),
-        Math.round(pos.y),
-        Math.round(w),
-        Math.round(h)
-      );
-
-      if (COLOR_SELECTION_BORDER !== "transparent") {
-        ctx.strokeStyle = COLOR_SELECTION_BORDER;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(
-          Math.round(pos.x),
-          Math.round(pos.y),
-          Math.round(w),
-          Math.round(h)
-        );
-      }
-    };
-
-    selections.forEach(drawSel);
-    if (draggingSelection) drawSel(draggingSelection);
-
-    if (textCursor) {
-      const pos = GridManager.gridToScreen(
-        textCursor.x,
-        textCursor.y,
-        offset.x,
-        offset.y,
-        zoom
-      );
-      const char = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
-      const wide = char ? GridManager.isWideChar(char) : false;
-      const cursorWidth = wide ? sw * 2 : sw;
-
-      ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
-      ctx.fillRect(
-        Math.round(pos.x),
-        Math.round(pos.y),
-        Math.round(cursorWidth),
-        Math.round(sh)
-      );
-
-      if (char) {
-        ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-        const centerX = Math.round(pos.x + (wide ? sw : sw / 2));
-        ctx.fillText(char, centerX, Math.round(pos.y + sh / 2));
-      }
-    }
-
-    ctx.fillStyle = COLOR_ORIGIN_MARKER;
-    const originX = Math.round(offset.x);
-    const originY = Math.round(offset.y);
-    ctx.fillRect(originX - 1, originY - 10, 2, 20);
-    ctx.fillRect(originX - 10, originY - 1, 20, 2);
-  }, [
-    offset,
-    zoom,
-    size,
-    grid,
-    scratchLayer,
-    textCursor,
-    selections,
-    draggingSelection,
-    canvasRef,
-  ]);
-};
-```
----
-```src/lib/constants.ts
-export const CELL_WIDTH = 10;
-export const CELL_HEIGHT = 20;
-
-export const GRID_COLOR = "#e5e7eb";
-export const BACKGROUND_COLOR = "#ffffff";
-
-export const MIN_ZOOM = 0.1;
-export const MAX_ZOOM = 5;
-
-export const FONT_SIZE = 15;
-export const COLOR_PRIMARY_TEXT = "#000000";
-export const COLOR_SCRATCH_LAYER = "#3b82f6";
-export const COLOR_TEXT_CURSOR_BG = "rgba(0, 0, 0, 0.5)";
-export const COLOR_TEXT_CURSOR_FG = "#ffffff";
-export const COLOR_ORIGIN_MARKER = "red";
-
-export const COLOR_SELECTION_BG = "rgba(0, 0, 0, 0.2)";
-export const COLOR_SELECTION_BORDER = "transparent";
-
-export const EXPORT_PADDING = 1;
-
-export const BOX_CHARS = {
-  TOP_LEFT: "╭",
-  TOP_RIGHT: "╮",
-  BOTTOM_LEFT: "╰",
-  BOTTOM_RIGHT: "╯",
-  HORIZONTAL: "─",
-  VERTICAL: "│",
-  CROSS: "┼",
-};
-```
----
-```src/lib/utils.ts
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
-```
----
-```src/lib/yjs-setup.ts
-import * as Y from "yjs";
-
-const yDoc = new Y.Doc();
-
-export const ySceneRoot = yDoc.getMap<unknown>("scene-root");
-
-/**
- * 城市基础建设初始化
- * 确保核心行政区（Root）和主功能区（item-main）拥有合法的建筑槽位（children）
- */
-const initializeScene = () => {
-  yDoc.transact(() => {
-    if (ySceneRoot.has("id")) return;
-
-    ySceneRoot.set("id", "root");
-    ySceneRoot.set("type", "root");
-    ySceneRoot.set("name", "City Root");
-    ySceneRoot.set("x", 0);
-    ySceneRoot.set("y", 0);
-    ySceneRoot.set("isVisible", true);
-
-    const rootChildren = new Y.Array<Y.Map<unknown>>();
-    ySceneRoot.set("children", rootChildren);
-
-    const defaultLayer = new Y.Map<unknown>();
-    rootChildren.push([defaultLayer]);
-
-    defaultLayer.set("id", "layer-default");
-    defaultLayer.set("type", "layer");
-    defaultLayer.set("name", "Layer 1");
-    defaultLayer.set("x", 0);
-    defaultLayer.set("y", 0);
-    defaultLayer.set("isVisible", true);
-    defaultLayer.set("isLocked", false);
-    defaultLayer.set("content", new Y.Map<string>());
-
-    const layerChildren = new Y.Array<Y.Map<unknown>>();
-    defaultLayer.set("children", layerChildren);
-
-    const defaultItem = new Y.Map<unknown>();
-    layerChildren.push([defaultItem]);
-
-    defaultItem.set("id", "item-main");
-    defaultItem.set("type", "item");
-    defaultItem.set("name", "Main Grid");
-    defaultItem.set("x", 0);
-    defaultItem.set("y", 0);
-    defaultItem.set("isVisible", true);
-    defaultItem.set("isLocked", false);
-    defaultItem.set("content", new Y.Map<string>());
-
-    const itemChildren = new Y.Array<Y.Map<unknown>>();
-    defaultItem.set("children", itemChildren);
-  });
-};
-
-initializeScene();
-
-export const undoManager = new Y.UndoManager([ySceneRoot], {
-  captureTimeout: 500,
-  trackedOrigins: new Set([null]),
-});
-
-export const performTransaction = (fn: () => void) => {
-  yDoc.transact(() => {
-    fn();
-  });
-};
-
-export const forceHistorySave = () => {
-  undoManager.stopCapturing();
-};
-
-export const transactWithHistory = (
-  fn: () => void,
-  shouldSaveHistory = true
-) => {
-  performTransaction(fn);
-  if (shouldSaveHistory) {
-    forceHistorySave();
-  }
-};
-```
----
 ```src/store/canvasStore.ts
 import { create } from "zustand";
 import { MIN_ZOOM, MAX_ZOOM } from "../lib/constants";
@@ -1699,22 +64,6 @@ import type {
   ToolType,
 } from "../types";
 
-export interface CommonState {
-  offset: Point;
-  zoom: number;
-  tool: ToolType;
-  brushChar: string;
-  grid: GridMap;
-  sceneGraph: CanvasNode | null;
-  activeNodeId: string | null;
-
-  setOffset: (updater: (prev: Point) => Point) => void;
-  setZoom: (updater: (prev: number) => number) => void;
-  setTool: (tool: ToolType) => void;
-  setBrushChar: (char: string) => void;
-  setActiveNode: (id: string | null) => void;
-}
-
 export interface NodeSlice {
   updateNode: (id: string, updates: Partial<CanvasNode>) => void;
   addNode: (parentId: string, type: CanvasNode["type"], name: string) => void;
@@ -1729,6 +78,12 @@ export interface DrawingSlice {
   clearScratch: () => void;
   clearCanvas: () => void;
   erasePoints: (points: Point[]) => void;
+  updateScratchForShape: (
+    tool: ToolType,
+    start: Point,
+    end: Point,
+    options?: { axis?: "vertical" | "horizontal" | null }
+  ) => void;
 }
 
 export interface TextSlice {
@@ -1751,8 +106,21 @@ export interface SelectionSlice {
   cutSelectionToClipboard: () => void;
 }
 
-export type CanvasState = CommonState &
-  NodeSlice &
+export type CanvasState = {
+  offset: Point;
+  zoom: number;
+  tool: ToolType;
+  brushChar: string;
+  grid: GridMap;
+  sceneGraph: CanvasNode | null;
+  activeNodeId: string | null;
+
+  setOffset: (updater: (prev: Point) => Point) => void;
+  setZoom: (updater: (prev: number) => number) => void;
+  setTool: (tool: ToolType) => void;
+  setBrushChar: (char: string) => void;
+  setActiveNode: (id: string | null) => void;
+} & NodeSlice &
   DrawingSlice &
   TextSlice &
   SelectionSlice;
@@ -1809,11 +177,10 @@ export const placeCharInYMap = (
 ```src/store/slices/drawingSlice.ts
 import type { StateCreator } from "zustand";
 import * as Y from "yjs";
-import { z } from "zod";
 import type { CanvasState, DrawingSlice } from "../interfaces";
 import { transactWithHistory, ySceneRoot } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
-import { GridPointSchema, type GridPoint } from "../../types";
+import type { GridPoint } from "../../types";
 import {
   getNearestValidContainer,
   findNodeById,
@@ -1821,6 +188,12 @@ import {
   canMergeStrokeToNode,
   isNodeLocked,
 } from "../../utils/scene";
+import {
+  getBoxPoints,
+  getCirclePoints,
+  getLShapeLinePoints,
+  getStepLinePoints,
+} from "../../utils/shapes";
 
 export const createDrawingSlice: StateCreator<
   CanvasState,
@@ -1830,20 +203,39 @@ export const createDrawingSlice: StateCreator<
 > = (set, get) => ({
   scratchLayer: null,
 
-  setScratchLayer: (rawPoints) => {
-    const points = z.array(GridPointSchema).parse(rawPoints);
+  setScratchLayer: (points) => {
     const layer = new Map<string, string>();
     GridManager.setPoints(layer, points);
     set({ scratchLayer: layer });
   },
 
-  addScratchPoints: (rawPoints) => {
-    const points = z.array(GridPointSchema).parse(rawPoints);
+  addScratchPoints: (points) => {
     set((state) => {
       const layer = new Map(state.scratchLayer || []);
       GridManager.setPoints(layer, points);
       return { scratchLayer: layer };
     });
+  },
+
+  updateScratchForShape: (tool, start, end, options) => {
+    let points: GridPoint[] = [];
+    switch (tool) {
+      case "box":
+        points = getBoxPoints(start, end);
+        break;
+      case "circle":
+        points = getCirclePoints(start, end);
+        break;
+      case "stepline":
+        points = getStepLinePoints(start, end);
+        break;
+      case "line": {
+        const isVerticalFirst = options?.axis === "vertical";
+        points = getLShapeLinePoints(start, end, isVerticalFirst);
+        break;
+      }
+    }
+    get().setScratchLayer(points);
   },
 
   commitScratch: () => {
@@ -2057,7 +449,6 @@ import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
 import { exportSelectionToString } from "../../utils/export";
 import { getActiveGridYMap, placeCharInYMap } from "../utils";
-import { SelectionAreaSchema } from "../../types";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -2067,8 +458,7 @@ export const createSelectionSlice: StateCreator<
 > = (set, get) => ({
   selections: [],
 
-  addSelection: (rawArea) => {
-    const area = SelectionAreaSchema.parse(rawArea);
+  addSelection: (area) => {
     set((s) => ({ selections: [...s.selections, area] }));
   },
 
@@ -2143,7 +533,6 @@ import type { CanvasState, TextSlice } from "../interfaces";
 import { transactWithHistory } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getActiveGridYMap, placeCharInYMap } from "../utils";
-import { PointSchema } from "../../types";
 
 export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   set,
@@ -2151,17 +540,15 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
 ) => ({
   textCursor: null,
 
-  setTextCursor: (rawPos) => {
-    const pos = rawPos ? PointSchema.parse(rawPos) : null;
+  setTextCursor: (pos) => {
     set({ textCursor: pos, selections: [] });
   },
 
-  writeTextString: (str, rawStartPos) => {
+  writeTextString: (str, startPos) => {
     const { textCursor, activeNodeId } = get();
     const targetGrid = getActiveGridYMap(activeNodeId) as Y.Map<string> | null;
     if (!targetGrid) return;
 
-    const startPos = rawStartPos ? PointSchema.parse(rawStartPos) : undefined;
     const cursor = startPos
       ? { ...startPos }
       : textCursor
@@ -2248,7 +635,7 @@ export const PointSchema = z.object({
 export type Point = z.infer<typeof PointSchema>;
 
 export const GridPointSchema = PointSchema.extend({
-  char: z.string().length(1),
+  char: z.string(),
 });
 
 export type GridPoint = z.infer<typeof GridPointSchema>;
@@ -2273,6 +660,8 @@ export const NodeTypeSchema = z.enum([
 
 export type NodeType = z.infer<typeof NodeTypeSchema>;
 
+export type GridMap = Map<string, string>;
+
 export interface CanvasNode {
   id: string;
   type: NodeType;
@@ -2285,7 +674,8 @@ export interface CanvasNode {
   isVisible: boolean;
   isLocked: boolean;
   isCollapsed: boolean;
-  pathData?: GridPoint[];
+  content?: GridMap;
+  pathData?: GridMap;
   props?: Record<string, unknown>;
   children: CanvasNode[];
 }
@@ -2303,13 +693,12 @@ export const CanvasNodeSchema: z.ZodType<CanvasNode> = z.lazy(() =>
     isVisible: z.boolean().default(true),
     isLocked: z.boolean().default(false),
     isCollapsed: z.boolean().default(false),
-    pathData: z.array(GridPointSchema).optional(),
+    content: z.instanceof(Map).optional() as z.ZodType<GridMap | undefined>,
+    pathData: z.instanceof(Map).optional() as z.ZodType<GridMap | undefined>,
     props: z.record(z.string(), z.unknown()).optional(),
     children: z.array(CanvasNodeSchema),
   })
 );
-
-export type GridMap = Map<string, string>;
 
 export type ToolType =
   | "select"
@@ -2516,7 +905,7 @@ export const GridManager = {
 import * as Y from "yjs";
 import { GridManager } from "./grid";
 import { getBoxPoints, getCirclePoints } from "./shapes";
-import type { CanvasNode, GridMap, GridPoint, NodeType } from "../types";
+import type { CanvasNode, GridPoint, NodeType } from "../types";
 
 const traverseScene = (
   root: Y.Map<unknown>,
@@ -2550,7 +939,7 @@ export const isNodeLocked = (node: Y.Map<unknown> | null): boolean => {
   return !!node?.get("isLocked");
 };
 
-export const isNodeVisible = (node: Y.Map<unknown> | null): boolean => {
+const isNodeVisible = (node: Y.Map<unknown> | null): boolean => {
   return node?.get("isVisible") !== false;
 };
 
@@ -2591,10 +980,14 @@ export const getNearestValidContainer = (
   );
 };
 
+type CanvasNodeCreationProps = Omit<Partial<CanvasNode>, "pathData"> & {
+  pathData?: GridPoint[];
+};
+
 export const createYCanvasNode = (
   type: NodeType,
   name: string,
-  props: Partial<CanvasNode> = {}
+  props: CanvasNodeCreationProps = {}
 ): Y.Map<unknown> => {
   const node = new Y.Map<unknown>();
   node.set("id", props.id || crypto.randomUUID());
@@ -2626,7 +1019,7 @@ export const composeScene = (
   node: Y.Map<unknown>,
   globalOffsetX: number = 0,
   globalOffsetY: number = 0,
-  resultGrid: GridMap
+  resultGrid: Map<string, string>
 ) => {
   if (!isNodeVisible(node)) return;
 
@@ -2684,13 +1077,25 @@ export const composeScene = (
   }
 };
 
+const yMapToGridMap = (yMap: Y.Map<string>): Map<string, string> => {
+  const gridMap = new Map<string, string>();
+  for (const [key, value] of yMap.entries()) {
+    gridMap.set(key, value);
+  }
+  return gridMap;
+};
+
 export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
-  const pathData: GridPoint[] = [];
+  let content: Map<string, string> | undefined = undefined;
+  const rawContent = node.get("content");
+  if (rawContent instanceof Y.Map) {
+    content = yMapToGridMap(rawContent as Y.Map<string>);
+  }
+
+  let pathData: Map<string, string> | undefined = undefined;
   const rawPathData = node.get("pathData");
   if (rawPathData instanceof Y.Map) {
-    GridManager.iterate(rawPathData, (char, x, y) =>
-      pathData.push({ x, y, char })
-    );
+    pathData = yMapToGridMap(rawPathData as Y.Map<string>);
   }
 
   const children: CanvasNode[] = [];
@@ -2714,7 +1119,8 @@ export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
     isVisible: isNodeVisible(node),
     isLocked: isNodeLocked(node),
     isCollapsed: node.get("isCollapsed") === true,
-    pathData: pathData.length > 0 ? pathData : undefined,
+    content,
+    pathData,
   };
 };
 ```
@@ -2951,4 +1357,427 @@ export function getCirclePoints(center: Point, edge: Point): GridPoint[] {
 
   return result;
 }
+```
+---
+```src/lib/constants.ts
+export const CELL_WIDTH = 10;
+export const CELL_HEIGHT = 20;
+
+export const GRID_COLOR = "#e5e7eb";
+export const BACKGROUND_COLOR = "#ffffff";
+
+export const MIN_ZOOM = 0.1;
+export const MAX_ZOOM = 5;
+
+export const FONT_SIZE = 15;
+export const COLOR_PRIMARY_TEXT = "#000000";
+export const COLOR_SCRATCH_LAYER = "#3b82f6";
+export const COLOR_TEXT_CURSOR_BG = "rgba(0, 0, 0, 0.5)";
+export const COLOR_TEXT_CURSOR_FG = "#ffffff";
+export const COLOR_ORIGIN_MARKER = "red";
+
+export const COLOR_SELECTION_BG = "rgba(0, 0, 0, 0.2)";
+export const COLOR_SELECTION_BORDER = "transparent";
+
+export const EXPORT_PADDING = 1;
+
+export const BOX_CHARS = {
+  TOP_LEFT: "╭",
+  TOP_RIGHT: "╮",
+  BOTTOM_LEFT: "╰",
+  BOTTOM_RIGHT: "╯",
+  HORIZONTAL: "─",
+  VERTICAL: "│",
+  CROSS: "┼",
+};
+```
+---
+```src/lib/utils.ts
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+```
+---
+```src/lib/yjs-setup.ts
+import * as Y from "yjs";
+
+const yDoc = new Y.Doc();
+
+export const ySceneRoot = yDoc.getMap<unknown>("scene-root");
+
+/**
+ * 城市基础建设初始化
+ * 确保核心行政区（Root）和主功能区（item-main）拥有合法的建筑槽位（children）
+ */
+const initializeScene = () => {
+  yDoc.transact(() => {
+    if (ySceneRoot.has("id")) return;
+
+    ySceneRoot.set("id", "root");
+    ySceneRoot.set("type", "root");
+    ySceneRoot.set("name", "City Root");
+    ySceneRoot.set("x", 0);
+    ySceneRoot.set("y", 0);
+    ySceneRoot.set("isVisible", true);
+
+    const rootChildren = new Y.Array<Y.Map<unknown>>();
+    ySceneRoot.set("children", rootChildren);
+
+    const defaultLayer = new Y.Map<unknown>();
+    rootChildren.push([defaultLayer]);
+
+    defaultLayer.set("id", "layer-default");
+    defaultLayer.set("type", "layer");
+    defaultLayer.set("name", "Layer 1");
+    defaultLayer.set("x", 0);
+    defaultLayer.set("y", 0);
+    defaultLayer.set("isVisible", true);
+    defaultLayer.set("isLocked", false);
+    defaultLayer.set("content", new Y.Map<string>());
+
+    const layerChildren = new Y.Array<Y.Map<unknown>>();
+    defaultLayer.set("children", layerChildren);
+
+    const defaultItem = new Y.Map<unknown>();
+    layerChildren.push([defaultItem]);
+
+    defaultItem.set("id", "item-main");
+    defaultItem.set("type", "item");
+    defaultItem.set("name", "Main Grid");
+    defaultItem.set("x", 0);
+    defaultItem.set("y", 0);
+    defaultItem.set("isVisible", true);
+    defaultItem.set("isLocked", false);
+    defaultItem.set("content", new Y.Map<string>());
+
+    const itemChildren = new Y.Array<Y.Map<unknown>>();
+    defaultItem.set("children", itemChildren);
+  });
+};
+
+initializeScene();
+
+export const undoManager = new Y.UndoManager([ySceneRoot], {
+  captureTimeout: 500,
+  trackedOrigins: new Set([null]),
+});
+
+const performTransaction = (fn: () => void) => {
+  yDoc.transact(() => {
+    fn();
+  });
+};
+
+export const forceHistorySave = () => {
+  undoManager.stopCapturing();
+};
+
+export const transactWithHistory = (
+  fn: () => void,
+  shouldSaveHistory = true
+) => {
+  performTransaction(fn);
+  if (shouldSaveHistory) {
+    forceHistorySave();
+  }
+};
+```
+---
+```src/components/ToolBar/sidebar-left.tsx
+"use client";
+
+import * as React from "react";
+import { Plus, MoreHorizontal, Settings2 } from "lucide-react";
+import {
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  useSidebar,
+  SidebarStandard,
+} from "@/components/ui/sidebar";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { cn } from "@/lib/utils";
+import { useCanvasStore } from "@/store/canvasStore";
+import { Logo } from "./left-sidebar/logo";
+import { SceneTreeNode } from "./left-sidebar/sidebar-node";
+
+export function SidebarLeft() {
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+  const { sceneGraph, addNode } = useCanvasStore();
+
+  const footer = (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton tooltip="Canvas Settings">
+          <Settings2 className="size-4" />
+          {!isCollapsed && <span>Settings</span>}
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton tooltip="More options">
+          <MoreHorizontal className="size-4" />
+          {!isCollapsed && <span>Management</span>}
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+
+  return (
+    <SidebarStandard
+      variant="floating"
+      icon={<Logo className="h-8 w-8" />}
+      title="ASCII Studio"
+      footer={footer}
+    >
+      <ContextMenu>
+        <ContextMenuTrigger className="flex-1 overflow-hidden h-full">
+          <div className="flex flex-col gap-1">
+            {!isCollapsed && (
+              <div className="px-2 mb-2">
+                <span className="text-[10px] font-bold uppercase text-muted-foreground/60 tracking-widest">
+                  Scene Graph
+                </span>
+              </div>
+            )}
+
+            <div
+              className={cn(
+                "flex flex-col gap-0.5",
+                isCollapsed && "items-center"
+              )}
+            >
+              {sceneGraph ? (
+                sceneGraph.children.map((child) => (
+                  <SceneTreeNode
+                    key={child.id}
+                    node={child}
+                    isSidebarCollapsed={isCollapsed}
+                  />
+                ))
+              ) : (
+                <div className="p-4 text-xs text-muted-foreground text-center">
+                  Loading...
+                </div>
+              )}
+            </div>
+          </div>
+        </ContextMenuTrigger>
+
+        <ContextMenuContent>
+          <ContextMenuItem
+            onClick={() => addNode("root", "layer", "New Layer")}
+          >
+            <Plus className="mr-2 size-3.5" />
+            New Layer
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    </SidebarStandard>
+  );
+}
+```
+---
+```src/components/ToolBar/left-sidebar/logo.tsx
+import { Box } from "lucide-react";
+
+export function Logo({ className }: { className?: string }) {
+  return (
+    <div
+      className={`flex items-center justify-center rounded-lg bg-primary p-1 ${className}`}
+    >
+      <Box className="size-5 text-primary-foreground" />
+    </div>
+  );
+}
+```
+---
+```src/components/ToolBar/left-sidebar/sidebar-node.tsx
+import * as React from "react";
+import { Layers, ChevronRight, Plus, Trash2 } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
+import { useCanvasStore } from "@/store/canvasStore";
+import type { CanvasNode } from "@/types";
+import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { VisibilityIcon, LockIcon } from "../node-status";
+
+interface SceneTreeNodeProps {
+  node: CanvasNode;
+  depth?: number;
+  isSidebarCollapsed?: boolean;
+}
+
+export const SceneTreeNode = ({
+  node,
+  depth = 0,
+  isSidebarCollapsed,
+}: SceneTreeNodeProps) => {
+  const { activeNodeId, setActiveNode, addNode, deleteNode, updateNode } =
+    useCanvasStore();
+
+  const isActive = activeNodeId === node.id;
+  const hasChildren = node.children && node.children.length > 0;
+
+  const handleSelect = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveNode(node.id);
+  };
+
+  if (isSidebarCollapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className={cn(
+              "flex items-center justify-center size-9 rounded-md cursor-pointer transition-colors",
+              isActive
+                ? "bg-accent text-accent-foreground"
+                : "hover:bg-muted/50",
+              !node.isVisible && "opacity-50"
+            )}
+            onClick={handleSelect}
+          >
+            <Layers
+              className={cn(
+                "size-4",
+                isActive ? "text-primary" : "text-muted-foreground"
+              )}
+            />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          <p>{node.name}</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  const nodeContent = (
+    <div
+      className={cn(
+        "flex w-full items-center gap-2 p-1.5 cursor-pointer rounded-md transition-all text-sm group select-none relative",
+        isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted/50",
+        !node.isVisible && "opacity-50"
+      )}
+      onClick={handleSelect}
+    >
+      <div
+        className="flex items-center gap-2 flex-1 min-w-0"
+        style={{ paddingLeft: `${depth * 12}px` }}
+      >
+        {hasChildren && (
+          <div className="size-4 flex items-center justify-center">
+            <ChevronRight
+              className={cn(
+                "size-3 transition-transform text-muted-foreground",
+                "group-data-[state=open]:rotate-90"
+              )}
+            />
+          </div>
+        )}
+        {!hasChildren && <div className="size-4" />}
+        <Layers
+          className={cn(
+            "size-4",
+            isActive ? "text-primary" : "text-muted-foreground"
+          )}
+        />
+        <span
+          className={cn("truncate", isActive ? "font-semibold" : "font-normal")}
+        >
+          {node.name}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 h-6 w-6 text-muted-foreground"
+          onClick={(e) => {
+            e.stopPropagation();
+            updateNode(node.id, { isVisible: !node.isVisible });
+          }}
+        >
+          <VisibilityIcon active={node.isVisible} className="size-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 h-6 w-6 text-muted-foreground"
+          onClick={(e) => {
+            e.stopPropagation();
+            updateNode(node.id, { isLocked: !node.isLocked });
+          }}
+        >
+          <LockIcon active={node.isLocked} className="size-3" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger className="w-full">
+        {hasChildren ? (
+          <Collapsible defaultOpen className="w-full">
+            <CollapsibleTrigger asChild>{nodeContent}</CollapsibleTrigger>
+            <CollapsibleContent>
+              {node.children.map((child) => (
+                <SceneTreeNode key={child.id} node={child} depth={depth + 1} />
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        ) : (
+          nodeContent
+        )}
+      </ContextMenuTrigger>
+
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem
+          className="gap-2"
+          onClick={() => addNode(node.id, "layer", "New Layer")}
+        >
+          <Plus className="size-3.5" />
+          <span>Add Layer</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          variant="destructive"
+          disabled={node.id === "root"}
+          onClick={() => deleteNode(node.id)}
+          className="gap-2"
+        >
+          <Trash2 className="size-3.5" />
+          <span>Delete Layer</span>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+};
 ```
