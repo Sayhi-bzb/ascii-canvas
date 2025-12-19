@@ -1,7 +1,7 @@
 import * as Y from "yjs";
 import { GridManager } from "./grid";
 import { getBoxPoints, getCirclePoints } from "./shapes";
-import type { CanvasNode, GridMap, GridPoint, NodeType } from "../types";
+import type { CanvasNode, GridPoint, NodeType } from "../types";
 
 const traverseScene = (
   root: Y.Map<unknown>,
@@ -35,7 +35,7 @@ export const isNodeLocked = (node: Y.Map<unknown> | null): boolean => {
   return !!node?.get("isLocked");
 };
 
-export const isNodeVisible = (node: Y.Map<unknown> | null): boolean => {
+const isNodeVisible = (node: Y.Map<unknown> | null): boolean => {
   return node?.get("isVisible") !== false;
 };
 
@@ -76,10 +76,14 @@ export const getNearestValidContainer = (
   );
 };
 
+type CanvasNodeCreationProps = Omit<Partial<CanvasNode>, "pathData"> & {
+  pathData?: GridPoint[];
+};
+
 export const createYCanvasNode = (
   type: NodeType,
   name: string,
-  props: Partial<CanvasNode> = {}
+  props: CanvasNodeCreationProps = {}
 ): Y.Map<unknown> => {
   const node = new Y.Map<unknown>();
   node.set("id", props.id || crypto.randomUUID());
@@ -111,7 +115,7 @@ export const composeScene = (
   node: Y.Map<unknown>,
   globalOffsetX: number = 0,
   globalOffsetY: number = 0,
-  resultGrid: GridMap
+  resultGrid: Map<string, string>
 ) => {
   if (!isNodeVisible(node)) return;
 
@@ -169,13 +173,25 @@ export const composeScene = (
   }
 };
 
+const yMapToGridMap = (yMap: Y.Map<string>): Map<string, string> => {
+  const gridMap = new Map<string, string>();
+  for (const [key, value] of yMap.entries()) {
+    gridMap.set(key, value);
+  }
+  return gridMap;
+};
+
 export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
-  const pathData: GridPoint[] = [];
+  let content: Map<string, string> | undefined = undefined;
+  const rawContent = node.get("content");
+  if (rawContent instanceof Y.Map) {
+    content = yMapToGridMap(rawContent as Y.Map<string>);
+  }
+
+  let pathData: Map<string, string> | undefined = undefined;
   const rawPathData = node.get("pathData");
   if (rawPathData instanceof Y.Map) {
-    GridManager.iterate(rawPathData, (char, x, y) =>
-      pathData.push({ x, y, char })
-    );
+    pathData = yMapToGridMap(rawPathData as Y.Map<string>);
   }
 
   const children: CanvasNode[] = [];
@@ -199,6 +215,7 @@ export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
     isVisible: isNodeVisible(node),
     isLocked: isNodeLocked(node),
     isCollapsed: node.get("isCollapsed") === true,
-    pathData: pathData.length > 0 ? pathData : undefined,
+    content,
+    pathData,
   };
 };

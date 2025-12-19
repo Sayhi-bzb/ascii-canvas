@@ -2,17 +2,15 @@ import { useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
 import { useCreation, useThrottleFn } from "ahooks";
 import { GridManager } from "../../../utils/grid";
-import {
-  getBoxPoints,
-  getLShapeLinePoints,
-  getStepLinePoints,
-  getCirclePoints,
-} from "../../../utils/shapes";
-import type { Point, SelectionArea } from "../../../types";
+import type { Point, SelectionArea, ToolType } from "../../../types";
 import { type CanvasState } from "../../../store/canvasStore";
 import { forceHistorySave } from "../../../lib/yjs-setup";
 import bresenham from "bresenham";
 import { isCtrlOrMeta } from "../../../utils/event";
+
+const isShapeTool = (tool: ToolType): boolean => {
+  return ["box", "circle", "line", "stepline"].includes(tool);
+};
 
 export const useCanvasInteraction = (
   store: CanvasState,
@@ -23,7 +21,6 @@ export const useCanvasInteraction = (
     brushChar,
     setOffset,
     setZoom,
-    setScratchLayer,
     addScratchPoints,
     commitScratch,
     setTextCursor,
@@ -33,6 +30,7 @@ export const useCanvasInteraction = (
     offset,
     zoom,
     grid,
+    updateScratchForShape,
   } = store;
 
   const dragStartGrid = useRef<Point | null>(null);
@@ -137,31 +135,17 @@ export const useCanvasInteraction = (
             });
           } else if (tool === "brush" || tool === "eraser") {
             throttledDraw(currentGrid);
-          } else if (tool === "box") {
-            setScratchLayer(getBoxPoints(dragStartGrid.current, currentGrid));
-          } else if (tool === "circle") {
-            setScratchLayer(
-              getCirclePoints(dragStartGrid.current, currentGrid)
-            );
-          } else if (tool === "line") {
-            if (!lineAxisRef.current) {
+          } else if (isShapeTool(tool)) {
+            if (tool === "line" && !lineAxisRef.current) {
               const adx = Math.abs(currentGrid.x - dragStartGrid.current.x);
               const ady = Math.abs(currentGrid.y - dragStartGrid.current.y);
               if (adx > 0 || ady > 0) {
                 lineAxisRef.current = ady > adx ? "vertical" : "horizontal";
               }
             }
-            setScratchLayer(
-              getLShapeLinePoints(
-                dragStartGrid.current,
-                currentGrid,
-                lineAxisRef.current === "vertical"
-              )
-            );
-          } else if (tool === "stepline") {
-            setScratchLayer(
-              getStepLinePoints(dragStartGrid.current, currentGrid)
-            );
+            updateScratchForShape(tool, dragStartGrid.current, currentGrid, {
+              axis: lineAxisRef.current,
+            });
           }
         }
       },
@@ -182,13 +166,7 @@ export const useCanvasInteraction = (
               addSelection(draggingSelection);
             }
             setDraggingSelection(null);
-          } else if (
-            tool === "brush" ||
-            tool === "box" ||
-            tool === "circle" ||
-            tool === "line" ||
-            tool === "stepline"
-          ) {
+          } else if (tool === "brush" || isShapeTool(tool)) {
             commitScratch();
           } else if (tool === "eraser") {
             forceHistorySave();

@@ -4,7 +4,6 @@ import type { CanvasState, TextSlice } from "../interfaces";
 import { transactWithHistory } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getActiveGridYMap, placeCharInYMap } from "../utils";
-import { PointSchema } from "../../types";
 
 export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   set,
@@ -12,17 +11,15 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
 ) => ({
   textCursor: null,
 
-  setTextCursor: (rawPos) => {
-    const pos = rawPos ? PointSchema.parse(rawPos) : null;
+  setTextCursor: (pos) => {
     set({ textCursor: pos, selections: [] });
   },
 
-  writeTextString: (str, rawStartPos) => {
+  writeTextString: (str, startPos) => {
     const { textCursor, activeNodeId } = get();
     const targetGrid = getActiveGridYMap(activeNodeId) as Y.Map<string> | null;
     if (!targetGrid) return;
 
-    const startPos = rawStartPos ? PointSchema.parse(rawStartPos) : undefined;
     const cursor = startPos
       ? { ...startPos }
       : textCursor

@@ -8,7 +8,7 @@ export const PointSchema = z.object({
 export type Point = z.infer<typeof PointSchema>;
 
 export const GridPointSchema = PointSchema.extend({
-  char: z.string().length(1),
+  char: z.string(),
 });
 
 export type GridPoint = z.infer<typeof GridPointSchema>;
@@ -33,6 +33,8 @@ export const NodeTypeSchema = z.enum([
 
 export type NodeType = z.infer<typeof NodeTypeSchema>;
 
+export type GridMap = Map<string, string>;
+
 export interface CanvasNode {
   id: string;
   type: NodeType;
@@ -45,7 +47,8 @@ export interface CanvasNode {
   isVisible: boolean;
   isLocked: boolean;
   isCollapsed: boolean;
-  pathData?: GridPoint[];
+  content?: GridMap;
+  pathData?: GridMap;
   props?: Record<string, unknown>;
   children: CanvasNode[];
 }
@@ -63,13 +66,12 @@ export const CanvasNodeSchema: z.ZodType<CanvasNode> = z.lazy(() =>
     isVisible: z.boolean().default(true),
     isLocked: z.boolean().default(false),
     isCollapsed: z.boolean().default(false),
-    pathData: z.array(GridPointSchema).optional(),
+    content: z.instanceof(Map).optional() as z.ZodType<GridMap | undefined>,
+    pathData: z.instanceof(Map).optional() as z.ZodType<GridMap | undefined>,
     props: z.record(z.string(), z.unknown()).optional(),
     children: z.array(CanvasNodeSchema),
   })
 );
-
-export type GridMap = Map<string, string>;
 
 export type ToolType =
   | "select"

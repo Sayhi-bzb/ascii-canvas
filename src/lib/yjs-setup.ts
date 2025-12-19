@@ -61,7 +61,7 @@ export const undoManager = new Y.UndoManager([ySceneRoot], {
   trackedOrigins: new Set([null]),
 });
 
-export const performTransaction = (fn: () => void) => {
+const performTransaction = (fn: () => void) => {
   yDoc.transact(() => {
     fn();
   });

@@ -7,22 +7,6 @@ import type {
   ToolType,
 } from "../types";
 
-export interface CommonState {
-  offset: Point;
-  zoom: number;
-  tool: ToolType;
-  brushChar: string;
-  grid: GridMap;
-  sceneGraph: CanvasNode | null;
-  activeNodeId: string | null;
-
-  setOffset: (updater: (prev: Point) => Point) => void;
-  setZoom: (updater: (prev: number) => number) => void;
-  setTool: (tool: ToolType) => void;
-  setBrushChar: (char: string) => void;
-  setActiveNode: (id: string | null) => void;
-}
-
 export interface NodeSlice {
   updateNode: (id: string, updates: Partial<CanvasNode>) => void;
   addNode: (parentId: string, type: CanvasNode["type"], name: string) => void;
@@ -37,6 +21,12 @@ export interface DrawingSlice {
   clearScratch: () => void;
   clearCanvas: () => void;
   erasePoints: (points: Point[]) => void;
+  updateScratchForShape: (
+    tool: ToolType,
+    start: Point,
+    end: Point,
+    options?: { axis?: "vertical" | "horizontal" | null }
+  ) => void;
 }
 
 export interface TextSlice {
@@ -59,8 +49,21 @@ export interface SelectionSlice {
   cutSelectionToClipboard: () => void;
 }
 
-export type CanvasState = CommonState &
-  NodeSlice &
+export type CanvasState = {
+  offset: Point;
+  zoom: number;
+  tool: ToolType;
+  brushChar: string;
+  grid: GridMap;
+  sceneGraph: CanvasNode | null;
+  activeNodeId: string | null;
+
+  setOffset: (updater: (prev: Point) => Point) => void;
+  setZoom: (updater: (prev: number) => number) => void;
+  setTool: (tool: ToolType) => void;
+  setBrushChar: (char: string) => void;
+  setActiveNode: (id: string | null) => void;
+} & NodeSlice &
   DrawingSlice &
   TextSlice &
   SelectionSlice;

@@ -77,7 +77,7 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
   const navItems = [
     {
       id: "select",
-      label: "Select (V)",
+      label: "Select",
       icon: MousePointer2,
       onClick: () => setTool("select"),
     },
@@ -97,13 +97,13 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
     },
     {
       id: "fill",
-      label: "Fill (G)",
+      label: "Fill",
       icon: PaintBucket,
       onClick: () => setTool("fill"),
     },
     {
       id: "eraser",
-      label: "Eraser (E)",
+      label: "Eraser",
       icon: Eraser,
       onClick: () => setTool("eraser"),
     },

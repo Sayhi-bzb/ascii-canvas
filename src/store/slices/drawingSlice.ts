@@ -1,10 +1,9 @@
 import type { StateCreator } from "zustand";
 import * as Y from "yjs";
-import { z } from "zod";
 import type { CanvasState, DrawingSlice } from "../interfaces";
 import { transactWithHistory, ySceneRoot } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
-import { GridPointSchema, type GridPoint } from "../../types";
+import type { GridPoint } from "../../types";
 import {
   getNearestValidContainer,
   findNodeById,
@@ -12,6 +11,12 @@ import {
   canMergeStrokeToNode,
   isNodeLocked,
 } from "../../utils/scene";
+import {
+  getBoxPoints,
+  getCirclePoints,
+  getLShapeLinePoints,
+  getStepLinePoints,
+} from "../../utils/shapes";
 
 export const createDrawingSlice: StateCreator<
   CanvasState,
@@ -21,20 +26,39 @@ export const createDrawingSlice: StateCreator<
 > = (set, get) => ({
   scratchLayer: null,
 
-  setScratchLayer: (rawPoints) => {
-    const points = z.array(GridPointSchema).parse(rawPoints);
+  setScratchLayer: (points) => {
     const layer = new Map<string, string>();
     GridManager.setPoints(layer, points);
     set({ scratchLayer: layer });
   },
 
-  addScratchPoints: (rawPoints) => {
-    const points = z.array(GridPointSchema).parse(rawPoints);
+  addScratchPoints: (points) => {
     set((state) => {
       const layer = new Map(state.scratchLayer || []);
       GridManager.setPoints(layer, points);
       return { scratchLayer: layer };
     });
+  },
+
+  updateScratchForShape: (tool, start, end, options) => {
+    let points: GridPoint[] = [];
+    switch (tool) {
+      case "box":
+        points = getBoxPoints(start, end);
+        break;
+      case "circle":
+        points = getCirclePoints(start, end);
+        break;
+      case "stepline":
+        points = getStepLinePoints(start, end);
+        break;
+      case "line": {
+        const isVerticalFirst = options?.axis === "vertical";
+        points = getLShapeLinePoints(start, end, isVerticalFirst);
+        break;
+      }
+    }
+    get().setScratchLayer(points);
   },
 
   commitScratch: () => {
