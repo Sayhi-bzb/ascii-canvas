@@ -141,7 +141,7 @@ export const useCanvasInteraction = (
             setScratchLayer(getBoxPoints(dragStartGrid.current, currentGrid));
           } else if (tool === "circle") {
             setScratchLayer(
-              getCirclePoints(dragStartGrid.current, currentGrid, brushChar)
+              getCirclePoints(dragStartGrid.current, currentGrid)
             );
           } else if (tool === "line") {
             if (!lineAxisRef.current) {

@@ -3,7 +3,7 @@ import * as Y from "yjs";
 import type { CanvasState, TextSlice } from "../interfaces";
 import { transactWithHistory } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
-import { getActiveGridYMap } from "../utils";
+import { getActiveGridYMap, placeCharInYMap } from "../utils";
 import { PointSchema } from "../../types";
 
 export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
@@ -38,19 +38,10 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
           cursor.x = startX;
           continue;
         }
-        const { x, y } = cursor;
-        const leftChar = targetGrid.get(GridManager.toKey(x - 1, y));
-        if (leftChar && GridManager.isWideChar(leftChar))
-          targetGrid.delete(GridManager.toKey(x - 1, y));
 
-        const charWidth = GridManager.getCharWidth(char);
-        targetGrid.set(GridManager.toKey(x, y), char);
-        if (charWidth === 2) {
-          targetGrid.delete(GridManager.toKey(x + 1, y));
-          cursor.x += 2;
-        } else {
-          cursor.x += 1;
-        }
+        placeCharInYMap(targetGrid, cursor.x, cursor.y, char);
+
+        cursor.x += GridManager.getCharWidth(char);
       }
     }, str.length > 1);
 

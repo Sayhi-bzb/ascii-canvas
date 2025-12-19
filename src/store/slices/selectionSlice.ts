@@ -6,7 +6,7 @@ import { transactWithHistory } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
 import { exportSelectionToString } from "../../utils/export";
-import { getActiveGridYMap } from "../utils";
+import { getActiveGridYMap, placeCharInYMap } from "../utils";
 import { SelectionAreaSchema } from "../../types";
 
 export const createSelectionSlice: StateCreator<
@@ -58,10 +58,9 @@ export const createSelectionSlice: StateCreator<
         const { minX, maxX, minY, maxY } = getSelectionBounds(area);
         for (let y = minY; y <= maxY; y++) {
           for (let x = minX; x <= maxX; x += charWidth) {
-            if (x > maxX) break;
-            targetGrid.set(GridManager.toKey(x, y), char);
-            if (charWidth === 2 && x + 1 <= maxX)
-              targetGrid.delete(GridManager.toKey(x + 1, y));
+            if (x + charWidth - 1 > maxX) break;
+
+            placeCharInYMap(targetGrid, x, y, char);
           }
         }
       });

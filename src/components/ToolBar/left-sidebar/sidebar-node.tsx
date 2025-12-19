@@ -1,14 +1,5 @@
 import * as React from "react";
-import {
-  Layers,
-  ChevronRight,
-  Plus,
-  Trash2,
-  Eye,
-  EyeOff,
-  Lock,
-  Unlock,
-} from "lucide-react";
+import { Layers, ChevronRight, Plus, Trash2 } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -30,6 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { VisibilityIcon, LockIcon } from "../node-status";
 
 interface SceneTreeNodeProps {
   node: CanvasNode;
@@ -129,11 +121,7 @@ export const SceneTreeNode = ({
             updateNode(node.id, { isVisible: !node.isVisible });
           }}
         >
-          {node.isVisible ? (
-            <Eye className="size-3" />
-          ) : (
-            <EyeOff className="size-3" />
-          )}
+          <VisibilityIcon active={node.isVisible} className="size-3" />
         </Button>
         <Button
           variant="ghost"
@@ -144,11 +132,7 @@ export const SceneTreeNode = ({
             updateNode(node.id, { isLocked: !node.isLocked });
           }}
         >
-          {node.isLocked ? (
-            <Lock className="size-3" />
-          ) : (
-            <Unlock className="size-3" />
-          )}
+          <LockIcon active={node.isLocked} className="size-3" />
         </Button>
       </div>
     </div>

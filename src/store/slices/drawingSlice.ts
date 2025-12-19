@@ -5,7 +5,11 @@ import type { CanvasState, DrawingSlice } from "../interfaces";
 import { transactWithHistory, ySceneRoot } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { GridPointSchema } from "../../types";
-import { getNearestValidContainer, findNodeById } from "../../utils/scene";
+import {
+  getNearestValidContainer,
+  findNodeById,
+  createYCanvasNode,
+} from "../../utils/scene";
 
 export const createDrawingSlice: StateCreator<
   CanvasState,
@@ -39,45 +43,34 @@ export const createDrawingSlice: StateCreator<
       let container = getNearestValidContainer(ySceneRoot, activeNodeId);
 
       if (container.get("type") === "root") {
-        const autoLayer = new Y.Map<unknown>();
-        const layerId = crypto.randomUUID();
-        autoLayer.set("id", layerId);
-        autoLayer.set("type", "layer");
-        autoLayer.set(
-          "name",
-          "Layer " +
-            ((ySceneRoot.get("children") as Y.Array<Y.Map<unknown>>).length + 1)
+        const currentLayers = ySceneRoot.get("children") as Y.Array<
+          Y.Map<unknown>
+        >;
+        const autoLayer = createYCanvasNode(
+          "layer",
+          `Layer ${currentLayers.length + 1}`
         );
-        autoLayer.set("x", 0);
-        autoLayer.set("y", 0);
-        autoLayer.set("isVisible", true);
-        autoLayer.set("isLocked", false);
-        autoLayer.set("content", new Y.Map<string>());
-        autoLayer.set("children", new Y.Array<Y.Map<unknown>>());
-        (ySceneRoot.get("children") as Y.Array<Y.Map<unknown>>).push([
-          autoLayer,
-        ]);
+        currentLayers.push([autoLayer]);
         container = autoLayer;
       }
 
-      let minX = Infinity,
-        minY = Infinity,
-        maxX = -Infinity,
-        maxY = -Infinity;
-      scratchLayer.forEach((_, key) => {
-        const { x, y } = GridManager.fromKey(key);
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-      });
+      const { minX, minY, maxX, maxY } =
+        GridManager.getGridBounds(scratchLayer);
 
-      const newNode = new Y.Map<unknown>();
-      const id = crypto.randomUUID();
-      newNode.set("id", id);
-      newNode.set("isVisible", true);
-      newNode.set("isLocked", false);
-      newNode.set("children", new Y.Array<Y.Map<unknown>>());
+      const pathData = [] as { x: number; y: number; char: string }[];
+      if (
+        tool === "brush" ||
+        tool === "line" ||
+        tool === "stepline" ||
+        tool === "eraser"
+      ) {
+        scratchLayer.forEach((char, key) => {
+          const { x, y } = GridManager.fromKey(key);
+          pathData.push({ x, y, char });
+        });
+      }
+
+      let newNode: Y.Map<unknown> | null = null;
 
       if (tool === "brush") {
         const activeNode = activeNodeId
@@ -93,39 +86,33 @@ export const createDrawingSlice: StateCreator<
           set({ scratchLayer: null });
           return;
         }
-        newNode.set("type", "shape-path");
-        newNode.set("name", "Path");
-        newNode.set("x", 0);
-        newNode.set("y", 0);
-        const pathDataMap = new Y.Map<string>();
-        scratchLayer.forEach((v, k) => pathDataMap.set(k, v));
-        newNode.set("pathData", pathDataMap);
+        newNode = createYCanvasNode("shape-path", "Path", { pathData });
       } else if (tool === "box") {
-        newNode.set("type", "shape-box");
-        newNode.set("name", "Box");
-        newNode.set("x", minX);
-        newNode.set("y", minY);
-        newNode.set("width", maxX - minX + 1);
-        newNode.set("height", maxY - minY + 1);
+        newNode = createYCanvasNode("shape-box", "Box", {
+          x: minX,
+          y: minY,
+          width: maxX - minX + 1,
+          height: maxY - minY + 1,
+        });
       } else if (tool === "circle") {
-        newNode.set("type", "shape-circle");
-        newNode.set("name", "Circle");
-        newNode.set("x", minX);
-        newNode.set("y", minY);
-        newNode.set("width", maxX - minX + 1);
-        newNode.set("height", maxY - minY + 1);
+        newNode = createYCanvasNode("shape-circle", "Circle", {
+          x: minX,
+          y: minY,
+          width: maxX - minX + 1,
+          height: maxY - minY + 1,
+        });
       } else if (tool === "line" || tool === "stepline") {
-        newNode.set("type", "shape-path");
-        newNode.set("name", tool === "line" ? "Line" : "Step Line");
-        newNode.set("x", 0);
-        newNode.set("y", 0);
-        const pathDataMap = new Y.Map<string>();
-        scratchLayer.forEach((v, k) => pathDataMap.set(k, v));
-        newNode.set("pathData", pathDataMap);
+        newNode = createYCanvasNode(
+          "shape-path",
+          tool === "line" ? "Line" : "Step Line",
+          { pathData }
+        );
       }
 
-      (container.get("children") as Y.Array<Y.Map<unknown>>).push([newNode]);
-      set({ activeNodeId: id });
+      if (newNode) {
+        (container.get("children") as Y.Array<Y.Map<unknown>>).push([newNode]);
+        set({ activeNodeId: newNode.get("id") as string });
+      }
     });
 
     set({ scratchLayer: null });

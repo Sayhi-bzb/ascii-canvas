@@ -3,7 +3,11 @@ import * as Y from "yjs";
 import { toast } from "sonner";
 import type { CanvasState, NodeSlice } from "../interfaces";
 import { ySceneRoot, transactWithHistory } from "../../lib/yjs-setup";
-import { findNodeById, findParentNodeById } from "../../utils/scene";
+import {
+  findNodeById,
+  findParentNodeById,
+  createYCanvasNode,
+} from "../../utils/scene";
 
 export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
   set
@@ -32,32 +36,13 @@ export const createNodeSlice: StateCreator<CanvasState, [], [], NodeSlice> = (
     const children = parent.get("children") as Y.Array<Y.Map<unknown>>;
 
     transactWithHistory(() => {
-      const newNode = new Y.Map<unknown>();
-      const id = crypto.randomUUID();
-
-      newNode.set("id", id);
-      newNode.set("type", type);
-      newNode.set("name", name);
-      newNode.set("x", 0);
-      newNode.set("y", 0);
-
-      if (type.startsWith("shape-")) {
-        newNode.set("width", 10);
-        newNode.set("height", 5);
-      }
-
-      newNode.set("isVisible", true);
-      newNode.set("isLocked", false);
-      newNode.set("isCollapsed", false);
-
-      if (type === "layer") {
-        newNode.set("content", new Y.Map<string>());
-      }
-
-      newNode.set("children", new Y.Array<Y.Map<unknown>>());
+      const newNode = createYCanvasNode(type, name, {
+        width: type.startsWith("shape-") ? 10 : undefined,
+        height: type.startsWith("shape-") ? 5 : undefined,
+      });
 
       children.push([newNode]);
-      set({ activeNodeId: id });
+      set({ activeNodeId: newNode.get("id") as string });
     });
   },
 

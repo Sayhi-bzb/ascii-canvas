@@ -31,19 +31,8 @@ const generateStringFromBounds = (
 
 export const exportToString = (grid: GridMap) => {
   if (grid.size === 0) return "";
-  let minX = Infinity,
-    maxX = -Infinity,
-    minY = Infinity,
-    maxY = -Infinity;
 
-  grid.forEach((_char, key) => {
-    const { x, y } = GridManager.fromKey(key);
-    const width = GridManager.getCharWidth(_char);
-    minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x + width - 1);
-    minY = Math.min(minY, y);
-    maxY = Math.max(maxY, y);
-  });
+  const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
 
   return generateStringFromBounds(
     grid,

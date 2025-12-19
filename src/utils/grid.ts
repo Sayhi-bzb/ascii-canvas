@@ -56,4 +56,26 @@ export const GridManager = {
     }
     return pos;
   },
+
+  getGridBounds(grid: GridMap) {
+    if (grid.size === 0) {
+      return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+    }
+
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+
+    grid.forEach((char, key) => {
+      const { x, y } = this.fromKey(key);
+      const width = this.getCharWidth(char);
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x + width - 1);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    });
+
+    return { minX, maxX, minY, maxY };
+  },
 };

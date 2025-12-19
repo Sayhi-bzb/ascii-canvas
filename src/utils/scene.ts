@@ -1,22 +1,50 @@
 import * as Y from "yjs";
 import { GridManager } from "./grid";
 import { getBoxPoints, getCirclePoints } from "./shapes";
-import type { CanvasNode, GridMap, GridPoint } from "../types";
+import type { CanvasNode, GridMap, GridPoint, NodeType } from "../types";
+
+const traverseScene = (
+  root: Y.Map<unknown>,
+  predicate: (node: Y.Map<unknown>) => boolean
+): { node: Y.Map<unknown>; parent: Y.Map<unknown> | null } | null => {
+  if (predicate(root)) {
+    return { node: root, parent: null };
+  }
+
+  const children = root.get("children");
+  if (children instanceof Y.Array) {
+    for (let i = 0; i < children.length; i++) {
+      const child = children.get(i);
+      if (child instanceof Y.Map) {
+        if (predicate(child as Y.Map<unknown>)) {
+          return { node: child as Y.Map<unknown>, parent: root };
+        }
+
+        const result = traverseScene(child as Y.Map<unknown>, predicate);
+
+        if (result) {
+          return result;
+        }
+      }
+    }
+  }
+  return null;
+};
+
+export const findNodeById = (
+  root: Y.Map<unknown>,
+  id: string
+): Y.Map<unknown> | null => {
+  const result = traverseScene(root, (node) => node.get("id") === id);
+  return result ? result.node : null;
+};
 
 export const findParentNodeById = (
   root: Y.Map<unknown>,
   targetId: string
 ): Y.Map<unknown> | null => {
-  const children = root.get("children");
-  if (children instanceof Y.Array) {
-    for (let i = 0; i < children.length; i++) {
-      const child = children.get(i) as Y.Map<unknown>;
-      if (child.get("id") === targetId) return root;
-      const found = findParentNodeById(child, targetId);
-      if (found) return found;
-    }
-  }
-  return null;
+  const result = traverseScene(root, (node) => node.get("id") === targetId);
+  return result ? result.parent : null;
 };
 
 export const getNearestValidContainer = (
@@ -40,19 +68,53 @@ export const getNearestValidContainer = (
       }
     }
   }
-  const findFirstLayer = (node: Y.Map<unknown>): Y.Map<unknown> | null => {
-    if (node.get("type") === "layer" && !(node.get("isLocked") as boolean))
-      return node;
-    const children = node.get("children");
-    if (children instanceof Y.Array) {
-      for (let i = 0; i < children.length; i++) {
-        const found = findFirstLayer(children.get(i));
-        if (found) return found;
-      }
+
+  const result = traverseScene(
+    root,
+    (node) => node.get("type") === "layer" && !(node.get("isLocked") as boolean)
+  );
+
+  return result ? result.node : root;
+};
+
+export const createYCanvasNode = (
+  type: NodeType,
+  name: string,
+  props: Partial<CanvasNode> = {}
+): Y.Map<unknown> => {
+  const node = new Y.Map<unknown>();
+  const id = props.id || crypto.randomUUID();
+
+  node.set("id", id);
+  node.set("type", type);
+  node.set("name", name);
+  node.set("x", props.x ?? 0);
+  node.set("y", props.y ?? 0);
+  node.set("isVisible", props.isVisible ?? true);
+  node.set("isLocked", props.isLocked ?? false);
+  node.set("isCollapsed", props.isCollapsed ?? false);
+  node.set("children", new Y.Array<Y.Map<unknown>>());
+
+  if (type === "layer") {
+    node.set("content", new Y.Map<string>());
+  }
+
+  if (type.startsWith("shape-")) {
+    if (props.width !== undefined) node.set("width", props.width);
+    if (props.height !== undefined) node.set("height", props.height);
+  }
+
+  if (type === "shape-path") {
+    const pathDataMap = new Y.Map<string>();
+    if (props.pathData) {
+      props.pathData.forEach((p) => {
+        pathDataMap.set(GridManager.toKey(p.x, p.y), p.char);
+      });
     }
-    return null;
-  };
-  return findFirstLayer(root) || root;
+    node.set("pathData", pathDataMap);
+  }
+
+  return node;
 };
 
 export const composeScene = (
@@ -180,22 +242,4 @@ export const parseSceneGraph = (node: Y.Map<unknown>): CanvasNode => {
     isCollapsed,
     pathData,
   };
-};
-
-export const findNodeById = (
-  root: Y.Map<unknown>,
-  id: string
-): Y.Map<unknown> | null => {
-  if (root.get("id") === id) return root;
-  const children = root.get("children");
-  if (children instanceof Y.Array) {
-    for (let i = 0; i < children.length; i++) {
-      const child = children.get(i);
-      if (child instanceof Y.Map) {
-        const found = findNodeById(child as Y.Map<unknown>, id);
-        if (found) return found;
-      }
-    }
-  }
-  return null;
 };

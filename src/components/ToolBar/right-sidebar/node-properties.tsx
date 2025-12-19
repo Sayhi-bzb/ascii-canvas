@@ -1,8 +1,8 @@
-import { Lock, Eye, EyeOff, Unlock } from "lucide-react";
 import { SidebarSeparator } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { CanvasNode } from "@/types";
+import { VisibilityIcon, LockIcon } from "../node-status";
 
 interface NodePropertiesProps {
   node: CanvasNode;
@@ -21,16 +21,14 @@ export const NodeProperties = ({ node, isCollapsed }: NodePropertiesProps) => {
         />
         <SidebarSeparator />
         <div className="flex flex-col gap-2">
-          {node.isLocked ? (
-            <Lock className="size-4 text-muted-foreground" />
-          ) : (
-            <Unlock className="size-4 text-muted-foreground" />
-          )}
-          {node.isVisible ? (
-            <Eye className="size-4 text-muted-foreground" />
-          ) : (
-            <EyeOff className="size-4 text-muted-foreground" />
-          )}
+          <LockIcon
+            active={node.isLocked}
+            className="size-4 text-muted-foreground"
+          />
+          <VisibilityIcon
+            active={node.isVisible}
+            className="size-4 text-muted-foreground"
+          />
         </div>
       </div>
     );
