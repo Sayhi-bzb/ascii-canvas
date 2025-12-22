@@ -35,6 +35,8 @@ export const useCanvasInteraction = (
 
   const dragStartGrid = useRef<Point | null>(null);
   const lastGrid = useRef<Point | null>(null);
+  const lastPlacedGrid = useRef<Point | null>(null);
+
   const isPanningRef = useRef(false);
   const lineAxisRef = useRef<"vertical" | "horizontal" | null>(null);
   const [draggingSelection, setDraggingSelection] =
@@ -57,7 +59,34 @@ export const useCanvasInteraction = (
       );
 
       if (tool === "brush") {
-        addScratchPoints(points.map((p) => ({ ...p, char: brushChar })));
+        const charWidth = GridManager.getCharWidth(brushChar);
+
+        if (charWidth > 1) {
+          const filteredPoints: Point[] = [];
+
+          points.forEach((p) => {
+            if (!lastPlacedGrid.current) {
+              filteredPoints.push(p);
+              lastPlacedGrid.current = p;
+            } else {
+              const dx = Math.abs(p.x - lastPlacedGrid.current.x);
+              const dy = Math.abs(p.y - lastPlacedGrid.current.y);
+
+              if (dx >= charWidth || dy >= 1) {
+                filteredPoints.push(p);
+                lastPlacedGrid.current = p;
+              }
+            }
+          });
+
+          if (filteredPoints.length > 0) {
+            addScratchPoints(
+              filteredPoints.map((p) => ({ ...p, char: brushChar }))
+            );
+          }
+        } else {
+          addScratchPoints(points.map((p) => ({ ...p, char: brushChar })));
+        }
       } else if (tool === "eraser") {
         erasePoints(points);
       }
@@ -104,6 +133,7 @@ export const useCanvasInteraction = (
           setTextCursor(null);
           dragStartGrid.current = start;
           lastGrid.current = start;
+          lastPlacedGrid.current = start;
           lineAxisRef.current = null;
 
           if (tool === "brush")
@@ -173,6 +203,7 @@ export const useCanvasInteraction = (
           }
           dragStartGrid.current = null;
           lastGrid.current = null;
+          lastPlacedGrid.current = null;
           lineAxisRef.current = null;
         }
         document.body.style.cursor = "auto";

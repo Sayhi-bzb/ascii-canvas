@@ -356,8 +356,6 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        // 使用 scrollbar-gutter: stable 预留滚动条空间，防止内容跳变
-        // 使用 min-h-0 确保 flex 子元素正确收缩
         "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] group-data-[collapsible=icon]:overflow-hidden",
         className
       )}
@@ -570,10 +568,8 @@ function SidebarMenuSkeleton({
   showIcon = false,
   ...props
 }: React.ComponentProps<"div"> & { showIcon?: boolean }) {
-  // 修复 Lint 错误：使用 useId 配合确定性逻辑替代 Math.random()
   const id = React.useId();
   const width = React.useMemo(() => {
-    // 简单的确定性伪随机宽度
     const seed = id
       .split("")
       .reduce((acc, char) => acc + char.charCodeAt(0), 0);

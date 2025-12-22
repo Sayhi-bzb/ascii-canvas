@@ -21,7 +21,6 @@ export const createDrawingSlice: StateCreator<
 
   setScratchLayer: (points) => {
     const layer = new Map<string, string>();
-    // 所有点均通过统一的占地逻辑进行物理模拟
     points.forEach((p) => {
       placeCharInMap(layer, p.x, p.y, p.char);
     });
@@ -31,7 +30,6 @@ export const createDrawingSlice: StateCreator<
   addScratchPoints: (points) => {
     set((state) => {
       const layer = new Map(state.scratchLayer || []);
-      // 增量更新时同样确保宽字符物理冲突得到处理
       points.forEach((p) => {
         placeCharInMap(layer, p.x, p.y, p.char);
       });
@@ -57,7 +55,6 @@ export const createDrawingSlice: StateCreator<
         break;
       }
     }
-    // 形状生成后，统一通过 setScratchLayer 进行物理碰撞检测
     get().setScratchLayer(points);
   },
 
@@ -66,7 +63,6 @@ export const createDrawingSlice: StateCreator<
     if (!scratchLayer || scratchLayer.size === 0) return;
 
     transactWithHistory(() => {
-      // 提交到正式图层时，再次确保宽字符确权
       GridManager.iterate(scratchLayer, (char, x, y) => {
         placeCharInYMap(yMainGrid, x, y, char);
       });
@@ -88,7 +84,6 @@ export const createDrawingSlice: StateCreator<
       points.forEach((p) => {
         const key = GridManager.toKey(p.x, p.y);
         const char = yMainGrid.get(key);
-        // 橡皮擦逻辑升级：如果你擦到了宽字符的右侧半身，必须连左侧本体一起擦除
         if (!char) {
           const leftKey = GridManager.toKey(p.x - 1, p.y);
           const leftChar = yMainGrid.get(leftKey);

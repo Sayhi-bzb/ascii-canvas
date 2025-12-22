@@ -1,6 +1,9 @@
 import { CELL_WIDTH, CELL_HEIGHT } from "../lib/constants";
 import type { Point, GridMap, GridPoint } from "../types";
 
+/**
+ * 城市测绘局：负责网格与屏幕坐标的物理转换，以及建筑尺寸鉴定
+ */
 export const GridManager = {
   screenToGrid(
     screenX: number,
@@ -51,30 +54,27 @@ export const GridManager = {
     target: { set: (key: string, value: string) => void },
     points: GridPoint[]
   ): void {
-    // 警告：此方法现在应谨慎使用，建议优先使用 store/utils 中的 placeCharInMap
     points.forEach((p) => {
       target.set(this.toKey(p.x, p.y), p.char);
     });
   },
 
-  /**
-   * 测绘核心：精准判定字符占地宽度
-   */
   getCharWidth(char: string): number {
     if (!char) return 1;
 
-    // 1. 判定 CJK (中日韩) 字符及全角符号
-    const isCJK = /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(char);
-    if (isCJK) return 2;
-
-    // 2. 判定 Emoji 表情符号
-    const isEmoji = /\p{Emoji_Presentation}/u.test(char);
-    if (isEmoji) return 2;
-
-    // 3. 判定 Nerd Fonts / PUA (私有区) 图标
     const codePoint = char.codePointAt(0) || 0;
-    const isPrivateUseArea = codePoint >= 0xe000 && codePoint <= 0xf8ff;
-    if (isPrivateUseArea) return 2;
+    if (codePoint < 128) return 1;
+
+    if (/\p{Emoji_Presentation}/u.test(char)) return 2;
+
+    if (
+      (codePoint >= 0x2e80 && codePoint <= 0x9fff) ||
+      (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+      (codePoint >= 0xff00 && codePoint <= 0xffef) ||
+      (codePoint >= 0xe000 && codePoint <= 0xf8ff)
+    ) {
+      return 2;
+    }
 
     return 1;
   },
