@@ -8,7 +8,6 @@ import {
   Accessibility,
   Fingerprint,
   Smile,
-  Hash,
 } from "lucide-react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { cn } from "@/lib/utils";
@@ -20,7 +19,6 @@ import {
 } from "@/components/ui/collapsible";
 import {
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -28,9 +26,13 @@ import {
 
 const MATERIAL_BLUEPRINTS = [
   {
-    name: "Standard Blocks",
-    icon: Hash,
-    ranges: [[0x0021, 0x007e]],
+    name: "Nerd Symbols",
+    icon: Fingerprint,
+    ranges: [
+      [0xe700, 0xe7c5],
+      [0xf000, 0xf2e0],
+      [0xe0b0, 0xe0b3],
+    ],
     isActive: false,
   },
   {
@@ -43,16 +45,6 @@ const MATERIAL_BLUEPRINTS = [
     name: "Block Elements",
     icon: LayoutGrid,
     ranges: [[0x2580, 0x259f]],
-    isActive: false,
-  },
-  {
-    name: "Nerd Symbols",
-    icon: Fingerprint,
-    ranges: [
-      [0xe700, 0xe7c5],
-      [0xf000, 0xf2e0],
-      [0xe0b0, 0xe0b3],
-    ],
     isActive: false,
   },
   {
@@ -100,7 +92,6 @@ export function CharLibrary() {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Material Warehouse</SidebarGroupLabel>
       <SidebarMenu>
         {library.map((group) => (
           <Collapsible

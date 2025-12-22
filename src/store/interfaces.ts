@@ -38,6 +38,7 @@ export interface SelectionSlice {
   deleteSelection: () => void;
   copySelectionToClipboard: () => void;
   cutSelectionToClipboard: () => void;
+  fillSelectionsWithChar: (char: string) => void;
 }
 
 export type CanvasState = {
@@ -48,6 +49,7 @@ export type CanvasState = {
   brushColor: string;
   grid: GridMap;
   showGrid: boolean;
+  exportShowGrid: boolean;
   hoveredGrid: Point | null;
 
   setOffset: (updater: (prev: Point) => Point) => void;
@@ -56,6 +58,7 @@ export type CanvasState = {
   setBrushChar: (char: string) => void;
   setBrushColor: (color: string) => void;
   setShowGrid: (show: boolean) => void;
+  setExportShowGrid: (show: boolean) => void;
   setHoveredGrid: (pos: Point | null) => void;
 } & DrawingSlice &
   TextSlice &

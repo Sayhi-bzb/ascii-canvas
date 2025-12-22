@@ -4,7 +4,7 @@ import {
   CELL_HEIGHT,
   FONT_SIZE,
   BACKGROUND_COLOR,
-  COLOR_PRIMARY_TEXT,
+  GRID_COLOR,
 } from "../lib/constants";
 import type { GridMap, SelectionArea } from "../types";
 import { GridManager } from "./grid";
@@ -57,7 +57,7 @@ export const exportSelectionToString = (
   return generateStringFromBounds(grid, minX, maxX, minY, maxY);
 };
 
-export const exportToPNG = (grid: GridMap) => {
+export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
   if (grid.size === 0) return;
 
   const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
@@ -76,6 +76,23 @@ export const exportToPNG = (grid: GridMap) => {
 
   ctx.fillStyle = BACKGROUND_COLOR;
   ctx.fillRect(0, 0, width, height);
+
+  if (showGrid) {
+    ctx.beginPath();
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.lineWidth = 0.5;
+    const gridWidth = maxX - minX + 1 + padding * 2;
+    const gridHeight = maxY - minY + 1 + padding * 2;
+    for (let x = 0; x <= gridWidth; x++) {
+      ctx.moveTo(x * CELL_WIDTH, 0);
+      ctx.lineTo(x * CELL_WIDTH, height);
+    }
+    for (let y = 0; y <= gridHeight; y++) {
+      ctx.moveTo(0, y * CELL_HEIGHT);
+      ctx.lineTo(width, y * CELL_HEIGHT);
+    }
+    ctx.stroke();
+  }
 
   ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
   ctx.textBaseline = "middle";

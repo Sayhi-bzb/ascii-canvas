@@ -14,7 +14,10 @@ interface AsciiCanvasProps {
 }
 
 export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const bgCanvasRef = useRef<HTMLCanvasElement>(null);
+  const scratchCanvasRef = useRef<HTMLCanvasElement>(null);
+  const uiCanvasRef = useRef<HTMLCanvasElement>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isComposing = useRef(false);
@@ -37,7 +40,17 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   } = store;
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
-  useCanvasRenderer(canvasRef, size, store, draggingSelection);
+
+  useCanvasRenderer(
+    {
+      bg: bgCanvasRef,
+      scratch: scratchCanvasRef,
+      ui: uiCanvasRef,
+    },
+    size,
+    store,
+    draggingSelection
+  );
 
   useEffect(() => {
     if (textCursor && textareaRef.current) {
@@ -61,9 +74,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       const cell = grid.get(key);
       const char = cell?.char || " ";
       navigator.clipboard.writeText(char).then(() => {
-        toast.success("Copied Char!", {
-          description: `Character '${char}' copied.`,
-        });
+        toast.success("Copied Char!");
       });
     }
   };
@@ -82,9 +93,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       const char = cell?.char || " ";
       navigator.clipboard.writeText(char).then(() => {
         erasePoints([textCursor]);
-        toast.success("Cut Char!", {
-          description: "Character moved to clipboard.",
-        });
+        toast.success("Cut Char!");
       });
     }
   };
@@ -105,13 +114,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
     if (pasteStartPos) {
       writeTextString(text, pasteStartPos);
-      toast.success("Pasted!", {
-        description: "Content inserted from clipboard.",
-      });
-    } else {
-      toast.warning("Where to paste?", {
-        description: "Please select an area or click to place cursor first.",
-      });
+      toast.success("Pasted!");
     }
   };
   useEventListener("paste", handlePaste);
@@ -177,12 +180,10 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       onRedo();
       return;
     }
-    if (e.key === "Delete") {
-      if (selections.length > 0) {
-        e.preventDefault();
-        deleteSelection();
-        return;
-      }
+    if (e.key === "Delete" && selections.length > 0) {
+      e.preventDefault();
+      deleteSelection();
+      return;
     }
     if (e.key === "Backspace") {
       if (selections.length > 0 && !textCursor) {
@@ -197,37 +198,16 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     } else if (e.key === "Enter") {
       e.preventDefault();
       newlineText();
-    } else if (e.key === "ArrowUp") {
+    } else if (e.key.startsWith("Arrow") && textCursor) {
       e.preventDefault();
-      moveTextCursor(0, -1);
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      moveTextCursor(0, 1);
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      moveTextCursor(-1, 0);
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      moveTextCursor(1, 0);
+      const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+      const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      moveTextCursor(dx, dy);
     } else if (e.key === "Escape") {
       e.preventDefault();
       setTextCursor(null);
     }
   };
-
-  useEventListener("keydown", (e: KeyboardEvent) => {
-    if (e.key === "Delete" || e.key === "Backspace") {
-      const activeTag = document.activeElement?.tagName.toLowerCase();
-      if (
-        activeTag !== "input" &&
-        activeTag !== "textarea" &&
-        selections.length > 0
-      ) {
-        e.preventDefault();
-        deleteSelection();
-      }
-    }
-  });
 
   return (
     <div
@@ -235,7 +215,19 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       style={{ touchAction: "none" }}
       className="relative w-full h-full overflow-hidden bg-white touch-none select-none cursor-default"
     >
-      <canvas ref={canvasRef} />
+      {/* 分层画布系统 */}
+      <canvas
+        ref={bgCanvasRef}
+        className="absolute inset-0 pointer-events-none"
+      />
+      <canvas
+        ref={scratchCanvasRef}
+        className="absolute inset-0 pointer-events-none"
+      />
+      <canvas
+        ref={uiCanvasRef}
+        className="absolute inset-0 pointer-events-none"
+      />
 
       <Minimap containerSize={size} />
 

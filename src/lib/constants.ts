@@ -9,13 +9,11 @@ export const MAX_ZOOM = 5;
 
 export const FONT_SIZE = 15;
 export const COLOR_PRIMARY_TEXT = "#000000";
-export const COLOR_SCRATCH_LAYER = "#3b82f6";
 export const COLOR_TEXT_CURSOR_BG = "rgba(0, 0, 0, 0.5)";
 export const COLOR_TEXT_CURSOR_FG = "#ffffff";
 export const COLOR_ORIGIN_MARKER = "red";
 
 export const COLOR_SELECTION_BG = "rgba(0, 0, 0, 0.2)";
-export const COLOR_SELECTION_BORDER = "transparent";
 
 export const EXPORT_PADDING = 1;
 

@@ -13,7 +13,7 @@ import {
 
 export function ExportPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { grid, showGrid } = useCanvasStore();
+  const { grid, exportShowGrid } = useCanvasStore();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -48,15 +48,17 @@ export function ExportPreview() {
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    if (showGrid) {
+    if (exportShowGrid) {
       ctx.beginPath();
       ctx.strokeStyle = GRID_COLOR;
       ctx.lineWidth = 0.5;
-      for (let x = 0; x <= maxX - minX + 1 + padding * 2; x++) {
+      const gw = maxX - minX + 1 + padding * 2;
+      const gh = maxY - minY + 1 + padding * 2;
+      for (let x = 0; x <= gw; x++) {
         ctx.moveTo(x * CELL_WIDTH, 0);
         ctx.lineTo(x * CELL_WIDTH, contentHeight);
       }
-      for (let y = 0; y <= maxY - minY + 1 + padding * 2; y++) {
+      for (let y = 0; y <= gh; y++) {
         ctx.moveTo(0, y * CELL_HEIGHT);
         ctx.lineTo(contentWidth, y * CELL_HEIGHT);
       }
@@ -79,7 +81,7 @@ export function ExportPreview() {
       );
     });
     ctx.restore();
-  }, [grid, showGrid]);
+  }, [grid, exportShowGrid]);
 
   return <canvas ref={canvasRef} className="w-full h-full rounded-lg" />;
 }

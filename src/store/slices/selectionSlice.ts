@@ -5,6 +5,7 @@ import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
 import { exportSelectionToString } from "../../utils/export";
+import { placeCharInYMap } from "../utils";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -45,5 +46,22 @@ export const createSelectionSlice: StateCreator<
       deleteSelection();
       toast.success("Cut!");
     });
+  },
+
+  fillSelectionsWithChar: (char) => {
+    const { selections, brushColor } = get();
+    if (selections.length === 0) return;
+
+    transactWithHistory(() => {
+      selections.forEach((area) => {
+        const { minX, maxX, minY, maxY } = getSelectionBounds(area);
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            placeCharInYMap(yMainGrid, x, y, char, brushColor);
+          }
+        }
+      });
+    });
+    toast.success(`Filled area with ${char}`);
   },
 });

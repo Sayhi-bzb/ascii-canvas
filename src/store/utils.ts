@@ -29,8 +29,12 @@ export const placeCharInMap = (
   }
 };
 
+/**
+ * 修正：targetGrid 的类型从 Y.Map<unknown> 提升为 Y.Map<GridCell>
+ * 这样它才能与 yMainGrid 的规格完全匹配
+ */
 export const placeCharInYMap = (
-  targetGrid: Y.Map<any>,
+  targetGrid: Y.Map<GridCell>,
   x: number,
   y: number,
   char: string,
@@ -39,7 +43,7 @@ export const placeCharInYMap = (
   if (!char) return;
 
   const leftKey = GridManager.toKey(x - 1, y);
-  const leftCell = targetGrid.get(leftKey) as GridCell | undefined;
+  const leftCell = targetGrid.get(leftKey);
   if (leftCell && GridManager.isWideChar(leftCell.char)) {
     targetGrid.delete(leftKey);
   }

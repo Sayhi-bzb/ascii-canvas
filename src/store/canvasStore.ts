@@ -17,9 +17,9 @@ export const useCanvasStore = create<CanvasState>()(
     (set, get, ...a) => {
       yMainGrid.observe(() => {
         const compositeGrid = new Map<string, GridCell>();
-        for (const [key, value] of yMainGrid.entries()) {
+        yMainGrid.forEach((value, key) => {
           compositeGrid.set(key, value as GridCell);
-        }
+        });
         set({ grid: compositeGrid });
       });
 
@@ -31,6 +31,7 @@ export const useCanvasStore = create<CanvasState>()(
         brushChar: "#",
         brushColor: COLOR_PRIMARY_TEXT,
         showGrid: true,
+        exportShowGrid: false,
         hoveredGrid: null,
 
         setOffset: (updater) =>
@@ -43,6 +44,7 @@ export const useCanvasStore = create<CanvasState>()(
         setBrushChar: (char) => set({ brushChar: char }),
         setBrushColor: (color) => set({ brushColor: color }),
         setShowGrid: (show) => set({ showGrid: show }),
+        setExportShowGrid: (show) => set({ exportShowGrid: show }),
         setHoveredGrid: (pos) => set({ hoveredGrid: pos }),
 
         ...createDrawingSlice(set, get, ...a),
@@ -59,9 +61,10 @@ export const useCanvasStore = create<CanvasState>()(
         brushChar: state.brushChar,
         brushColor: state.brushColor,
         showGrid: state.showGrid,
+        exportShowGrid: state.exportShowGrid,
         grid: Array.from(state.grid.entries()),
       }),
-      onRehydrateStorage: (state) => {
+      onRehydrateStorage: () => {
         return (hydratedState, error) => {
           if (error || !hydratedState) return;
           const hState = hydratedState as CanvasState;

@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { toast } from "sonner";
-import { useKeyPress } from "ahooks";
+import { useKeyPress, useLocalStorageState } from "ahooks";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
 import { exportToString } from "./utils/export";
@@ -21,7 +20,10 @@ export default function App() {
     cutSelectionToClipboard,
   } = useCanvasStore();
 
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useLocalStorageState<boolean>(
+    "ui-right-panel-status",
+    { defaultValue: true }
+  );
 
   const handleUndo = () => {
     undoManager.undo();
@@ -57,8 +59,11 @@ export default function App() {
     (event) => {
       const { selections, textCursor } = useCanvasStore.getState();
       if (selections.length > 0 && !textCursor) {
-        event.preventDefault();
-        fillSelectionsWithChar(event.key);
+        const activeTag = document.activeElement?.tagName.toLowerCase();
+        if (activeTag !== "input" && activeTag !== "textarea") {
+          event.preventDefault();
+          fillSelectionsWithChar(event.key);
+        }
       }
     },
     {
@@ -91,7 +96,7 @@ export default function App() {
             tool={tool}
             setTool={setTool}
             onUndo={handleUndo}
-            onExport={handleExport}
+            onExport={handleExport} 
           />
         </AppLayout>
 

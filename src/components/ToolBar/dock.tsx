@@ -35,6 +35,7 @@ interface ToolbarProps {
   tool: ToolType;
   setTool: (tool: ToolType) => void;
   onUndo: () => void;
+  onExport: () => void;
 }
 
 const MATERIAL_PRESETS = ["*", ".", "@", "▒"];

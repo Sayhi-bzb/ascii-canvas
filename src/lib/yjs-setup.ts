@@ -1,8 +1,9 @@
 import * as Y from "yjs";
+import type { GridCell } from "../types";
 
 const yDoc = new Y.Doc();
 
-export const yMainGrid = yDoc.getMap<string>("main-grid");
+export const yMainGrid = yDoc.getMap<GridCell>("main-grid");
 
 export const undoManager = new Y.UndoManager([yMainGrid], {
   captureTimeout: 500,

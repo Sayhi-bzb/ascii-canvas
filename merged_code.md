@@ -8,13 +8,12 @@ import {
   Minus,
   Pencil,
   Eraser,
-  PaintBucket,
   Undo2,
-  Download,
   LineSquiggle,
   Circle as CircleIcon,
   ChevronDown,
   Check,
+  Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ToolType } from "@/types";
@@ -31,6 +30,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { PALETTE } from "@/lib/constants";
 
 interface ToolbarProps {
   tool: ToolType;
@@ -42,8 +42,9 @@ interface ToolbarProps {
 const MATERIAL_PRESETS = ["*", ".", "@", "▒"];
 const SHAPE_TOOLS: ToolType[] = ["box", "circle", "line", "stepline"];
 
-export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
-  const { brushChar, setBrushChar } = useCanvasStore();
+export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
+  const { brushChar, setBrushChar, brushColor, setBrushColor } =
+    useCanvasStore();
   const [lastUsedShape, setLastUsedShape] = useState<ToolType>("box");
   const [openSubMenuId, setOpenSubMenuId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -99,19 +100,19 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
         hasSub: true,
       },
       {
-        id: "fill",
-        label: "Fill",
-        icon: PaintBucket,
-        onClick: () => setTool("fill"),
-      },
-      {
         id: "eraser",
         label: "Eraser",
         icon: Eraser,
         onClick: () => setTool("eraser"),
       },
       { id: "undo", label: "Undo", icon: Undo2, onClick: onUndo },
-      { id: "export", label: "Export", icon: Download, onClick: onExport },
+      {
+        id: "color",
+        label: "Color",
+        icon: Palette,
+        onClick: () => {},
+        hasSub: true,
+      },
     ],
     [
       brushChar,
@@ -121,12 +122,15 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
       lastUsedShape,
       setTool,
       onUndo,
-      onExport,
     ]
   );
 
   const activeIndex = useMemo(() => {
-    const currentId = isShapeGroupActive ? "shape-group" : tool;
+    const currentId = isShapeGroupActive
+      ? "shape-group"
+      : ["select", "brush", "eraser"].includes(tool)
+      ? tool
+      : "brush";
     const idx = navItems.findIndex((item) => item.id === currentId);
     return idx !== -1 ? idx : 0;
   }, [tool, isShapeGroupActive, navItems]);
@@ -159,6 +163,7 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
           {navItems.map((item, index) => {
             const isActive = index === activeIndex;
             const Icon = item.icon;
+            const isColorTab = item.id === "color";
 
             return (
               <div
@@ -180,10 +185,18 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
                       className={cn(
                         "flex items-center justify-center h-9 px-3 outline-none rounded-l-lg transition-colors",
                         !item.hasSub && "rounded-lg",
-                        !isActive && "hover:bg-muted/50"
+                        !isActive && "hover:bg-muted/50",
+                        isColorTab && "px-2"
                       )}
                     >
-                      <Icon className="size-5" />
+                      {isColorTab ? (
+                        <div
+                          className="size-5 rounded-full border border-foreground/10 shadow-sm"
+                          style={{ backgroundColor: brushColor }}
+                        />
+                      ) : (
+                        <Icon className="size-5" />
+                      )}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs">
@@ -208,7 +221,7 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
                     </PopoverTrigger>
                     <PopoverContent
                       side="top"
-                      align="start"
+                      align={isColorTab ? "end" : "start"}
                       sideOffset={12}
                       className="w-auto p-1 flex flex-col gap-0.5 rounded-xl bg-popover/95 backdrop-blur-md border shadow-xl z-50 overflow-hidden min-w-[100px]"
                     >
@@ -236,7 +249,7 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
                             <div className="flex-1 px-1">
                               <Input
                                 ref={inputRef}
-                                className="h-6 w-14 text-center p-0 font-mono text-base font-bold border-none shadow-none ring-0 focus-visible:ring-0 bg-muted/40 hover:bg-muted/60 rounded-sm text-inherit placeholder:text-muted-foreground/50 placeholder:text-[10px] placeholder:font-sans"
+                                className="h-6 w-14 text-center p-0 font-mono text-base font-bold border-none shadow-none ring-0 focus-visible:ring-0 bg-muted/40 hover:bg-muted/60 rounded-sm text-inherit placeholder:text-muted-foreground/50"
                                 placeholder="Custom"
                                 maxLength={2}
                                 value={customChar}
@@ -274,6 +287,28 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
                             </button>
                           ))}
                         </>
+                      ) : item.id === "color" ? (
+                        <div className="grid grid-cols-5 gap-1 p-1">
+                          {PALETTE.map((c) => (
+                            <button
+                              key={c}
+                              onClick={() => {
+                                setBrushColor(c);
+                                setOpenSubMenuId(null);
+                              }}
+                              className={cn(
+                                "size-6 rounded-md border border-foreground/10 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center",
+                                brushColor === c &&
+                                  "ring-2 ring-primary ring-offset-1 ring-offset-popover"
+                              )}
+                              style={{ backgroundColor: c }}
+                            >
+                              {brushColor === c && (
+                                <Check className="size-3 text-white mix-blend-difference" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
                       ) : (
                         SHAPE_TOOLS.map((st) => {
                           const meta = getToolMeta(st);
@@ -330,10 +365,110 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
 }
 ```
 ---
+```src/components/ToolBar/export-preview.tsx
+"use client";
+
+import { useEffect, useRef } from "react";
+import { useCanvasStore } from "@/store/canvasStore";
+import { GridManager } from "@/utils/grid";
+import {
+  CELL_WIDTH,
+  CELL_HEIGHT,
+  FONT_SIZE,
+  BACKGROUND_COLOR,
+  GRID_COLOR,
+} from "@/lib/constants";
+
+export function ExportPreview() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { grid, exportShowGrid } = useCanvasStore();
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || grid.size === 0) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
+    const padding = 2;
+    const contentWidth = (maxX - minX + 1 + padding * 2) * CELL_WIDTH;
+    const contentHeight = (maxY - minY + 1 + padding * 2) * CELL_HEIGHT;
+
+    const dpr = window.devicePixelRatio || 1;
+    const displayWidth = canvas.clientWidth;
+    const displayHeight = canvas.clientHeight;
+    canvas.width = displayWidth * dpr;
+    canvas.height = displayHeight * dpr;
+    ctx.scale(dpr, dpr);
+
+    const scale = Math.min(
+      displayWidth / contentWidth,
+      displayHeight / contentHeight
+    );
+    const offsetX = (displayWidth - contentWidth * scale) / 2;
+    const offsetY = (displayHeight - contentHeight * scale) / 2;
+
+    ctx.fillStyle = BACKGROUND_COLOR;
+    ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    if (exportShowGrid) {
+      ctx.beginPath();
+      ctx.strokeStyle = GRID_COLOR;
+      ctx.lineWidth = 0.5;
+      const gw = maxX - minX + 1 + padding * 2;
+      const gh = maxY - minY + 1 + padding * 2;
+      for (let x = 0; x <= gw; x++) {
+        ctx.moveTo(x * CELL_WIDTH, 0);
+        ctx.lineTo(x * CELL_WIDTH, contentHeight);
+      }
+      for (let y = 0; y <= gh; y++) {
+        ctx.moveTo(0, y * CELL_HEIGHT);
+        ctx.lineTo(contentWidth, y * CELL_HEIGHT);
+      }
+      ctx.stroke();
+    }
+
+    ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+
+    GridManager.iterate(grid, (cell, x, y) => {
+      const drawX = (x - minX + padding) * CELL_WIDTH;
+      const drawY = (y - minY + padding) * CELL_HEIGHT;
+      const wide = GridManager.isWideChar(cell.char);
+      ctx.fillStyle = cell.color;
+      ctx.fillText(
+        cell.char,
+        drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
+        drawY + CELL_HEIGHT / 2
+      );
+    });
+    ctx.restore();
+  }, [grid, exportShowGrid]);
+
+  return <canvas ref={canvasRef} className="w-full h-full rounded-lg" />;
+}
+```
+---
 ```src/components/ToolBar/sidebar-right.tsx
 "use client";
 
-import { Library, Trash2, Github, Eye, EyeOff, Target } from "lucide-react";
+import {
+  Library,
+  Trash2,
+  Github,
+  Eye,
+  EyeOff,
+  Target,
+  Download,
+  Copy,
+  ImageIcon,
+} from "lucide-react";
 import { SidebarStandard, useSidebar } from "@/components/ui/sidebar";
 import { CharLibrary } from "./right-sidebar/char-library";
 import { useCanvasStore } from "@/store/canvasStore";
@@ -347,18 +482,39 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { AlertDialogTrigger } from "@radix-ui/react-alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  TooltipProvider,
 } from "@/components/ui/tooltip";
+import { exportToString, exportToPNG } from "@/utils/export";
+import { ExportPreview } from "./export-preview";
+import { ActionButton } from "@/components/ui/action-button";
 
 export function SidebarRight() {
-  const { clearCanvas, showGrid, setShowGrid, setOffset, setZoom } =
-    useCanvasStore();
+  const {
+    grid,
+    clearCanvas,
+    showGrid,
+    setShowGrid,
+    exportShowGrid,
+    setExportShowGrid,
+    setOffset,
+    setZoom,
+  } = useCanvasStore();
+
   const { state, isMobile } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
 
@@ -381,8 +537,8 @@ export function SidebarRight() {
       footer={
         <div
           className={cn(
-            "flex w-full transition-all duration-300",
-            isCollapsed ? "flex-col items-center gap-2" : "flex-col gap-2"
+            "flex w-full flex-col gap-2",
+            isCollapsed && "items-center"
           )}
         >
           <div
@@ -397,89 +553,191 @@ export function SidebarRight() {
                 isCollapsed && "flex-col"
               )}
             >
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "size-8 transition-colors",
-                      showGrid ? "text-primary" : "text-muted-foreground"
-                    )}
-                    onClick={() => setShowGrid(!showGrid)}
-                  >
-                    {showGrid ? (
-                      <Eye className="size-4" />
-                    ) : (
-                      <EyeOff className="size-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="left">
-                  {showGrid ? "Hide Grid" : "Show Grid"}
-                </TooltipContent>
-              </Tooltip>
+              <Dialog>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <Download className="size-4" />
+                        </Button>
+                      </DialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">
+                      Export Blueprint
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
 
+                <DialogContent className="sm:max-w-xs gap-0 p-0 overflow-hidden border-none shadow-2xl">
+                  <div className="bg-muted/30 p-5 pb-3">
+                    <DialogHeader>
+                      <DialogTitle className="text-base">Export</DialogTitle>
+                      <DialogDescription className="text-[10px] uppercase tracking-widest">
+                        ASCII Metropolis
+                      </DialogDescription>
+                    </DialogHeader>
+                  </div>
+
+                  <div className="px-5 py-4 space-y-4">
+                    <div className="aspect-video w-full relative group">
+                      <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/5 rounded-xl blur opacity-25"></div>
+                      <div className="relative h-full border rounded-xl bg-background overflow-hidden shadow-inner p-3">
+                        <ExportPreview />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-3 py-2">
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <ActionButton
+                              variant="outline"
+                              size="md"
+                              icon={Copy}
+                              className="border-2 rounded-xl"
+                              onAction={() =>
+                                navigator.clipboard.writeText(
+                                  exportToString(grid)
+                                )
+                              }
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="text-xs">
+                            Copy Text
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <ActionButton
+                              variant="outline"
+                              size="md"
+                              icon={ImageIcon}
+                              className="border-2 rounded-xl"
+                              onAction={() => exportToPNG(grid, exportShowGrid)}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="text-xs">
+                            Save Image
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+
+                    <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 border border-border/50">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Print Grid on PNG
+                      </span>
+                      <Button
+                        variant={exportShowGrid ? "default" : "secondary"}
+                        size="sm"
+                        onClick={() => setExportShowGrid(!exportShowGrid)}
+                        className="h-6 px-2 rounded-md text-[10px] uppercase font-bold"
+                      >
+                        {exportShowGrid ? "ON" : "OFF"}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "size-8 transition-colors",
+                        showGrid ? "text-primary" : "text-muted-foreground"
+                      )}
+                      onClick={() => setShowGrid(!showGrid)}
+                    >
+                      {showGrid ? (
+                        <Eye className="size-4" />
+                      ) : (
+                        <EyeOff className="size-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    {showGrid ? "Hide Workspace Grid" : "Show Workspace Grid"}
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-muted-foreground"
+                      onClick={handleResetView}
+                    >
+                      <Target className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Reset View</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
+            <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="size-8 text-muted-foreground"
-                    onClick={handleResetView}
+                    onClick={() => window.open("https://github.com", "_blank")}
                   >
-                    <Target className="size-4" />
+                    <Github className="size-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="left">Reset View</TooltipContent>
+                <TooltipContent side="left">Source Code</TooltipContent>
               </Tooltip>
-            </div>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 text-muted-foreground"
-                  onClick={() => window.open("https://github.com", "_blank")}
-                >
-                  <Github className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="left">Source Code</TooltipContent>
-            </Tooltip>
+            </TooltipProvider>
           </div>
 
           <AlertDialog>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size={isCollapsed ? "icon" : "default"}
-                    className={cn(
-                      "justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive transition-colors",
-                      isCollapsed ? "size-8 justify-center" : "w-full h-8 px-2"
-                    )}
-                  >
-                    <Trash2 className="size-4" />
-                    {!isCollapsed && (
-                      <span className="font-medium text-xs">Clear Canvas</span>
-                    )}
-                  </Button>
-                </AlertDialogTrigger>
-              </TooltipTrigger>
-              {isCollapsed && (
-                <TooltipContent side="left">Clear Canvas</TooltipContent>
-              )}
-            </Tooltip>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size={isCollapsed ? "icon" : "default"}
+                      className={cn(
+                        "justify-start gap-2 text-destructive hover:bg-destructive/10 transition-colors",
+                        isCollapsed
+                          ? "size-8 justify-center"
+                          : "w-full h-8 px-2"
+                      )}
+                    >
+                      <Trash2 className="size-4" />
+                      {!isCollapsed && (
+                        <span className="font-medium text-xs">
+                          Clear Canvas
+                        </span>
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                </TooltipTrigger>
+                {isCollapsed && (
+                  <TooltipContent side="left">Clear Canvas</TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
 
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Issuing a Demolition Order?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will completely clear the current blueprint. All ASCII
-                  structures will be dismantled. This can be undone via Ctrl+Z.
+                  This will completely clear the current blueprint.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -488,7 +746,7 @@ export function SidebarRight() {
                   onClick={clearCanvas}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  Confirm Demolition
+                  Confirm
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -513,7 +771,6 @@ import {
   Accessibility,
   Fingerprint,
   Smile,
-  Hash,
 } from "lucide-react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { cn } from "@/lib/utils";
@@ -525,7 +782,6 @@ import {
 } from "@/components/ui/collapsible";
 import {
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -533,9 +789,13 @@ import {
 
 const MATERIAL_BLUEPRINTS = [
   {
-    name: "Standard Blocks",
-    icon: Hash,
-    ranges: [[0x0021, 0x007e]],
+    name: "Nerd Symbols",
+    icon: Fingerprint,
+    ranges: [
+      [0xe700, 0xe7c5],
+      [0xf000, 0xf2e0],
+      [0xe0b0, 0xe0b3],
+    ],
     isActive: false,
   },
   {
@@ -548,16 +808,6 @@ const MATERIAL_BLUEPRINTS = [
     name: "Block Elements",
     icon: LayoutGrid,
     ranges: [[0x2580, 0x259f]],
-    isActive: false,
-  },
-  {
-    name: "Nerd Symbols",
-    icon: Fingerprint,
-    ranges: [
-      [0xe700, 0xe7c5],
-      [0xf000, 0xf2e0],
-      [0xe0b0, 0xe0b3],
-    ],
     isActive: false,
   },
   {
@@ -605,7 +855,6 @@ export function CharLibrary() {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Material Warehouse</SidebarGroupLabel>
       <SidebarMenu>
         {library.map((group) => (
           <Collapsible
@@ -667,7 +916,10 @@ interface AsciiCanvasProps {
 }
 
 export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const bgCanvasRef = useRef<HTMLCanvasElement>(null);
+  const scratchCanvasRef = useRef<HTMLCanvasElement>(null);
+  const uiCanvasRef = useRef<HTMLCanvasElement>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isComposing = useRef(false);
@@ -690,7 +942,17 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   } = store;
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
-  useCanvasRenderer(canvasRef, size, store, draggingSelection);
+
+  useCanvasRenderer(
+    {
+      bg: bgCanvasRef,
+      scratch: scratchCanvasRef,
+      ui: uiCanvasRef,
+    },
+    size,
+    store,
+    draggingSelection
+  );
 
   useEffect(() => {
     if (textCursor && textareaRef.current) {
@@ -711,11 +973,10 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     if (textCursor) {
       e.preventDefault();
       const key = GridManager.toKey(textCursor.x, textCursor.y);
-      const char = grid.get(key) || " ";
+      const cell = grid.get(key);
+      const char = cell?.char || " ";
       navigator.clipboard.writeText(char).then(() => {
-        toast.success("Copied Char!", {
-          description: `Character '${char}' copied.`,
-        });
+        toast.success("Copied Char!");
       });
     }
   };
@@ -730,12 +991,11 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     if (textCursor) {
       e.preventDefault();
       const key = GridManager.toKey(textCursor.x, textCursor.y);
-      const char = grid.get(key) || " ";
+      const cell = grid.get(key);
+      const char = cell?.char || " ";
       navigator.clipboard.writeText(char).then(() => {
         erasePoints([textCursor]);
-        toast.success("Cut Char!", {
-          description: "Character moved to clipboard.",
-        });
+        toast.success("Cut Char!");
       });
     }
   };
@@ -756,13 +1016,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
     if (pasteStartPos) {
       writeTextString(text, pasteStartPos);
-      toast.success("Pasted!", {
-        description: "Content inserted from clipboard.",
-      });
-    } else {
-      toast.warning("Where to paste?", {
-        description: "Please select an area or click to place cursor first.",
-      });
+      toast.success("Pasted!");
     }
   };
   useEventListener("paste", handlePaste);
@@ -828,12 +1082,10 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       onRedo();
       return;
     }
-    if (e.key === "Delete") {
-      if (selections.length > 0) {
-        e.preventDefault();
-        deleteSelection();
-        return;
-      }
+    if (e.key === "Delete" && selections.length > 0) {
+      e.preventDefault();
+      deleteSelection();
+      return;
     }
     if (e.key === "Backspace") {
       if (selections.length > 0 && !textCursor) {
@@ -848,37 +1100,16 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     } else if (e.key === "Enter") {
       e.preventDefault();
       newlineText();
-    } else if (e.key === "ArrowUp") {
+    } else if (e.key.startsWith("Arrow") && textCursor) {
       e.preventDefault();
-      moveTextCursor(0, -1);
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      moveTextCursor(0, 1);
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      moveTextCursor(-1, 0);
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      moveTextCursor(1, 0);
+      const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+      const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      moveTextCursor(dx, dy);
     } else if (e.key === "Escape") {
       e.preventDefault();
       setTextCursor(null);
     }
   };
-
-  useEventListener("keydown", (e: KeyboardEvent) => {
-    if (e.key === "Delete" || e.key === "Backspace") {
-      const activeTag = document.activeElement?.tagName.toLowerCase();
-      if (
-        activeTag !== "input" &&
-        activeTag !== "textarea" &&
-        selections.length > 0
-      ) {
-        e.preventDefault();
-        deleteSelection();
-      }
-    }
-  });
 
   return (
     <div
@@ -886,7 +1117,19 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       style={{ touchAction: "none" }}
       className="relative w-full h-full overflow-hidden bg-white touch-none select-none cursor-default"
     >
-      <canvas ref={canvasRef} />
+      {/* 分层画布系统 */}
+      <canvas
+        ref={bgCanvasRef}
+        className="absolute inset-0 pointer-events-none"
+      />
+      <canvas
+        ref={scratchCanvasRef}
+        className="absolute inset-0 pointer-events-none"
+      />
+      <canvas
+        ref={uiCanvasRef}
+        className="absolute inset-0 pointer-events-none"
+      />
 
       <Minimap containerSize={size} />
 
@@ -1052,6 +1295,7 @@ export const useCanvasInteraction = (
     zoom,
     grid,
     updateScratchForShape,
+    setHoveredGrid,
   } = store;
 
   const dragStartGrid = useRef<Point | null>(null);
@@ -1118,6 +1362,20 @@ export const useCanvasInteraction = (
 
   const bind = useGesture(
     {
+      onMove: ({ xy: [x, y] }) => {
+        if (tool !== "eraser") return;
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          const raw = GridManager.screenToGrid(
+            x - rect.left,
+            y - rect.top,
+            offset.x,
+            offset.y,
+            zoom
+          );
+          setHoveredGrid(raw);
+        }
+      },
       onDragStart: ({ xy: [x, y], event }) => {
         const mouseEvent = event as MouseEvent;
         if (mouseEvent.button === 1 || isCtrlOrMeta(mouseEvent)) {
@@ -1159,7 +1417,7 @@ export const useCanvasInteraction = (
       },
       onDrag: ({ xy: [x, y], delta: [dx, dy] }) => {
         if (isPanningRef.current) {
-          setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+          setOffset((prev: Point) => ({ x: prev.x + dx, y: prev.y + dy }));
           return;
         }
 
@@ -1192,6 +1450,7 @@ export const useCanvasInteraction = (
               axis: lineAxisRef.current,
             });
           }
+          if (tool === "eraser") setHoveredGrid(currentGrid);
         }
       },
       onDragEnd: ({ event }) => {
@@ -1229,10 +1488,8 @@ export const useCanvasInteraction = (
 
         if (isCtrlOrMeta(event)) {
           event.preventDefault();
-
           const mouseX = clientX - rect.left;
           const mouseY = clientY - rect.top;
-
           const zoomWeight = 0.002;
           const deltaZoom = 1 - dy * zoomWeight;
           const oldZoom = zoom;
@@ -1243,15 +1500,14 @@ export const useCanvasInteraction = (
 
           if (nextZoom !== oldZoom) {
             const actualScale = nextZoom / oldZoom;
-
             setZoom(() => nextZoom);
-            setOffset((prev) => ({
+            setOffset((prev: Point) => ({
               x: mouseX - (mouseX - prev.x) * actualScale,
               y: mouseY - (mouseY - prev.y) * actualScale,
             }));
           }
         } else {
-          setOffset((p) => ({
+          setOffset((p: Point) => ({
             x: p.x - (event as WheelEvent).deltaX,
             y: p.y - (event as WheelEvent).deltaY,
           }));
@@ -1272,10 +1528,7 @@ import {
   CELL_HEIGHT,
   CELL_WIDTH,
   COLOR_ORIGIN_MARKER,
-  COLOR_PRIMARY_TEXT,
-  COLOR_SCRATCH_LAYER,
   COLOR_SELECTION_BG,
-  COLOR_SELECTION_BORDER,
   COLOR_TEXT_CURSOR_BG,
   COLOR_TEXT_CURSOR_FG,
   FONT_SIZE,
@@ -1286,157 +1539,195 @@ import { GridManager } from "../../../utils/grid";
 import type { SelectionArea, GridMap } from "../../../types";
 import { getSelectionBounds } from "../../../utils/selection";
 
+interface LayerRefs {
+  bg: React.RefObject<HTMLCanvasElement | null>;
+  scratch: React.RefObject<HTMLCanvasElement | null>;
+  ui: React.RefObject<HTMLCanvasElement | null>;
+}
+
 export const useCanvasRenderer = (
-  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  layers: LayerRefs,
   size: { width: number; height: number } | undefined,
   store: CanvasState,
   draggingSelection: SelectionArea | null
 ) => {
-  const { offset, zoom, grid, scratchLayer, textCursor, selections, showGrid } =
-    store;
+  const {
+    offset,
+    zoom,
+    grid,
+    scratchLayer,
+    textCursor,
+    selections,
+    showGrid,
+    hoveredGrid,
+    tool,
+  } = store;
 
-  const renderRequestId = useRef<number>(0);
+  const drawLayer = (
+    ctx: CanvasRenderingContext2D,
+    targetGrid: GridMap | null,
+    viewBounds: ReturnType<typeof GridManager.getViewportGridBounds>,
+    zoom: number,
+    offset: Point
+  ) => {
+    if (!targetGrid || targetGrid.size === 0) return;
+
+    const sw = CELL_WIDTH * zoom;
+    const sh = CELL_HEIGHT * zoom;
+    ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+
+    for (let y = viewBounds.startY; y <= viewBounds.endY; y++) {
+      for (let x = viewBounds.startX; x <= viewBounds.endX; x++) {
+        const cell = targetGrid.get(GridManager.toKey(x, y));
+        if (!cell || cell.char === " ") continue;
+
+        const pos = GridManager.gridToScreen(x, y, offset.x, offset.y, zoom);
+        const wide = GridManager.isWideChar(cell.char);
+        ctx.fillStyle = cell.color;
+        ctx.fillText(
+          cell.char,
+          Math.round(pos.x + (wide ? sw : sw / 2)),
+          Math.round(pos.y + sh / 2)
+        );
+      }
+    }
+  };
 
   useEffect(() => {
     const render = () => {
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext("2d", { alpha: false });
-      if (!canvas || !ctx || !size || size.width === 0 || size.height === 0)
-        return;
+      if (!size || size.width === 0 || size.height === 0) return;
 
       const dpr = window.devicePixelRatio || 1;
-      if (
-        canvas.width !== size.width * dpr ||
-        canvas.height !== size.height * dpr
-      ) {
-        canvas.width = size.width * dpr;
-        canvas.height = size.height * dpr;
-      }
-
-      ctx.resetTransform();
-      ctx.scale(dpr, dpr);
-
-      ctx.fillStyle = BACKGROUND_COLOR;
-      ctx.fillRect(0, 0, size.width, size.height);
-
       const sw = CELL_WIDTH * zoom;
       const sh = CELL_HEIGHT * zoom;
+      const viewBounds = GridManager.getViewportGridBounds(
+        size.width,
+        size.height,
+        offset.x,
+        offset.y,
+        zoom
+      );
 
-      const startX = Math.floor(-offset.x / sw);
-      const endX = Math.ceil((size.width - offset.x) / sw);
-      const startY = Math.floor(-offset.y / sh);
-      const endY = Math.ceil((size.height - offset.y) / sh);
+      const bgCtx = layers.bg.current?.getContext("2d", { alpha: false });
+      if (bgCtx) {
+        layers.bg.current!.width = size.width * dpr;
+        layers.bg.current!.height = size.height * dpr;
+        bgCtx.scale(dpr, dpr);
+        bgCtx.fillStyle = BACKGROUND_COLOR;
+        bgCtx.fillRect(0, 0, size.width, size.height);
 
-      if (showGrid) {
-        ctx.beginPath();
-        ctx.strokeStyle = GRID_COLOR;
-        ctx.lineWidth = 1;
-        for (let x = startX; x <= endX; x++) {
-          const posX = Math.round(x * sw + offset.x);
-          ctx.moveTo(posX, 0);
-          ctx.lineTo(posX, size.height);
-        }
-        for (let y = startY; y <= endY; y++) {
-          const posY = Math.round(y * sh + offset.y);
-          ctx.moveTo(0, posY);
-          ctx.lineTo(size.width, posY);
-        }
-        ctx.stroke();
-      }
-
-      ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "center";
-
-      const drawGridInViewport = (targetGrid: GridMap, color: string) => {
-        ctx.fillStyle = color;
-        for (let y = startY; y <= endY; y++) {
-          for (let x = startX; x <= endX; x++) {
-            const char = targetGrid.get(GridManager.toKey(x, y));
-            if (!char || char === " ") continue;
-
-            const pos = GridManager.gridToScreen(
-              x,
-              y,
-              offset.x,
-              offset.y,
-              zoom
-            );
-            const wide = GridManager.isWideChar(char);
-            const centerX = Math.round(pos.x + (wide ? sw : sw / 2));
-            const centerY = Math.round(pos.y + sh / 2);
-
-            ctx.fillText(char, centerX, centerY);
+        if (showGrid) {
+          bgCtx.beginPath();
+          bgCtx.strokeStyle = GRID_COLOR;
+          bgCtx.lineWidth = 1;
+          for (let x = viewBounds.startX; x <= viewBounds.endX; x++) {
+            const posX = Math.round(x * sw + offset.x);
+            bgCtx.moveTo(posX, 0);
+            bgCtx.lineTo(posX, size.height);
           }
+          for (let y = viewBounds.startY; y <= viewBounds.endY; y++) {
+            const posY = Math.round(y * sh + offset.y);
+            bgCtx.moveTo(0, posY);
+            bgCtx.lineTo(size.width, posY);
+          }
+          bgCtx.stroke();
         }
-      };
-
-      drawGridInViewport(grid, COLOR_PRIMARY_TEXT);
-
-      if (scratchLayer && scratchLayer.size > 0) {
-        drawGridInViewport(scratchLayer, COLOR_SCRATCH_LAYER);
+        drawLayer(bgCtx, grid, viewBounds, zoom, offset);
       }
 
-      const drawSel = (area: SelectionArea) => {
-        const { minX, minY, maxX, maxY } = getSelectionBounds(area);
-        const pos = GridManager.gridToScreen(
-          minX,
-          minY,
-          offset.x,
-          offset.y,
-          zoom
-        );
-        const w = (maxX - minX + 1) * sw;
-        const h = (maxY - minY + 1) * sh;
-        ctx.fillStyle = COLOR_SELECTION_BG;
-        ctx.fillRect(
-          Math.round(pos.x),
-          Math.round(pos.y),
-          Math.round(w),
-          Math.round(h)
-        );
-      };
+      const scratchCtx = layers.scratch.current?.getContext("2d");
+      if (scratchCtx) {
+        layers.scratch.current!.width = size.width * dpr;
+        layers.scratch.current!.height = size.height * dpr;
+        scratchCtx.scale(dpr, dpr);
+        drawLayer(scratchCtx, scratchLayer, viewBounds, zoom, offset);
+      }
 
-      selections.forEach(drawSel);
-      if (draggingSelection) drawSel(draggingSelection);
+      const uiCtx = layers.ui.current?.getContext("2d");
+      if (uiCtx) {
+        layers.ui.current!.width = size.width * dpr;
+        layers.ui.current!.height = size.height * dpr;
+        uiCtx.scale(dpr, dpr);
 
-      if (textCursor) {
-        const pos = GridManager.gridToScreen(
-          textCursor.x,
-          textCursor.y,
-          offset.x,
-          offset.y,
-          zoom
-        );
-        const char = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
-        const wide = char ? GridManager.isWideChar(char) : false;
-        const cursorWidth = wide ? sw * 2 : sw;
-        ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
-        ctx.fillRect(
-          Math.round(pos.x),
-          Math.round(pos.y),
-          Math.round(cursorWidth),
-          Math.round(sh)
-        );
-        if (char) {
-          ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-          ctx.fillText(
-            char,
-            Math.round(pos.x + (wide ? sw : sw / 2)),
-            Math.round(pos.y + sh / 2)
+        const drawSel = (area: SelectionArea) => {
+          const { minX, minY, maxX, maxY } = getSelectionBounds(area);
+          const pos = GridManager.gridToScreen(
+            minX,
+            minY,
+            offset.x,
+            offset.y,
+            zoom
+          );
+          uiCtx.fillStyle = COLOR_SELECTION_BG;
+          uiCtx.fillRect(
+            Math.round(pos.x),
+            Math.round(pos.y),
+            Math.round((maxX - minX + 1) * sw),
+            Math.round((maxY - minY + 1) * sh)
+          );
+        };
+        selections.forEach(drawSel);
+        if (draggingSelection) drawSel(draggingSelection);
+
+        if (tool === "eraser" && hoveredGrid) {
+          const pos = GridManager.gridToScreen(
+            hoveredGrid.x,
+            hoveredGrid.y,
+            offset.x,
+            offset.y,
+            zoom
+          );
+          uiCtx.fillStyle = "rgba(239, 68, 68, 0.3)";
+          uiCtx.fillRect(
+            Math.round(pos.x),
+            Math.round(pos.y),
+            Math.round(sw),
+            Math.round(sh)
           );
         }
-      }
 
-      ctx.fillStyle = COLOR_ORIGIN_MARKER;
-      const originX = Math.round(offset.x);
-      const originY = Math.round(offset.y);
-      ctx.fillRect(originX - 1, originY - 10, 2, 20);
-      ctx.fillRect(originX - 10, originY - 1, 20, 2);
+        if (textCursor) {
+          const pos = GridManager.gridToScreen(
+            textCursor.x,
+            textCursor.y,
+            offset.x,
+            offset.y,
+            zoom
+          );
+          const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
+          const wide = cell ? GridManager.isWideChar(cell.char) : false;
+          uiCtx.fillStyle = COLOR_TEXT_CURSOR_BG;
+          uiCtx.fillRect(
+            Math.round(pos.x),
+            Math.round(pos.y),
+            Math.round(wide ? sw * 2 : sw),
+            Math.round(sh)
+          );
+          if (cell) {
+            uiCtx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
+            uiCtx.textAlign = "center";
+            uiCtx.textBaseline = "middle";
+            uiCtx.fillStyle = COLOR_TEXT_CURSOR_FG;
+            uiCtx.fillText(
+              cell.char,
+              Math.round(pos.x + (wide ? sw : sw / 2)),
+              Math.round(pos.y + sh / 2)
+            );
+          }
+        }
+
+        uiCtx.fillStyle = COLOR_ORIGIN_MARKER;
+        const originX = Math.round(offset.x);
+        const originY = Math.round(offset.y);
+        uiCtx.fillRect(originX - 1, originY - 10, 2, 20);
+        uiCtx.fillRect(originX - 10, originY - 1, 20, 2);
+      }
     };
 
-    renderRequestId.current = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(renderRequestId.current);
+    const requestId = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(requestId);
   }, [
     offset,
     zoom,
@@ -1447,7 +1738,9 @@ export const useCanvasRenderer = (
     selections,
     draggingSelection,
     showGrid,
-    canvasRef,
+    hoveredGrid,
+    tool,
+    layers,
   ]);
 };
 ```
@@ -1459,7 +1752,14 @@ export const isCtrlOrMeta = (event: { ctrlKey: boolean; metaKey: boolean }) => {
 ```
 ---
 ```src/utils/export.ts
-import { EXPORT_PADDING } from "../lib/constants";
+import {
+  EXPORT_PADDING,
+  CELL_WIDTH,
+  CELL_HEIGHT,
+  FONT_SIZE,
+  BACKGROUND_COLOR,
+  GRID_COLOR,
+} from "../lib/constants";
 import type { GridMap, SelectionArea } from "../types";
 import { GridManager } from "./grid";
 import { getSelectionsBoundingBox } from "./selection";
@@ -1476,10 +1776,10 @@ const generateStringFromBounds = (
   for (let y = minY; y <= maxY; y++) {
     let line = "";
     for (let x = minX; x <= maxX; x++) {
-      const char = grid.get(GridManager.toKey(x, y));
-      if (char) {
-        line += char;
-        if (GridManager.getCharWidth(char) === 2) x++;
+      const cell = grid.get(GridManager.toKey(x, y));
+      if (cell) {
+        line += cell.char;
+        if (GridManager.getCharWidth(cell.char) === 2) x++;
       } else {
         line += " ";
       }
@@ -1510,11 +1810,71 @@ export const exportSelectionToString = (
   const { minX, maxX, minY, maxY } = getSelectionsBoundingBox(selections);
   return generateStringFromBounds(grid, minX, maxX, minY, maxY);
 };
+
+export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
+  if (grid.size === 0) return;
+
+  const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
+  const padding = 2;
+  const width = (maxX - minX + 1 + padding * 2) * CELL_WIDTH;
+  const height = (maxY - minY + 1 + padding * 2) * CELL_HEIGHT;
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const dpr = 2;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillRect(0, 0, width, height);
+
+  if (showGrid) {
+    ctx.beginPath();
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.lineWidth = 0.5;
+    const gridWidth = maxX - minX + 1 + padding * 2;
+    const gridHeight = maxY - minY + 1 + padding * 2;
+    for (let x = 0; x <= gridWidth; x++) {
+      ctx.moveTo(x * CELL_WIDTH, 0);
+      ctx.lineTo(x * CELL_WIDTH, height);
+    }
+    for (let y = 0; y <= gridHeight; y++) {
+      ctx.moveTo(0, y * CELL_HEIGHT);
+      ctx.lineTo(width, y * CELL_HEIGHT);
+    }
+    ctx.stroke();
+  }
+
+  ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+
+  GridManager.iterate(grid, (cell, x, y) => {
+    const drawX = (x - minX + padding) * CELL_WIDTH;
+    const drawY = (y - minY + padding) * CELL_HEIGHT;
+    const wide = GridManager.isWideChar(cell.char);
+
+    ctx.fillStyle = cell.color;
+    ctx.fillText(
+      cell.char,
+      drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
+      drawY + CELL_HEIGHT / 2
+    );
+  });
+
+  const link = document.createElement("a");
+  link.download = `ascii-city-${Date.now()}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+};
 ```
 ---
 ```src/utils/grid.ts
 import { CELL_WIDTH, CELL_HEIGHT } from "../lib/constants";
-import type { Point, GridMap, GridPoint } from "../types";
+import type { Point, GridMap } from "../types";
 
 export const GridManager = {
   screenToGrid(
@@ -1562,15 +1922,6 @@ export const GridManager = {
     });
   },
 
-  setPoints(
-    target: { set: (key: string, value: string) => void },
-    points: GridPoint[]
-  ): void {
-    points.forEach((p) => {
-      target.set(this.toKey(p.x, p.y), p.char);
-    });
-  },
-
   getCharWidth(char: string): number {
     if (!char) return 1;
 
@@ -1596,8 +1947,8 @@ export const GridManager = {
   },
 
   snapToCharStart(pos: Point, grid: GridMap): Point {
-    const charBefore = grid.get(this.toKey(pos.x - 1, pos.y));
-    if (charBefore && this.isWideChar(charBefore)) {
+    const cellBefore = grid.get(this.toKey(pos.x - 1, pos.y));
+    if (cellBefore && this.isWideChar(cellBefore.char)) {
       return { ...pos, x: pos.x - 1 };
     }
     return pos;
@@ -1611,8 +1962,8 @@ export const GridManager = {
       minY = Infinity,
       maxY = -Infinity;
 
-    this.iterate(grid, (char, x, y) => {
-      const width = this.getCharWidth(char);
+    this.iterate(grid, (cell, x, y) => {
+      const width = this.getCharWidth(cell.char);
       minX = Math.min(minX, x);
       maxX = Math.max(maxX, x + width - 1);
       minY = Math.min(minY, y);
@@ -1620,6 +1971,27 @@ export const GridManager = {
     });
 
     return { minX, maxX, minY, maxY };
+  },
+
+  /**
+   * 优化核心：视口计算
+   * 确定当前屏幕显示范围对应的网格坐标边界
+   */
+  getViewportGridBounds(
+    width: number,
+    height: number,
+    offsetX: number,
+    offsetY: number,
+    zoom: number
+  ) {
+    const sw = CELL_WIDTH * zoom;
+    const sh = CELL_HEIGHT * zoom;
+    return {
+      startX: Math.floor(-offsetX / sw),
+      endX: Math.ceil((width - offsetX) / sw),
+      startY: Math.floor(-offsetY / sh),
+      endY: Math.ceil((height - offsetY) / sh),
+    };
   },
 };
 ```
@@ -1870,13 +2242,11 @@ export const MAX_ZOOM = 5;
 
 export const FONT_SIZE = 15;
 export const COLOR_PRIMARY_TEXT = "#000000";
-export const COLOR_SCRATCH_LAYER = "#3b82f6";
 export const COLOR_TEXT_CURSOR_BG = "rgba(0, 0, 0, 0.5)";
 export const COLOR_TEXT_CURSOR_FG = "#ffffff";
 export const COLOR_ORIGIN_MARKER = "red";
 
 export const COLOR_SELECTION_BG = "rgba(0, 0, 0, 0.2)";
-export const COLOR_SELECTION_BORDER = "transparent";
 
 export const EXPORT_PADDING = 1;
 
@@ -1889,6 +2259,19 @@ export const BOX_CHARS = {
   VERTICAL: "│",
   CROSS: "┼",
 };
+
+export const PALETTE = [
+  "#000000", // Black
+  "#ef4444", // Red
+  "#f97316", // Orange
+  "#eab308", // Yellow
+  "#22c55e", // Green
+  "#06b6d4", // Cyan
+  "#3b82f6", // Blue
+  "#a855f7", // Purple
+  "#ec4899", // Pink
+  "#64748b", // Slate
+];
 ```
 ---
 ```src/lib/utils.ts
@@ -1902,10 +2285,11 @@ export function cn(...inputs: ClassValue[]) {
 ---
 ```src/lib/yjs-setup.ts
 import * as Y from "yjs";
+import type { GridCell } from "../types";
 
 const yDoc = new Y.Doc();
 
-export const yMainGrid = yDoc.getMap<string>("main-grid");
+export const yMainGrid = yDoc.getMap<GridCell>("main-grid");
 
 export const undoManager = new Y.UndoManager([yMainGrid], {
   captureTimeout: 500,
@@ -1932,9 +2316,10 @@ export const transactWithHistory = (
 ```src/store/canvasStore.ts
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { MIN_ZOOM, MAX_ZOOM } from "../lib/constants";
+import { MIN_ZOOM, MAX_ZOOM, COLOR_PRIMARY_TEXT } from "../lib/constants";
 import { yMainGrid, transactWithHistory } from "../lib/yjs-setup";
 import type { CanvasState } from "./interfaces";
+import type { GridCell } from "../types";
 import {
   createDrawingSlice,
   createTextSlice,
@@ -1947,10 +2332,10 @@ export const useCanvasStore = create<CanvasState>()(
   persist(
     (set, get, ...a) => {
       yMainGrid.observe(() => {
-        const compositeGrid = new Map<string, string>();
-        for (const [key, value] of yMainGrid.entries()) {
-          compositeGrid.set(key, value);
-        }
+        const compositeGrid = new Map<string, GridCell>();
+        yMainGrid.forEach((value, key) => {
+          compositeGrid.set(key, value as GridCell);
+        });
         set({ grid: compositeGrid });
       });
 
@@ -1960,7 +2345,10 @@ export const useCanvasStore = create<CanvasState>()(
         grid: new Map(),
         tool: "select",
         brushChar: "#",
+        brushColor: COLOR_PRIMARY_TEXT,
         showGrid: true,
+        exportShowGrid: false,
+        hoveredGrid: null,
 
         setOffset: (updater) =>
           set((state) => ({ offset: updater(state.offset) })),
@@ -1968,9 +2356,12 @@ export const useCanvasStore = create<CanvasState>()(
           set((state) => ({
             zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, updater(state.zoom))),
           })),
-        setTool: (tool) => set({ tool, textCursor: null }),
+        setTool: (tool) => set({ tool, textCursor: null, hoveredGrid: null }),
         setBrushChar: (char) => set({ brushChar: char }),
+        setBrushColor: (color) => set({ brushColor: color }),
         setShowGrid: (show) => set({ showGrid: show }),
+        setExportShowGrid: (show) => set({ exportShowGrid: show }),
+        setHoveredGrid: (pos) => set({ hoveredGrid: pos }),
 
         ...createDrawingSlice(set, get, ...a),
         ...createTextSlice(set, get, ...a),
@@ -1984,21 +2375,20 @@ export const useCanvasStore = create<CanvasState>()(
         offset: state.offset,
         zoom: state.zoom,
         brushChar: state.brushChar,
+        brushColor: state.brushColor,
         showGrid: state.showGrid,
+        exportShowGrid: state.exportShowGrid,
         grid: Array.from(state.grid.entries()),
       }),
       onRehydrateStorage: (state) => {
         return (hydratedState, error) => {
           if (error || !hydratedState) return;
-
           const hState = hydratedState as CanvasState;
-
           if (Array.isArray(hState.grid)) {
-            const recoveredMap = new Map<string, string>(
-              hState.grid as unknown as [string, string][]
+            const recoveredMap = new Map<string, GridCell>(
+              hState.grid as unknown as [string, GridCell][]
             );
             hState.grid = recoveredMap;
-
             transactWithHistory(() => {
               yMainGrid.clear();
               recoveredMap.forEach((val, key) => yMainGrid.set(key, val));
@@ -2050,10 +2440,9 @@ export interface SelectionSlice {
   addSelection: (area: SelectionArea) => void;
   clearSelections: () => void;
   deleteSelection: () => void;
-  fillSelections: () => void;
-  fillSelectionsWithChar: (char: string) => void;
   copySelectionToClipboard: () => void;
   cutSelectionToClipboard: () => void;
+  fillSelectionsWithChar: (char: string) => void;
 }
 
 export type CanvasState = {
@@ -2061,14 +2450,20 @@ export type CanvasState = {
   zoom: number;
   tool: ToolType;
   brushChar: string;
+  brushColor: string;
   grid: GridMap;
   showGrid: boolean;
+  exportShowGrid: boolean;
+  hoveredGrid: Point | null;
 
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
   setTool: (tool: ToolType) => void;
   setBrushChar: (char: string) => void;
+  setBrushColor: (color: string) => void;
   setShowGrid: (show: boolean) => void;
+  setExportShowGrid: (show: boolean) => void;
+  setHoveredGrid: (pos: Point | null) => void;
 } & DrawingSlice &
   TextSlice &
   SelectionSlice;
@@ -2077,26 +2472,28 @@ export type CanvasState = {
 ```src/store/utils.ts
 import * as Y from "yjs";
 import { GridManager } from "../utils/grid";
+import type { GridCell } from "../types";
 
 export const placeCharInMap = (
   targetMap: {
-    set(key: string, value: string): void;
+    set(key: string, value: GridCell): void;
     delete(key: string): void;
-    get(key: string): string | undefined;
+    get(key: string): GridCell | undefined;
   },
   x: number,
   y: number,
-  char: string
+  char: string,
+  color: string
 ) => {
   if (!char) return;
 
   const leftKey = GridManager.toKey(x - 1, y);
-  const leftChar = targetMap.get(leftKey);
-  if (leftChar && GridManager.isWideChar(leftChar)) {
+  const leftCell = targetMap.get(leftKey);
+  if (leftCell && GridManager.isWideChar(leftCell.char)) {
     targetMap.delete(leftKey);
   }
 
-  targetMap.set(GridManager.toKey(x, y), char);
+  targetMap.set(GridManager.toKey(x, y), { char, color });
 
   if (GridManager.isWideChar(char)) {
     const rightKey = GridManager.toKey(x + 1, y);
@@ -2104,13 +2501,31 @@ export const placeCharInMap = (
   }
 };
 
+/**
+ * 修正：targetGrid 的类型从 Y.Map<unknown> 提升为 Y.Map<GridCell>
+ * 这样它才能与 yMainGrid 的规格完全匹配
+ */
 export const placeCharInYMap = (
-  targetGrid: Y.Map<string>,
+  targetGrid: Y.Map<GridCell>,
   x: number,
   y: number,
-  char: string
+  char: string,
+  color: string
 ) => {
-  placeCharInMap(targetGrid, x, y, char);
+  if (!char) return;
+
+  const leftKey = GridManager.toKey(x - 1, y);
+  const leftCell = targetGrid.get(leftKey);
+  if (leftCell && GridManager.isWideChar(leftCell.char)) {
+    targetGrid.delete(leftKey);
+  }
+
+  targetGrid.set(GridManager.toKey(x, y), { char, color });
+
+  if (GridManager.isWideChar(char)) {
+    const rightKey = GridManager.toKey(x + 1, y);
+    targetGrid.delete(rightKey);
+  }
 };
 ```
 ---
@@ -2119,7 +2534,7 @@ import type { StateCreator } from "zustand";
 import type { CanvasState, DrawingSlice } from "../interfaces";
 import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
-import type { GridPoint } from "../../types";
+import type { GridPoint, GridCell } from "../../types";
 import { placeCharInMap, placeCharInYMap } from "../utils";
 import {
   getBoxPoints,
@@ -2137,18 +2552,20 @@ export const createDrawingSlice: StateCreator<
   scratchLayer: null,
 
   setScratchLayer: (points) => {
-    const layer = new Map<string, string>();
+    const { brushColor } = get();
+    const layer = new Map();
     points.forEach((p) => {
-      placeCharInMap(layer, p.x, p.y, p.char);
+      placeCharInMap(layer, p.x, p.y, p.char, p.color || brushColor);
     });
     set({ scratchLayer: layer });
   },
 
   addScratchPoints: (points) => {
+    const { brushColor } = get();
     set((state) => {
       const layer = new Map(state.scratchLayer || []);
       points.forEach((p) => {
-        placeCharInMap(layer, p.x, p.y, p.char);
+        placeCharInMap(layer, p.x, p.y, p.char, p.color || brushColor);
       });
       return { scratchLayer: layer };
     });
@@ -2156,6 +2573,7 @@ export const createDrawingSlice: StateCreator<
 
   updateScratchForShape: (tool, start, end, options) => {
     let points: GridPoint[] = [];
+    const color = get().brushColor;
     switch (tool) {
       case "box":
         points = getBoxPoints(start, end);
@@ -2172,39 +2590,33 @@ export const createDrawingSlice: StateCreator<
         break;
       }
     }
-    get().setScratchLayer(points);
+    const coloredPoints = points.map((p) => ({ ...p, color }));
+    get().setScratchLayer(coloredPoints);
   },
 
   commitScratch: () => {
     const { scratchLayer } = get();
     if (!scratchLayer || scratchLayer.size === 0) return;
-
     transactWithHistory(() => {
-      GridManager.iterate(scratchLayer, (char, x, y) => {
-        placeCharInYMap(yMainGrid, x, y, char);
+      GridManager.iterate(scratchLayer, (cell, x, y) => {
+        placeCharInYMap(yMainGrid, x, y, cell.char, cell.color);
       });
     });
-
     set({ scratchLayer: null });
   },
 
   clearScratch: () => set({ scratchLayer: null }),
-
-  clearCanvas: () => {
-    transactWithHistory(() => {
-      yMainGrid.clear();
-    });
-  },
+  clearCanvas: () => transactWithHistory(() => yMainGrid.clear()),
 
   erasePoints: (points) => {
     transactWithHistory(() => {
       points.forEach((p) => {
         const key = GridManager.toKey(p.x, p.y);
-        const char = yMainGrid.get(key);
-        if (!char) {
+        const cell = yMainGrid.get(key) as GridCell | undefined;
+        if (!cell) {
           const leftKey = GridManager.toKey(p.x - 1, p.y);
-          const leftChar = yMainGrid.get(leftKey);
-          if (leftChar && GridManager.isWideChar(leftChar)) {
+          const leftCell = yMainGrid.get(leftKey) as GridCell | undefined;
+          if (leftCell && GridManager.isWideChar(leftCell.char)) {
             yMainGrid.delete(leftKey);
           }
         }
@@ -2238,11 +2650,7 @@ export const createSelectionSlice: StateCreator<
   SelectionSlice
 > = (set, get) => ({
   selections: [],
-
-  addSelection: (area) => {
-    set((s) => ({ selections: [...s.selections, area] }));
-  },
-
+  addSelection: (area) => set((s) => ({ selections: [...s.selections, area] })),
   clearSelections: () => set({ selections: [] }),
 
   deleteSelection: () => {
@@ -2253,28 +2661,6 @@ export const createSelectionSlice: StateCreator<
         for (let y = minY; y <= maxY; y++) {
           for (let x = minX; x <= maxX; x++) {
             yMainGrid.delete(GridManager.toKey(x, y));
-          }
-        }
-      });
-    });
-  },
-
-  fillSelections: () => {
-    const { selections, brushChar } = get();
-    if (selections.length > 0) get().fillSelectionsWithChar(brushChar);
-  },
-
-  fillSelectionsWithChar: (char: string) => {
-    const { selections } = get();
-    const charWidth = GridManager.getCharWidth(char);
-
-    transactWithHistory(() => {
-      selections.forEach((area) => {
-        const { minX, maxX, minY, maxY } = getSelectionBounds(area);
-        for (let y = minY; y <= maxY; y++) {
-          for (let x = minX; x <= maxX; x += charWidth) {
-            if (x + charWidth - 1 > maxX) break;
-            placeCharInYMap(yMainGrid, x, y, char);
           }
         }
       });
@@ -2297,6 +2683,23 @@ export const createSelectionSlice: StateCreator<
       toast.success("Cut!");
     });
   },
+
+  fillSelectionsWithChar: (char) => {
+    const { selections, brushColor } = get();
+    if (selections.length === 0) return;
+
+    transactWithHistory(() => {
+      selections.forEach((area) => {
+        const { minX, maxX, minY, maxY } = getSelectionBounds(area);
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            placeCharInYMap(yMainGrid, x, y, char, brushColor);
+          }
+        }
+      });
+    });
+    toast.success(`Filled area with ${char}`);
+  },
 });
 ```
 ---
@@ -2312,13 +2715,10 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   get
 ) => ({
   textCursor: null,
-
-  setTextCursor: (pos) => {
-    set({ textCursor: pos, selections: [] });
-  },
+  setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
 
   writeTextString: (str, startPos) => {
-    const { textCursor } = get();
+    const { textCursor, brushColor } = get();
     const cursor = startPos || textCursor;
     if (!cursor) return;
 
@@ -2333,31 +2733,27 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
           currentX = startX;
           continue;
         }
-
-        placeCharInYMap(yMainGrid, currentX, currentY, char);
+        placeCharInYMap(yMainGrid, currentX, currentY, char, brushColor);
         currentX += GridManager.getCharWidth(char);
       }
     });
-
     set({ textCursor: { x: currentX, y: currentY } });
   },
 
   moveTextCursor: (dx, dy) => {
     const { textCursor, grid } = get();
     if (!textCursor) return;
-
     let newX = textCursor.x;
     const newY = textCursor.y + dy;
-
     if (dx > 0) {
-      const char = grid.get(GridManager.toKey(newX, textCursor.y));
-      newX += GridManager.getCharWidth(char || " ");
+      const cell = grid.get(GridManager.toKey(newX, textCursor.y));
+      newX += GridManager.getCharWidth(cell?.char || " ");
     } else if (dx < 0) {
       const leftKey = GridManager.toKey(newX - 1, textCursor.y);
-      const leftChar = grid.get(leftKey);
-      if (!leftChar) {
-        const farLeftChar = grid.get(GridManager.toKey(newX - 2, textCursor.y));
-        newX -= farLeftChar && GridManager.isWideChar(farLeftChar) ? 2 : 1;
+      const leftCell = grid.get(leftKey);
+      if (!leftCell) {
+        const farLeftCell = grid.get(GridManager.toKey(newX - 2, textCursor.y));
+        newX -= farLeftCell && GridManager.isWideChar(farLeftCell.char) ? 2 : 1;
       } else {
         newX -= 1;
       }
@@ -2368,22 +2764,18 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   backspaceText: () => {
     const { textCursor, grid } = get();
     if (!textCursor) return;
-
     transactWithHistory(() => {
       const { x, y } = textCursor;
       let deletePos = { x: x - 1, y };
-
-      const charAtMinus1 = grid.get(GridManager.toKey(x - 1, y));
-      const charAtMinus2 = grid.get(GridManager.toKey(x - 2, y));
-
+      const cellAtMinus1 = grid.get(GridManager.toKey(x - 1, y));
+      const cellAtMinus2 = grid.get(GridManager.toKey(x - 2, y));
       if (
-        !charAtMinus1 &&
-        charAtMinus2 &&
-        GridManager.isWideChar(charAtMinus2)
+        !cellAtMinus1 &&
+        cellAtMinus2 &&
+        GridManager.isWideChar(cellAtMinus2.char)
       ) {
         deletePos = { x: x - 2, y };
       }
-
       yMainGrid.delete(GridManager.toKey(deletePos.x, deletePos.y));
       set({ textCursor: deletePos });
     });
@@ -2398,33 +2790,30 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
 ```
 ---
 ```src/types/index.ts
-import { z } from "zod";
+export interface Point {
+  x: number;
+  y: number;
+}
 
-export const PointSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-});
+export interface GridCell {
+  char: string;
+  color: string;
+}
 
-export type Point = z.infer<typeof PointSchema>;
+export interface GridPoint extends Point {
+  char: string;
+  color?: string;
+}
 
-export const GridPointSchema = PointSchema.extend({
-  char: z.string(),
-});
+export interface SelectionArea {
+  start: Point;
+  end: Point;
+}
 
-export type GridPoint = z.infer<typeof GridPointSchema>;
-
-export const SelectionAreaSchema = z.object({
-  start: PointSchema,
-  end: PointSchema,
-});
-
-export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
-
-export type GridMap = Map<string, string>;
+export type GridMap = Map<string, GridCell>;
 
 export type ToolType =
   | "select"
-  | "fill"
   | "brush"
   | "eraser"
   | "box"

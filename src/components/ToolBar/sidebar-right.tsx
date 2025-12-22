@@ -24,8 +24,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { AlertDialogTrigger } from "@radix-ui/react-alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -46,8 +46,17 @@ import { ExportPreview } from "./export-preview";
 import { ActionButton } from "@/components/ui/action-button";
 
 export function SidebarRight() {
-  const { grid, clearCanvas, showGrid, setShowGrid, setOffset, setZoom } =
-    useCanvasStore();
+  const {
+    grid,
+    clearCanvas,
+    showGrid,
+    setShowGrid,
+    exportShowGrid,
+    setExportShowGrid,
+    setOffset,
+    setZoom,
+  } = useCanvasStore();
+
   const { state, isMobile } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
 
@@ -152,7 +161,7 @@ export function SidebarRight() {
                               size="md"
                               icon={ImageIcon}
                               className="border-2 rounded-xl"
-                              onAction={() => exportToPNG(grid)}
+                              onAction={() => exportToPNG(grid, exportShowGrid)}
                             />
                           </TooltipTrigger>
                           <TooltipContent side="bottom" className="text-xs">
@@ -164,15 +173,15 @@ export function SidebarRight() {
 
                     <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 border border-border/50">
                       <span className="text-xs font-medium text-muted-foreground">
-                        Workspace Grid
+                        Print Grid on PNG
                       </span>
                       <Button
-                        variant={showGrid ? "default" : "secondary"}
+                        variant={exportShowGrid ? "default" : "secondary"}
                         size="sm"
-                        onClick={() => setShowGrid(!showGrid)}
+                        onClick={() => setExportShowGrid(!exportShowGrid)}
                         className="h-6 px-2 rounded-md text-[10px] uppercase font-bold"
                       >
-                        {showGrid ? "ON" : "OFF"}
+                        {exportShowGrid ? "ON" : "OFF"}
                       </Button>
                     </div>
                   </div>
@@ -199,7 +208,7 @@ export function SidebarRight() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="left">
-                    {showGrid ? "Hide Grid" : "Show Grid"}
+                    {showGrid ? "Hide Workspace Grid" : "Show Workspace Grid"}
                   </TooltipContent>
                 </Tooltip>
 

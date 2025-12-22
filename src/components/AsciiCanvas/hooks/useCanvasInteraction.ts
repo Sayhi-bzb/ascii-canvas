@@ -237,7 +237,7 @@ export const useCanvasInteraction = (
 
           if (nextZoom !== oldZoom) {
             const actualScale = nextZoom / oldZoom;
-            setZoom((prev: number) => nextZoom);
+            setZoom(() => nextZoom);
             setOffset((prev: Point) => ({
               x: mouseX - (mouseX - prev.x) * actualScale,
               y: mouseY - (mouseY - prev.y) * actualScale,
