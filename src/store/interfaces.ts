@@ -48,6 +48,7 @@ export type CanvasState = {
   brushColor: string;
   grid: GridMap;
   showGrid: boolean;
+  hoveredGrid: Point | null;
 
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
@@ -55,6 +56,7 @@ export type CanvasState = {
   setBrushChar: (char: string) => void;
   setBrushColor: (color: string) => void;
   setShowGrid: (show: boolean) => void;
+  setHoveredGrid: (pos: Point | null) => void;
 } & DrawingSlice &
   TextSlice &
   SelectionSlice;

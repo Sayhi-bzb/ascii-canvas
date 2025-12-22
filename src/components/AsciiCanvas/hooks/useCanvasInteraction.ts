@@ -32,6 +32,7 @@ export const useCanvasInteraction = (
     zoom,
     grid,
     updateScratchForShape,
+    setHoveredGrid,
   } = store;
 
   const dragStartGrid = useRef<Point | null>(null);
@@ -98,6 +99,20 @@ export const useCanvasInteraction = (
 
   const bind = useGesture(
     {
+      onMove: ({ xy: [x, y] }) => {
+        if (tool !== "eraser") return;
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          const raw = GridManager.screenToGrid(
+            x - rect.left,
+            y - rect.top,
+            offset.x,
+            offset.y,
+            zoom
+          );
+          setHoveredGrid(raw);
+        }
+      },
       onDragStart: ({ xy: [x, y], event }) => {
         const mouseEvent = event as MouseEvent;
         if (mouseEvent.button === 1 || isCtrlOrMeta(mouseEvent)) {
@@ -172,6 +187,7 @@ export const useCanvasInteraction = (
               axis: lineAxisRef.current,
             });
           }
+          if (tool === "eraser") setHoveredGrid(currentGrid);
         }
       },
       onDragEnd: ({ event }) => {
@@ -209,10 +225,8 @@ export const useCanvasInteraction = (
 
         if (isCtrlOrMeta(event)) {
           event.preventDefault();
-
           const mouseX = clientX - rect.left;
           const mouseY = clientY - rect.top;
-
           const zoomWeight = 0.002;
           const deltaZoom = 1 - dy * zoomWeight;
           const oldZoom = zoom;
@@ -223,7 +237,6 @@ export const useCanvasInteraction = (
 
           if (nextZoom !== oldZoom) {
             const actualScale = nextZoom / oldZoom;
-
             setZoom((prev: number) => nextZoom);
             setOffset((prev: Point) => ({
               x: mouseX - (mouseX - prev.x) * actualScale,

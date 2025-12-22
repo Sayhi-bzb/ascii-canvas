@@ -21,8 +21,17 @@ export const useCanvasRenderer = (
   store: CanvasState,
   draggingSelection: SelectionArea | null
 ) => {
-  const { offset, zoom, grid, scratchLayer, textCursor, selections, showGrid } =
-    store;
+  const {
+    offset,
+    zoom,
+    grid,
+    scratchLayer,
+    textCursor,
+    selections,
+    showGrid,
+    hoveredGrid,
+    tool,
+  } = store;
 
   const renderRequestId = useRef<number>(0);
 
@@ -129,6 +138,23 @@ export const useCanvasRenderer = (
       selections.forEach(drawSel);
       if (draggingSelection) drawSel(draggingSelection);
 
+      if (tool === "eraser" && hoveredGrid) {
+        const pos = GridManager.gridToScreen(
+          hoveredGrid.x,
+          hoveredGrid.y,
+          offset.x,
+          offset.y,
+          zoom
+        );
+        ctx.fillStyle = "rgba(239, 68, 68, 0.3)";
+        ctx.fillRect(
+          Math.round(pos.x),
+          Math.round(pos.y),
+          Math.round(sw),
+          Math.round(sh)
+        );
+      }
+
       if (textCursor) {
         const pos = GridManager.gridToScreen(
           textCursor.x,
@@ -177,5 +203,7 @@ export const useCanvasRenderer = (
     draggingSelection,
     showGrid,
     canvasRef,
+    hoveredGrid,
+    tool,
   ]);
 };

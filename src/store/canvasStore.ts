@@ -31,6 +31,7 @@ export const useCanvasStore = create<CanvasState>()(
         brushChar: "#",
         brushColor: COLOR_PRIMARY_TEXT,
         showGrid: true,
+        hoveredGrid: null,
 
         setOffset: (updater) =>
           set((state) => ({ offset: updater(state.offset) })),
@@ -38,10 +39,11 @@ export const useCanvasStore = create<CanvasState>()(
           set((state) => ({
             zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, updater(state.zoom))),
           })),
-        setTool: (tool) => set({ tool, textCursor: null }),
+        setTool: (tool) => set({ tool, textCursor: null, hoveredGrid: null }),
         setBrushChar: (char) => set({ brushChar: char }),
         setBrushColor: (color) => set({ brushColor: color }),
         setShowGrid: (show) => set({ showGrid: show }),
+        setHoveredGrid: (pos) => set({ hoveredGrid: pos }),
 
         ...createDrawingSlice(set, get, ...a),
         ...createTextSlice(set, get, ...a),
@@ -62,18 +64,12 @@ export const useCanvasStore = create<CanvasState>()(
       onRehydrateStorage: (state) => {
         return (hydratedState, error) => {
           if (error || !hydratedState) return;
-
           const hState = hydratedState as CanvasState;
-
           if (Array.isArray(hState.grid)) {
-            const recoveredEntries = hState.grid as unknown as [
-              string,
-              GridCell
-            ][];
-            const recoveredMap = new Map<string, GridCell>(recoveredEntries);
-
+            const recoveredMap = new Map<string, GridCell>(
+              hState.grid as unknown as [string, GridCell][]
+            );
             hState.grid = recoveredMap;
-
             transactWithHistory(() => {
               yMainGrid.clear();
               recoveredMap.forEach((val, key) => yMainGrid.set(key, val));

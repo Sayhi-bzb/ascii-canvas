@@ -8,7 +8,6 @@ import {
   Pencil,
   Eraser,
   Undo2,
-  Download,
   LineSquiggle,
   Circle as CircleIcon,
   ChevronDown,
@@ -36,13 +35,12 @@ interface ToolbarProps {
   tool: ToolType;
   setTool: (tool: ToolType) => void;
   onUndo: () => void;
-  onExport: () => void;
 }
 
 const MATERIAL_PRESETS = ["*", ".", "@", "▒"];
 const SHAPE_TOOLS: ToolType[] = ["box", "circle", "line", "stepline"];
 
-export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
+export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
   const { brushChar, setBrushChar, brushColor, setBrushColor } =
     useCanvasStore();
   const [lastUsedShape, setLastUsedShape] = useState<ToolType>("box");
@@ -106,7 +104,6 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
         onClick: () => setTool("eraser"),
       },
       { id: "undo", label: "Undo", icon: Undo2, onClick: onUndo },
-      { id: "export", label: "Export", icon: Download, onClick: onExport },
       {
         id: "color",
         label: "Color",
@@ -123,7 +120,6 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
       lastUsedShape,
       setTool,
       onUndo,
-      onExport,
     ]
   );
 
