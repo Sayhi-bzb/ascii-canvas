@@ -22,6 +22,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isComposing = useRef(false);
 
+  // 这里的 size 会根据容器的实际排版大小进行上报
   const size = useSize(containerRef);
   const store = useCanvasStore();
   const {
@@ -209,25 +210,19 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
   };
 
+  // 城市规划核心修正：强制 Canvas 占满父容器，不留缝隙
+  const canvasClassName =
+    "absolute inset-0 w-full h-full block pointer-events-none";
+
   return (
     <div
       ref={containerRef}
       style={{ touchAction: "none" }}
-      className="relative w-full h-full overflow-hidden bg-white touch-none select-none cursor-default"
+      className="relative w-screen h-screen overflow-hidden bg-background touch-none select-none cursor-default"
     >
-      {/* 分层画布系统 */}
-      <canvas
-        ref={bgCanvasRef}
-        className="absolute inset-0 pointer-events-none"
-      />
-      <canvas
-        ref={scratchCanvasRef}
-        className="absolute inset-0 pointer-events-none"
-      />
-      <canvas
-        ref={uiCanvasRef}
-        className="absolute inset-0 pointer-events-none"
-      />
+      <canvas ref={bgCanvasRef} className={canvasClassName} />
+      <canvas ref={scratchCanvasRef} className={canvasClassName} />
+      <canvas ref={uiCanvasRef} className={canvasClassName} />
 
       <Minimap containerSize={size} />
 
