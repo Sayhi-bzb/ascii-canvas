@@ -56,18 +56,6 @@ export const GridManager = {
     });
   },
 
-  toLocalPoints(
-    points: GridPoint[],
-    originX: number,
-    originY: number
-  ): GridPoint[] {
-    return points.map((p) => ({
-      ...p,
-      x: p.x - originX,
-      y: p.y - originY,
-    }));
-  },
-
   getCharWidth(char: string): number {
     if (!char) return 1;
     const isWide =
@@ -89,9 +77,7 @@ export const GridManager = {
   },
 
   getGridBounds(grid: GridMap) {
-    if (grid.size === 0) {
-      return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-    }
+    if (grid.size === 0) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 
     let minX = Infinity,
       maxX = -Infinity,

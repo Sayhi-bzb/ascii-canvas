@@ -1,12 +1,11 @@
 import type { StateCreator } from "zustand";
-import * as Y from "yjs";
 import { toast } from "sonner";
 import type { CanvasState, SelectionSlice } from "../interfaces";
-import { transactWithHistory } from "../../lib/yjs-setup";
+import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
 import { exportSelectionToString } from "../../utils/export";
-import { getActiveGridYMap, placeCharInYMap } from "../utils";
+import { placeCharInYMap } from "../utils";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -23,17 +22,13 @@ export const createSelectionSlice: StateCreator<
   clearSelections: () => set({ selections: [] }),
 
   deleteSelection: () => {
-    const { selections, activeNodeId, grid } = get();
-    const targetGrid = getActiveGridYMap(activeNodeId) as Y.Map<string> | null;
-    if (!targetGrid) return;
-
+    const { selections } = get();
     transactWithHistory(() => {
       selections.forEach((area) => {
         const { minX, maxX, minY, maxY } = getSelectionBounds(area);
         for (let y = minY; y <= maxY; y++) {
           for (let x = minX; x <= maxX; x++) {
-            const head = GridManager.snapToCharStart({ x, y }, grid);
-            targetGrid.delete(GridManager.toKey(head.x, head.y));
+            yMainGrid.delete(GridManager.toKey(x, y));
           }
         }
       });
@@ -46,19 +41,16 @@ export const createSelectionSlice: StateCreator<
   },
 
   fillSelectionsWithChar: (char: string) => {
-    const { selections, activeNodeId } = get();
-    const targetGrid = getActiveGridYMap(activeNodeId) as Y.Map<string> | null;
-    if (!targetGrid) return;
-
+    const { selections } = get();
     const charWidth = GridManager.getCharWidth(char);
+
     transactWithHistory(() => {
       selections.forEach((area) => {
         const { minX, maxX, minY, maxY } = getSelectionBounds(area);
         for (let y = minY; y <= maxY; y++) {
           for (let x = minX; x <= maxX; x += charWidth) {
             if (x + charWidth - 1 > maxX) break;
-
-            placeCharInYMap(targetGrid, x, y, char);
+            placeCharInYMap(yMainGrid, x, y, char);
           }
         }
       });

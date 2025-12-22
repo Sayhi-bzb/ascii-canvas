@@ -1,16 +1,9 @@
 import type { StateCreator } from "zustand";
-import * as Y from "yjs";
 import type { CanvasState, DrawingSlice } from "../interfaces";
-import { transactWithHistory, ySceneRoot } from "../../lib/yjs-setup";
+import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import type { GridPoint } from "../../types";
-import {
-  getNearestValidContainer,
-  findNodeById,
-  createYCanvasNode,
-  canMergeStrokeToNode,
-  isNodeLocked,
-} from "../../utils/scene";
+import { placeCharInYMap } from "../utils";
 import {
   getBoxPoints,
   getCirclePoints,
@@ -62,78 +55,13 @@ export const createDrawingSlice: StateCreator<
   },
 
   commitScratch: () => {
-    const { scratchLayer, activeNodeId, tool } = get();
+    const { scratchLayer } = get();
     if (!scratchLayer || scratchLayer.size === 0) return;
 
-    const points: GridPoint[] = [];
-    GridManager.iterate(scratchLayer, (char, x, y) =>
-      points.push({ x, y, char })
-    );
-    if (points.length === 0) return;
-
     transactWithHistory(() => {
-      let container = getNearestValidContainer(ySceneRoot, activeNodeId);
-
-      if (container.get("type") === "root") {
-        const rootChildren = container.get("children") as Y.Array<
-          Y.Map<unknown>
-        >;
-        const autoLayer = createYCanvasNode(
-          "layer",
-          `Layer ${rootChildren.length + 1}`
-        );
-        rootChildren.push([autoLayer]);
-        container = autoLayer;
-      }
-
-      const activeNode = activeNodeId
-        ? findNodeById(ySceneRoot, activeNodeId)
-        : null;
-
-      const isBrush = tool === "brush";
-      const shouldMerge = isBrush && canMergeStrokeToNode(activeNode);
-
-      if (shouldMerge && activeNode) {
-        const targetMap = activeNode.get("pathData") as Y.Map<string>;
-        const nodeX = (activeNode.get("x") as number) || 0;
-        const nodeY = (activeNode.get("y") as number) || 0;
-        const localPoints = GridManager.toLocalPoints(points, nodeX, nodeY);
-        GridManager.setPoints(targetMap, localPoints);
-      } else {
-        const { minX, minY, maxX, maxY } =
-          GridManager.getGridBounds(scratchLayer);
-        let newNode: Y.Map<unknown> | null = null;
-
-        if (tool === "brush" || tool === "line" || tool === "stepline") {
-          const localPoints = GridManager.toLocalPoints(points, minX, minY);
-          newNode = createYCanvasNode(
-            "shape-path",
-            tool === "brush" ? "Path" : tool === "line" ? "Line" : "StepLine",
-            { x: minX, y: minY, pathData: localPoints }
-          );
-        } else if (tool === "box" || tool === "circle") {
-          newNode = createYCanvasNode(
-            tool === "box" ? "shape-box" : "shape-circle",
-            tool === "box" ? "Box" : "Circle",
-            {
-              x: minX,
-              y: minY,
-              width: maxX - minX + 1,
-              height: maxY - minY + 1,
-            }
-          );
-        }
-
-        if (newNode) {
-          let children = container.get("children") as Y.Array<Y.Map<unknown>>;
-          if (!children) {
-            children = new Y.Array<Y.Map<unknown>>();
-            container.set("children", children);
-          }
-          children.push([newNode]);
-          set({ activeNodeId: newNode.get("id") as string });
-        }
-      }
+      GridManager.iterate(scratchLayer, (char, x, y) => {
+        placeCharInYMap(yMainGrid, x, y, char);
+      });
     });
 
     set({ scratchLayer: null });
@@ -142,36 +70,24 @@ export const createDrawingSlice: StateCreator<
   clearScratch: () => set({ scratchLayer: null }),
 
   clearCanvas: () => {
-    const { activeNodeId } = get();
-    const node = activeNodeId ? findNodeById(ySceneRoot, activeNodeId) : null;
-
-    if (node && !isNodeLocked(node)) {
-      transactWithHistory(() => {
-        const type = node.get("type") as string;
-        if (type === "shape-path") {
-          (node.get("pathData") as Y.Map<string>).clear();
-        } else {
-          const content = node.get("content") as Y.Map<string>;
-          if (content) content.clear();
-        }
-      });
-    }
+    transactWithHistory(() => {
+      yMainGrid.clear();
+    });
   },
 
   erasePoints: (points) => {
-    const { activeNodeId } = get();
-    const node = activeNodeId ? findNodeById(ySceneRoot, activeNodeId) : null;
-
-    if (canMergeStrokeToNode(node)) {
-      transactWithHistory(() => {
-        const pathData = node!.get("pathData") as Y.Map<string>;
-        const nodeX = (node!.get("x") as number) || 0;
-        const nodeY = (node!.get("y") as number) || 0;
-
-        points.forEach((p) =>
-          pathData.delete(GridManager.toKey(p.x - nodeX, p.y - nodeY))
-        );
+    transactWithHistory(() => {
+      points.forEach((p) => {
+        const key = GridManager.toKey(p.x, p.y);
+        const char = yMainGrid.get(key);
+        if (!char) {
+          const leftChar = yMainGrid.get(GridManager.toKey(p.x - 1, p.y));
+          if (leftChar && GridManager.isWideChar(leftChar)) {
+            yMainGrid.delete(GridManager.toKey(p.x - 1, p.y));
+          }
+        }
+        yMainGrid.delete(key);
       });
-    }
+    });
   },
 });

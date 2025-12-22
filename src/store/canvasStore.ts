@@ -1,10 +1,8 @@
 import { create } from "zustand";
 import { MIN_ZOOM, MAX_ZOOM } from "../lib/constants";
-import { composeScene, parseSceneGraph } from "../utils/scene";
-import { ySceneRoot } from "../lib/yjs-setup";
+import { yMainGrid } from "../lib/yjs-setup";
 import type { CanvasState } from "./interfaces";
 import {
-  createNodeSlice,
   createDrawingSlice,
   createTextSlice,
   createSelectionSlice,
@@ -13,25 +11,24 @@ import {
 export type { CanvasState };
 
 export const useCanvasStore = create<CanvasState>((set, get, ...a) => {
-  const render = () => {
+  const syncFromYjs = () => {
     const compositeGrid = new Map<string, string>();
-    composeScene(ySceneRoot, 0, 0, compositeGrid);
-    const tree = parseSceneGraph(ySceneRoot);
-    set({ grid: compositeGrid, sceneGraph: tree });
+    for (const [key, value] of yMainGrid.entries()) {
+      compositeGrid.set(key, value);
+    }
+    set({ grid: compositeGrid });
   };
 
-  ySceneRoot.observeDeep(() => {
-    render();
+  yMainGrid.observe(() => {
+    syncFromYjs();
   });
 
-  setTimeout(render, 0);
+  setTimeout(syncFromYjs, 0);
 
   return {
     offset: { x: 0, y: 0 },
     zoom: 1,
     grid: new Map(),
-    sceneGraph: null,
-    activeNodeId: "item-main",
     tool: "select",
     brushChar: "#",
 
@@ -42,10 +39,7 @@ export const useCanvasStore = create<CanvasState>((set, get, ...a) => {
       })),
     setTool: (tool) => set({ tool, textCursor: null }),
     setBrushChar: (char) => set({ brushChar: char }),
-    setActiveNode: (id) =>
-      set({ activeNodeId: id, selections: [], textCursor: null }),
 
-    ...createNodeSlice(set, get, ...a),
     ...createDrawingSlice(set, get, ...a),
     ...createTextSlice(set, get, ...a),
     ...createSelectionSlice(set, get, ...a),

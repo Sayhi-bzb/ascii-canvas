@@ -20,60 +20,7 @@ export const SelectionAreaSchema = z.object({
 
 export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
 
-export const NodeTypeSchema = z.enum([
-  "root",
-  "layer",
-  "item",
-  "shape-box",
-  "shape-line",
-  "shape-path",
-  "shape-text",
-  "shape-circle",
-]);
-
-export type NodeType = z.infer<typeof NodeTypeSchema>;
-
 export type GridMap = Map<string, string>;
-
-export interface CanvasNode {
-  id: string;
-  type: NodeType;
-  name: string;
-  parentId: string | null;
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-  isVisible: boolean;
-  isLocked: boolean;
-  isCollapsed: boolean;
-  content?: GridMap;
-  pathData?: GridMap;
-  text?: string;
-  props?: Record<string, unknown>;
-  children: CanvasNode[];
-}
-
-export const CanvasNodeSchema: z.ZodType<CanvasNode> = z.lazy(() =>
-  z.object({
-    id: z.string(),
-    type: NodeTypeSchema,
-    name: z.string().min(1).max(50),
-    parentId: z.string().nullable(),
-    x: z.number().default(0),
-    y: z.number().default(0),
-    width: z.number().optional(),
-    height: z.number().optional(),
-    isVisible: z.boolean().default(true),
-    isLocked: z.boolean().default(false),
-    isCollapsed: z.boolean().default(false),
-    content: z.instanceof(Map).optional() as z.ZodType<GridMap | undefined>,
-    pathData: z.instanceof(Map).optional() as z.ZodType<GridMap | undefined>,
-    text: z.string().optional(),
-    props: z.record(z.string(), z.unknown()).optional(),
-    children: z.array(CanvasNodeSchema),
-  })
-);
 
 export type ToolType =
   | "select"

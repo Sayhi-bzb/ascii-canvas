@@ -49,6 +49,12 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
     materialPresets.includes(brushChar) ? "" : brushChar
   );
 
+  useEffect(() => {
+    if (!materialPresets.includes(brushChar)) {
+      setCustomChar(brushChar);
+    }
+  }, [brushChar]);
+
   const shapeTools: ToolType[] = ["box", "circle", "line", "stepline"];
   const isShapeGroupActive = shapeTools.includes(tool);
 

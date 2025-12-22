@@ -12,7 +12,6 @@ import { Toolbar } from "./components/ToolBar/dock";
 import { undoManager } from "./lib/yjs-setup";
 import { isCtrlOrMeta } from "./utils/event";
 
-import { SidebarLeft } from "./components/ToolBar/sidebar-left";
 import { SidebarRight } from "./components/ToolBar/sidebar-right";
 import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
 
@@ -88,8 +87,6 @@ function App() {
 
   return (
     <SidebarProvider className="flex h-full w-full overflow-hidden">
-      <SidebarLeft />
-
       <SidebarInset className="relative flex flex-1 flex-col overflow-hidden">
         <AppLayout
           canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
@@ -102,6 +99,7 @@ function App() {
           />
         </AppLayout>
 
+        {/* 建材总库：固定在右侧，通过 SidebarProvider 管理 */}
         <div className="absolute top-0 right-0 h-full pointer-events-none z-50">
           <SidebarProvider
             open={isRightPanelOpen}
