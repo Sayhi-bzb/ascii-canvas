@@ -2,6 +2,12 @@
 
 # ASCII Canvas (中文文档)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![React](https://img.shields.io/badge/Framework-React_18-61DAFB?logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+[![Collaboration](https://img.shields.io/badge/Sync-Yjs_CRDT-orange?logo=distributed-systems)](https://yjs.dev/)
+[![Deploy](https://img.shields.io/badge/Demo-Live_Preview-22c55e?logo=cloudflare-pages)](https://ascii-canvas.pages.dev/)
+
 **ASCII Canvas** 是一款高性能、协同式的 ASCII 艺术创作与字符布局框架。它结合了现代图形工程原理，为精准的字符设计和实时多用户协作提供了一个流畅、无限画布的环境。
 
 [**在线体验**](https://ascii-canvas.pages.dev/) | [**GitHub 仓库**](https://github.com/Sayhi-bzb/ascii-canvas.git)
