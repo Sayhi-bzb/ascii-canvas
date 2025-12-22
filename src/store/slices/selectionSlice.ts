@@ -5,7 +5,6 @@ import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
 import { exportSelectionToString } from "../../utils/export";
-import { placeCharInYMap } from "../utils";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -14,11 +13,7 @@ export const createSelectionSlice: StateCreator<
   SelectionSlice
 > = (set, get) => ({
   selections: [],
-
-  addSelection: (area) => {
-    set((s) => ({ selections: [...s.selections, area] }));
-  },
-
+  addSelection: (area) => set((s) => ({ selections: [...s.selections, area] })),
   clearSelections: () => set({ selections: [] }),
 
   deleteSelection: () => {
@@ -29,28 +24,6 @@ export const createSelectionSlice: StateCreator<
         for (let y = minY; y <= maxY; y++) {
           for (let x = minX; x <= maxX; x++) {
             yMainGrid.delete(GridManager.toKey(x, y));
-          }
-        }
-      });
-    });
-  },
-
-  fillSelections: () => {
-    const { selections, brushChar } = get();
-    if (selections.length > 0) get().fillSelectionsWithChar(brushChar);
-  },
-
-  fillSelectionsWithChar: (char: string) => {
-    const { selections } = get();
-    const charWidth = GridManager.getCharWidth(char);
-
-    transactWithHistory(() => {
-      selections.forEach((area) => {
-        const { minX, maxX, minY, maxY } = getSelectionBounds(area);
-        for (let y = minY; y <= maxY; y++) {
-          for (let x = minX; x <= maxX; x += charWidth) {
-            if (x + charWidth - 1 > maxX) break;
-            placeCharInYMap(yMainGrid, x, y, char);
           }
         }
       });

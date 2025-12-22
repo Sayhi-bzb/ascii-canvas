@@ -1,9 +1,6 @@
 import { CELL_WIDTH, CELL_HEIGHT } from "../lib/constants";
-import type { Point, GridMap, GridPoint } from "../types";
+import type { Point, GridMap } from "../types";
 
-/**
- * 城市测绘局：负责网格与屏幕坐标的物理转换，以及建筑尺寸鉴定
- */
 export const GridManager = {
   screenToGrid(
     screenX: number,
@@ -50,15 +47,6 @@ export const GridManager = {
     });
   },
 
-  setPoints(
-    target: { set: (key: string, value: string) => void },
-    points: GridPoint[]
-  ): void {
-    points.forEach((p) => {
-      target.set(this.toKey(p.x, p.y), p.char);
-    });
-  },
-
   getCharWidth(char: string): number {
     if (!char) return 1;
 
@@ -84,8 +72,8 @@ export const GridManager = {
   },
 
   snapToCharStart(pos: Point, grid: GridMap): Point {
-    const charBefore = grid.get(this.toKey(pos.x - 1, pos.y));
-    if (charBefore && this.isWideChar(charBefore)) {
+    const cellBefore = grid.get(this.toKey(pos.x - 1, pos.y));
+    if (cellBefore && this.isWideChar(cellBefore.char)) {
       return { ...pos, x: pos.x - 1 };
     }
     return pos;
@@ -99,8 +87,8 @@ export const GridManager = {
       minY = Infinity,
       maxY = -Infinity;
 
-    this.iterate(grid, (char, x, y) => {
-      const width = this.getCharWidth(char);
+    this.iterate(grid, (cell, x, y) => {
+      const width = this.getCharWidth(cell.char);
       minX = Math.min(minX, x);
       maxX = Math.max(maxX, x + width - 1);
       minY = Math.min(minY, y);

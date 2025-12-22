@@ -7,8 +7,16 @@ export const PointSchema = z.object({
 
 export type Point = z.infer<typeof PointSchema>;
 
+export const GridCellSchema = z.object({
+  char: z.string(),
+  color: z.string(),
+});
+
+export type GridCell = z.infer<typeof GridCellSchema>;
+
 export const GridPointSchema = PointSchema.extend({
   char: z.string(),
+  color: z.string().optional(),
 });
 
 export type GridPoint = z.infer<typeof GridPointSchema>;
@@ -20,11 +28,10 @@ export const SelectionAreaSchema = z.object({
 
 export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
 
-export type GridMap = Map<string, string>;
+export type GridMap = Map<string, GridCell>;
 
 export type ToolType =
   | "select"
-  | "fill"
   | "brush"
   | "eraser"
   | "box"

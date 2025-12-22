@@ -36,8 +36,6 @@ export interface SelectionSlice {
   addSelection: (area: SelectionArea) => void;
   clearSelections: () => void;
   deleteSelection: () => void;
-  fillSelections: () => void;
-  fillSelectionsWithChar: (char: string) => void;
   copySelectionToClipboard: () => void;
   cutSelectionToClipboard: () => void;
 }
@@ -47,6 +45,7 @@ export type CanvasState = {
   zoom: number;
   tool: ToolType;
   brushChar: string;
+  brushColor: string;
   grid: GridMap;
   showGrid: boolean;
 
@@ -54,6 +53,7 @@ export type CanvasState = {
   setZoom: (updater: (prev: number) => number) => void;
   setTool: (tool: ToolType) => void;
   setBrushChar: (char: string) => void;
+  setBrushColor: (color: string) => void;
   setShowGrid: (show: boolean) => void;
 } & DrawingSlice &
   TextSlice &

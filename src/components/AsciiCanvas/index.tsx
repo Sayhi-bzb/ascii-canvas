@@ -58,7 +58,8 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     if (textCursor) {
       e.preventDefault();
       const key = GridManager.toKey(textCursor.x, textCursor.y);
-      const char = grid.get(key) || " ";
+      const cell = grid.get(key);
+      const char = cell?.char || " ";
       navigator.clipboard.writeText(char).then(() => {
         toast.success("Copied Char!", {
           description: `Character '${char}' copied.`,
@@ -77,7 +78,8 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     if (textCursor) {
       e.preventDefault();
       const key = GridManager.toKey(textCursor.x, textCursor.y);
-      const char = grid.get(key) || " ";
+      const cell = grid.get(key);
+      const char = cell?.char || " ";
       navigator.clipboard.writeText(char).then(() => {
         erasePoints([textCursor]);
         toast.success("Cut Char!", {

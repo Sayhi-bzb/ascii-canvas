@@ -333,12 +333,40 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
 ```src/components/ToolBar/sidebar-right.tsx
 "use client";
 
-import * as React from "react";
-import { Library } from "lucide-react";
-import { SidebarStandard } from "@/components/ui/sidebar";
+import { Library, Trash2, Github, Eye, EyeOff, Target } from "lucide-react";
+import { SidebarStandard, useSidebar } from "@/components/ui/sidebar";
 import { CharLibrary } from "./right-sidebar/char-library";
+import { useCanvasStore } from "@/store/canvasStore";
+import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function SidebarRight() {
+  const { clearCanvas, showGrid, setShowGrid, setOffset, setZoom } =
+    useCanvasStore();
+  const { state, isMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
+
+  const handleResetView = () => {
+    setZoom(() => 1);
+    setOffset(() => ({ x: 0, y: 0 }));
+  };
+
   return (
     <SidebarStandard
       variant="floating"
@@ -348,6 +376,123 @@ export function SidebarRight() {
       icon={
         <div className="flex items-center justify-center rounded-lg bg-accent p-1.5 shrink-0">
           <Library className="size-4 text-accent-foreground" />
+        </div>
+      }
+      footer={
+        <div
+          className={cn(
+            "flex w-full transition-all duration-300",
+            isCollapsed ? "flex-col items-center gap-2" : "flex-col gap-2"
+          )}
+        >
+          <div
+            className={cn(
+              "flex items-center justify-between w-full px-1",
+              isCollapsed && "flex-col gap-2"
+            )}
+          >
+            <div
+              className={cn(
+                "flex items-center gap-1",
+                isCollapsed && "flex-col"
+              )}
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      "size-8 transition-colors",
+                      showGrid ? "text-primary" : "text-muted-foreground"
+                    )}
+                    onClick={() => setShowGrid(!showGrid)}
+                  >
+                    {showGrid ? (
+                      <Eye className="size-4" />
+                    ) : (
+                      <EyeOff className="size-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  {showGrid ? "Hide Grid" : "Show Grid"}
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground"
+                    onClick={handleResetView}
+                  >
+                    <Target className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">Reset View</TooltipContent>
+              </Tooltip>
+            </div>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-muted-foreground"
+                  onClick={() => window.open("https://github.com", "_blank")}
+                >
+                  <Github className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">Source Code</TooltipContent>
+            </Tooltip>
+          </div>
+
+          <AlertDialog>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size={isCollapsed ? "icon" : "default"}
+                    className={cn(
+                      "justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive transition-colors",
+                      isCollapsed ? "size-8 justify-center" : "w-full h-8 px-2"
+                    )}
+                  >
+                    <Trash2 className="size-4" />
+                    {!isCollapsed && (
+                      <span className="font-medium text-xs">Clear Canvas</span>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+              </TooltipTrigger>
+              {isCollapsed && (
+                <TooltipContent side="left">Clear Canvas</TooltipContent>
+              )}
+            </Tooltip>
+
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Issuing a Demolition Order?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will completely clear the current blueprint. All ASCII
+                  structures will be dismantled. This can be undone via Ctrl+Z.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={clearCanvas}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Confirm Demolition
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       }
     >
@@ -368,7 +513,7 @@ import {
   Accessibility,
   Fingerprint,
   Smile,
-  Box,
+  Hash,
 } from "lucide-react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { cn } from "@/lib/utils";
@@ -382,63 +527,77 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const genRange = (start: number, count: number) =>
-  Array.from({ length: count }, (_, i) => String.fromCodePoint(start + i));
+const MATERIAL_BLUEPRINTS = [
+  {
+    name: "Standard Blocks",
+    icon: Hash,
+    ranges: [[0x0021, 0x007e]],
+    isActive: false,
+  },
+  {
+    name: "Box Drawing",
+    icon: Square,
+    ranges: [[0x2500, 0x257f]],
+    isActive: true,
+  },
+  {
+    name: "Block Elements",
+    icon: LayoutGrid,
+    ranges: [[0x2580, 0x259f]],
+    isActive: false,
+  },
+  {
+    name: "Nerd Symbols",
+    icon: Fingerprint,
+    ranges: [
+      [0xe700, 0xe7c5],
+      [0xf000, 0xf2e0],
+      [0xe0b0, 0xe0b3],
+    ],
+    isActive: false,
+  },
+  {
+    name: "Braille Icons",
+    icon: Accessibility,
+    ranges: [[0x2800, 0x28ff]],
+    isActive: false,
+  },
+  {
+    name: "Emoticons",
+    icon: Smile,
+    ranges: [[0x1f600, 0x1f64f]],
+    isActive: false,
+  },
+];
+
+const generateChars = (ranges: number[][]): string[] => {
+  return ranges.flatMap(([start, end]) =>
+    Array.from({ length: end - start + 1 }, (_, i) =>
+      String.fromCodePoint(start + i)
+    )
+  );
+};
 
 export function CharLibrary() {
   const { brushChar, setBrushChar, setTool } = useCanvasStore();
 
   const library = useMemo(
-    () => [
-      {
-        name: "Box Drawing",
-        icon: Square,
-        chars: genRange(0x2500, 128),
-        isActive: true,
-      },
-      {
-        name: "Block Elements",
-        icon: LayoutGrid,
-        chars: genRange(0x2580, 32),
-        isActive: false,
-      },
-      {
-        name: "Accessibility",
-        icon: Accessibility,
-        chars: genRange(0x2800, 256),
-        isActive: false,
-      },
-      {
-        name: "Nerd Icons",
-        icon: Fingerprint,
-        chars: [...genRange(0xe700, 40), ...genRange(0xf000, 50)],
-        isActive: false,
-      },
-      {
-        name: "Smileys",
-        icon: Smile,
-        chars: genRange(0x1f600, 80),
-        isActive: false,
-      },
-      {
-        name: "Objects",
-        icon: Box,
-        chars: genRange(0x1f300, 80),
-        isActive: false,
-      },
-    ],
+    () =>
+      MATERIAL_BLUEPRINTS.map((category) => ({
+        ...category,
+        chars: generateChars(category.ranges),
+      })),
     []
   );
 
   const handleSelect = (char: string) => {
     setBrushChar(char);
     setTool("brush");
-    toast.success(`Copyed: ${char}`, {
+    toast.success(`Selected: ${char}`, {
       duration: 800,
       position: "top-right",
     });
@@ -446,7 +605,7 @@ export function CharLibrary() {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>ASCII Materials</SidebarGroupLabel>
+      <SidebarGroupLabel>Material Warehouse</SidebarGroupLabel>
       <SidebarMenu>
         {library.map((group) => (
           <Collapsible
@@ -456,23 +615,15 @@ export function CharLibrary() {
             className="group/collapsible"
           >
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip={group.name} className="font-medium">
-                <group.icon className="size-4 text-muted-foreground" />
-                <span>{group.name}</span>
-              </SidebarMenuButton>
-
               <CollapsibleTrigger asChild>
-                <SidebarMenuAction className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90">
-                  <ChevronRight className="size-4" />
-                  <span className="sr-only">Toggle</span>
-                </SidebarMenuAction>
+                <SidebarMenuButton tooltip={group.name} className="font-medium">
+                  <group.icon className="size-4 text-muted-foreground" />
+                  <span>{group.name}</span>
+                  <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                </SidebarMenuButton>
               </CollapsibleTrigger>
 
               <CollapsibleContent>
-                {/* 
-                  这里是关键： grid 布局中的每个按钮通过 font-mono 类名
-                  继承了我们在 index.css 中定义的 Maple Mono 字体。
-                */}
                 <div className="grid grid-cols-4 gap-1 p-2 bg-muted/20 rounded-md mt-1">
                   {group.chars.map((char, idx) => (
                     <button
@@ -508,6 +659,7 @@ import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
 import { GridManager } from "../../utils/grid";
 import { toast } from "sonner";
 import { isCtrlOrMeta } from "../../utils/event";
+import { Minimap } from "./Minimap";
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -556,7 +708,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       copySelectionToClipboard();
       return;
     }
-
     if (textCursor) {
       e.preventDefault();
       const key = GridManager.toKey(textCursor.x, textCursor.y);
@@ -576,7 +727,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       cutSelectionToClipboard();
       return;
     }
-
     if (textCursor) {
       e.preventDefault();
       const key = GridManager.toKey(textCursor.x, textCursor.y);
@@ -593,13 +743,10 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 
   const handlePaste = (e: ClipboardEvent) => {
     if (isComposing.current) return;
-
     e.preventDefault();
     const text = e.clipboardData?.getData("text");
     if (!text) return;
-
     let pasteStartPos = textCursor;
-
     if (!pasteStartPos && selections.length > 0) {
       const firstSelection = selections[0];
       pasteStartPos = {
@@ -607,7 +754,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
         y: Math.min(firstSelection.start.y, firstSelection.end.y),
       };
     }
-
     if (pasteStartPos) {
       writeTextString(text, pasteStartPos);
       toast.success("Pasted!", {
@@ -623,7 +769,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
     if (!textCursor || !size) return { display: "none" };
-
     const { x, y } = GridManager.gridToScreen(
       textCursor.x,
       textCursor.y,
@@ -631,7 +776,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       store.offset.y,
       store.zoom
     );
-
     return {
       position: "absolute",
       left: `${x}px`,
@@ -647,7 +791,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const handleCompositionStart = () => {
     isComposing.current = true;
   };
-
   const handleCompositionEnd = (
     e: React.CompositionEvent<HTMLTextAreaElement>
   ) => {
@@ -658,7 +801,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       if (textareaRef.current) textareaRef.current.value = "";
     }
   };
-
   const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
     if (isComposing.current) return;
     const textarea = e.currentTarget;
@@ -668,17 +810,14 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       textarea.value = "";
     }
   };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
     if (isComposing.current) return;
-
     const isUndo =
       isCtrlOrMeta(e) && !e.shiftKey && e.key.toLowerCase() === "z";
     const isRedo =
       (isCtrlOrMeta(e) && e.shiftKey && e.key.toLowerCase() === "z") ||
       (isCtrlOrMeta(e) && e.key.toLowerCase() === "y");
-
     if (isUndo) {
       e.preventDefault();
       onUndo();
@@ -689,7 +828,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       onRedo();
       return;
     }
-
     if (e.key === "Delete") {
       if (selections.length > 0) {
         e.preventDefault();
@@ -697,7 +835,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
         return;
       }
     }
-
     if (e.key === "Backspace") {
       if (selections.length > 0 && !textCursor) {
         e.preventDefault();
@@ -747,9 +884,12 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     <div
       ref={containerRef}
       style={{ touchAction: "none" }}
-      className="w-full h-full overflow-hidden bg-gray-50 touch-none select-none cursor-default"
+      className="relative w-full h-full overflow-hidden bg-white touch-none select-none cursor-default"
     >
       <canvas ref={canvasRef} />
+
+      <Minimap containerSize={size} />
+
       <textarea
         ref={textareaRef}
         style={textareaStyle}
@@ -767,6 +907,116 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 };
 ```
 ---
+```src/components/AsciiCanvas/Minimap.tsx
+"use client";
+
+import { useRef, useEffect } from "react";
+import { useCanvasStore } from "../../store/canvasStore";
+import { GridManager } from "../../utils/grid";
+import { CELL_WIDTH, CELL_HEIGHT } from "../../lib/constants";
+
+const MINIMAP_SIZE = 160;
+const PADDING = 8;
+
+export const Minimap = ({
+  containerSize,
+}: {
+  containerSize: { width: number; height: number } | undefined;
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { grid, offset, zoom, setOffset } = useCanvasStore();
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !grid || grid.size === 0 || !containerSize) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const style = getComputedStyle(document.body);
+    const mutedColor = style.getPropertyValue("--muted-foreground").trim();
+    const primaryColor = style.getPropertyValue("--primary").trim();
+
+    const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
+    const contentWidth = maxX - minX + 1;
+    const contentHeight = maxY - minY + 1;
+
+    const scale = Math.min(
+      (MINIMAP_SIZE - PADDING * 2) / contentWidth,
+      (MINIMAP_SIZE - PADDING * 2) / contentHeight
+    );
+
+    ctx.clearRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+
+    ctx.fillStyle = `oklch(from ${primaryColor} l c h / 0.3)`;
+    GridManager.iterate(grid, (_, x, y) => {
+      const px = (x - minX) * scale + PADDING;
+      const py = (y - minY) * scale + PADDING;
+      ctx.fillRect(px, py, Math.max(scale * 0.8, 1), Math.max(scale * 0.8, 1));
+    });
+
+    const viewGridStartX = -offset.x / (CELL_WIDTH * zoom);
+    const viewGridStartY = -offset.y / (CELL_HEIGHT * zoom);
+    const viewGridWidth = containerSize.width / (CELL_WIDTH * zoom);
+    const viewGridHeight = containerSize.height / (CELL_HEIGHT * zoom);
+
+    const vx = (viewGridStartX - minX) * scale + PADDING;
+    const vy = (viewGridStartY - minY) * scale + PADDING;
+    const vw = viewGridWidth * scale;
+    const vh = viewGridHeight * scale;
+
+    ctx.strokeStyle = `oklch(from ${mutedColor} l c h / 0.8)`;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(vx, vy, vw, vh);
+
+    ctx.fillStyle = `oklch(from ${mutedColor} l c h / 0.1)`;
+    ctx.fillRect(vx, vy, vw, vh);
+  }, [grid, offset, zoom, containerSize]);
+
+  const handleMinimapClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!grid || grid.size === 0 || !containerSize) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left - PADDING;
+    const clickY = e.clientY - rect.top - PADDING;
+
+    const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
+    const contentWidth = maxX - minX + 1;
+    const contentHeight = maxY - minY + 1;
+
+    const scale = Math.min(
+      (MINIMAP_SIZE - PADDING * 2) / contentWidth,
+      (MINIMAP_SIZE - PADDING * 2) / contentHeight
+    );
+
+    const targetGridX = clickX / scale + minX;
+    const targetGridY = clickY / scale + minY;
+
+    const newOffsetX =
+      containerSize.width / 2 - targetGridX * CELL_WIDTH * zoom;
+    const newOffsetY =
+      containerSize.height / 2 - targetGridY * CELL_HEIGHT * zoom;
+
+    setOffset(() => ({ x: newOffsetX, y: newOffsetY }));
+  };
+
+  return (
+    <div className="absolute top-4 left-4 z-[60] overflow-hidden select-none cursor-crosshair">
+      <canvas
+        ref={canvasRef}
+        width={MINIMAP_SIZE}
+        height={MINIMAP_SIZE}
+        className="opacity-80 transition-opacity hover:opacity-100 active:scale-[0.98] transition-transform"
+        onClick={handleMinimapClick}
+      />
+    </div>
+  );
+};
+```
+---
 ```src/components/AsciiCanvas/hooks/useCanvasInteraction.ts
 import { useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
@@ -777,6 +1027,7 @@ import { type CanvasState } from "../../../store/canvasStore";
 import { forceHistorySave } from "../../../lib/yjs-setup";
 import bresenham from "bresenham";
 import { isCtrlOrMeta } from "../../../utils/event";
+import { MIN_ZOOM, MAX_ZOOM } from "../../../lib/constants";
 
 const isShapeTool = (tool: ToolType): boolean => {
   return ["box", "circle", "line", "stepline"].includes(tool);
@@ -820,7 +1071,6 @@ export const useCanvasInteraction = (
           currentGrid.y === lastGrid.current.y)
       )
         return;
-
       const points = bresenham(
         lastGrid.current.x,
         lastGrid.current.y,
@@ -830,10 +1080,8 @@ export const useCanvasInteraction = (
 
       if (tool === "brush") {
         const charWidth = GridManager.getCharWidth(brushChar);
-
         if (charWidth > 1) {
           const filteredPoints: Point[] = [];
-
           points.forEach((p) => {
             if (!lastPlacedGrid.current) {
               filteredPoints.push(p);
@@ -841,14 +1089,12 @@ export const useCanvasInteraction = (
             } else {
               const dx = Math.abs(p.x - lastPlacedGrid.current.x);
               const dy = Math.abs(p.y - lastPlacedGrid.current.y);
-
               if (dx >= charWidth || dy >= 1) {
                 filteredPoints.push(p);
                 lastPlacedGrid.current = p;
               }
             }
           });
-
           if (filteredPoints.length > 0) {
             addScratchPoints(
               filteredPoints.map((p) => ({ ...p, char: brushChar }))
@@ -939,9 +1185,8 @@ export const useCanvasInteraction = (
             if (tool === "line" && !lineAxisRef.current) {
               const adx = Math.abs(currentGrid.x - dragStartGrid.current.x);
               const ady = Math.abs(currentGrid.y - dragStartGrid.current.y);
-              if (adx > 0 || ady > 0) {
+              if (adx > 0 || ady > 0)
                 lineAxisRef.current = ady > adx ? "vertical" : "horizontal";
-              }
             }
             updateScratchForShape(tool, dragStartGrid.current, currentGrid, {
               axis: lineAxisRef.current,
@@ -978,10 +1223,33 @@ export const useCanvasInteraction = (
         }
         document.body.style.cursor = "auto";
       },
-      onWheel: ({ delta: [, dy], event }) => {
+      onWheel: ({ xy: [clientX, clientY], delta: [, dy], event }) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
         if (isCtrlOrMeta(event)) {
           event.preventDefault();
-          setZoom((p) => p * (1 - dy * 0.002));
+
+          const mouseX = clientX - rect.left;
+          const mouseY = clientY - rect.top;
+
+          const zoomWeight = 0.002;
+          const deltaZoom = 1 - dy * zoomWeight;
+          const oldZoom = zoom;
+          const nextZoom = Math.max(
+            MIN_ZOOM,
+            Math.min(MAX_ZOOM, oldZoom * deltaZoom)
+          );
+
+          if (nextZoom !== oldZoom) {
+            const actualScale = nextZoom / oldZoom;
+
+            setZoom(() => nextZoom);
+            setOffset((prev) => ({
+              x: mouseX - (mouseX - prev.x) * actualScale,
+              y: mouseY - (mouseY - prev.y) * actualScale,
+            }));
+          }
         } else {
           setOffset((p) => ({
             x: p.x - (event as WheelEvent).deltaX,
@@ -998,7 +1266,7 @@ export const useCanvasInteraction = (
 ```
 ---
 ```src/components/AsciiCanvas/hooks/useCanvasRenderer.ts
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   BACKGROUND_COLOR,
   CELL_HEIGHT,
@@ -1024,140 +1292,151 @@ export const useCanvasRenderer = (
   store: CanvasState,
   draggingSelection: SelectionArea | null
 ) => {
-  const { offset, zoom, grid, scratchLayer, textCursor, selections } = store;
+  const { offset, zoom, grid, scratchLayer, textCursor, selections, showGrid } =
+    store;
+
+  const renderRequestId = useRef<number>(0);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx || !size || size.width === 0 || size.height === 0)
-      return;
+    const render = () => {
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext("2d", { alpha: false });
+      if (!canvas || !ctx || !size || size.width === 0 || size.height === 0)
+        return;
 
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = size.width * dpr;
-    canvas.height = size.height * dpr;
-    ctx.resetTransform();
-    ctx.scale(dpr, dpr);
-
-    ctx.fillStyle = BACKGROUND_COLOR;
-    ctx.fillRect(0, 0, size.width, size.height);
-
-    const sw = CELL_WIDTH * zoom;
-    const sh = CELL_HEIGHT * zoom;
-
-    const startX = Math.floor(-offset.x / sw);
-    const endX = Math.ceil((size.width - offset.x) / sw);
-    const startY = Math.floor(-offset.y / sh);
-    const endY = Math.ceil((size.height - offset.y) / sh);
-
-    ctx.beginPath();
-    ctx.strokeStyle = GRID_COLOR;
-    ctx.lineWidth = 1;
-    for (let x = startX; x <= endX; x++) {
-      const posX = Math.round(x * sw + offset.x);
-      ctx.moveTo(posX, 0);
-      ctx.lineTo(posX, size.height);
-    }
-
-    for (let y = startY; y <= endY; y++) {
-      const posY = Math.round(y * sh + offset.y);
-      ctx.moveTo(0, posY);
-      ctx.lineTo(size.width, posY);
-    }
-    ctx.stroke();
-
-    ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
-
-    const renderLayer = (layer: GridMap, color: string) => {
-      ctx.fillStyle = color;
-
-      for (const [key, char] of layer.entries()) {
-        if (!char || char === " ") continue;
-        const { x, y } = GridManager.fromKey(key);
-
-        if (x < startX || x > endX || y < startY || y > endY) continue;
-
-        const pos = GridManager.gridToScreen(x, y, offset.x, offset.y, zoom);
-        const wide = GridManager.isWideChar(char);
-
-        const centerX = Math.round(pos.x + (wide ? sw : sw / 2));
-        const centerY = Math.round(pos.y + sh / 2);
-
-        ctx.fillText(char, centerX, centerY);
+      const dpr = window.devicePixelRatio || 1;
+      if (
+        canvas.width !== size.width * dpr ||
+        canvas.height !== size.height * dpr
+      ) {
+        canvas.width = size.width * dpr;
+        canvas.height = size.height * dpr;
       }
-    };
 
-    renderLayer(grid, COLOR_PRIMARY_TEXT);
-    if (scratchLayer) renderLayer(scratchLayer, COLOR_SCRATCH_LAYER);
+      ctx.resetTransform();
+      ctx.scale(dpr, dpr);
 
-    const drawSel = (area: SelectionArea) => {
-      const { minX, minY, maxX, maxY } = getSelectionBounds(area);
-      const pos = GridManager.gridToScreen(
-        minX,
-        minY,
-        offset.x,
-        offset.y,
-        zoom
-      );
-      const w = (maxX - minX + 1) * sw;
-      const h = (maxY - minY + 1) * sh;
+      ctx.fillStyle = BACKGROUND_COLOR;
+      ctx.fillRect(0, 0, size.width, size.height);
 
-      ctx.fillStyle = COLOR_SELECTION_BG;
-      ctx.fillRect(
-        Math.round(pos.x),
-        Math.round(pos.y),
-        Math.round(w),
-        Math.round(h)
-      );
+      const sw = CELL_WIDTH * zoom;
+      const sh = CELL_HEIGHT * zoom;
 
-      if (COLOR_SELECTION_BORDER !== "transparent") {
-        ctx.strokeStyle = COLOR_SELECTION_BORDER;
+      const startX = Math.floor(-offset.x / sw);
+      const endX = Math.ceil((size.width - offset.x) / sw);
+      const startY = Math.floor(-offset.y / sh);
+      const endY = Math.ceil((size.height - offset.y) / sh);
+
+      if (showGrid) {
+        ctx.beginPath();
+        ctx.strokeStyle = GRID_COLOR;
         ctx.lineWidth = 1;
-        ctx.strokeRect(
+        for (let x = startX; x <= endX; x++) {
+          const posX = Math.round(x * sw + offset.x);
+          ctx.moveTo(posX, 0);
+          ctx.lineTo(posX, size.height);
+        }
+        for (let y = startY; y <= endY; y++) {
+          const posY = Math.round(y * sh + offset.y);
+          ctx.moveTo(0, posY);
+          ctx.lineTo(size.width, posY);
+        }
+        ctx.stroke();
+      }
+
+      ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+
+      const drawGridInViewport = (targetGrid: GridMap, color: string) => {
+        ctx.fillStyle = color;
+        for (let y = startY; y <= endY; y++) {
+          for (let x = startX; x <= endX; x++) {
+            const char = targetGrid.get(GridManager.toKey(x, y));
+            if (!char || char === " ") continue;
+
+            const pos = GridManager.gridToScreen(
+              x,
+              y,
+              offset.x,
+              offset.y,
+              zoom
+            );
+            const wide = GridManager.isWideChar(char);
+            const centerX = Math.round(pos.x + (wide ? sw : sw / 2));
+            const centerY = Math.round(pos.y + sh / 2);
+
+            ctx.fillText(char, centerX, centerY);
+          }
+        }
+      };
+
+      drawGridInViewport(grid, COLOR_PRIMARY_TEXT);
+
+      if (scratchLayer && scratchLayer.size > 0) {
+        drawGridInViewport(scratchLayer, COLOR_SCRATCH_LAYER);
+      }
+
+      const drawSel = (area: SelectionArea) => {
+        const { minX, minY, maxX, maxY } = getSelectionBounds(area);
+        const pos = GridManager.gridToScreen(
+          minX,
+          minY,
+          offset.x,
+          offset.y,
+          zoom
+        );
+        const w = (maxX - minX + 1) * sw;
+        const h = (maxY - minY + 1) * sh;
+        ctx.fillStyle = COLOR_SELECTION_BG;
+        ctx.fillRect(
           Math.round(pos.x),
           Math.round(pos.y),
           Math.round(w),
           Math.round(h)
         );
+      };
+
+      selections.forEach(drawSel);
+      if (draggingSelection) drawSel(draggingSelection);
+
+      if (textCursor) {
+        const pos = GridManager.gridToScreen(
+          textCursor.x,
+          textCursor.y,
+          offset.x,
+          offset.y,
+          zoom
+        );
+        const char = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
+        const wide = char ? GridManager.isWideChar(char) : false;
+        const cursorWidth = wide ? sw * 2 : sw;
+        ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
+        ctx.fillRect(
+          Math.round(pos.x),
+          Math.round(pos.y),
+          Math.round(cursorWidth),
+          Math.round(sh)
+        );
+        if (char) {
+          ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
+          ctx.fillText(
+            char,
+            Math.round(pos.x + (wide ? sw : sw / 2)),
+            Math.round(pos.y + sh / 2)
+          );
+        }
       }
+
+      ctx.fillStyle = COLOR_ORIGIN_MARKER;
+      const originX = Math.round(offset.x);
+      const originY = Math.round(offset.y);
+      ctx.fillRect(originX - 1, originY - 10, 2, 20);
+      ctx.fillRect(originX - 10, originY - 1, 20, 2);
     };
 
-    selections.forEach(drawSel);
-    if (draggingSelection) drawSel(draggingSelection);
-
-    if (textCursor) {
-      const pos = GridManager.gridToScreen(
-        textCursor.x,
-        textCursor.y,
-        offset.x,
-        offset.y,
-        zoom
-      );
-      const char = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
-      const wide = char ? GridManager.isWideChar(char) : false;
-      const cursorWidth = wide ? sw * 2 : sw;
-
-      ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
-      ctx.fillRect(
-        Math.round(pos.x),
-        Math.round(pos.y),
-        Math.round(cursorWidth),
-        Math.round(sh)
-      );
-
-      if (char) {
-        ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
-        const centerX = Math.round(pos.x + (wide ? sw : sw / 2));
-        ctx.fillText(char, centerX, Math.round(pos.y + sh / 2));
-      }
-    }
-
-    ctx.fillStyle = COLOR_ORIGIN_MARKER;
-    const originX = Math.round(offset.x);
-    const originY = Math.round(offset.y);
-    ctx.fillRect(originX - 1, originY - 10, 2, 20);
-    ctx.fillRect(originX - 10, originY - 1, 20, 2);
+    renderRequestId.current = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(renderRequestId.current);
   }, [
     offset,
     zoom,
@@ -1167,6 +1446,7 @@ export const useCanvasRenderer = (
     textCursor,
     selections,
     draggingSelection,
+    showGrid,
     canvasRef,
   ]);
 };
@@ -1236,9 +1516,6 @@ export const exportSelectionToString = (
 import { CELL_WIDTH, CELL_HEIGHT } from "../lib/constants";
 import type { Point, GridMap, GridPoint } from "../types";
 
-/**
- * 城市测绘局：负责网格与屏幕坐标的物理转换，以及建筑尺寸鉴定
- */
 export const GridManager = {
   screenToGrid(
     screenX: number,
@@ -1669,15 +1946,6 @@ export type { CanvasState };
 export const useCanvasStore = create<CanvasState>()(
   persist(
     (set, get, ...a) => {
-      const syncPersistenceToYjs = (persistenceGrid: Map<string, string>) => {
-        transactWithHistory(() => {
-          yMainGrid.clear();
-          persistenceGrid.forEach((char, key) => {
-            yMainGrid.set(key, char);
-          });
-        }, false); 
-      };
-
       yMainGrid.observe(() => {
         const compositeGrid = new Map<string, string>();
         for (const [key, value] of yMainGrid.entries()) {
@@ -1692,6 +1960,7 @@ export const useCanvasStore = create<CanvasState>()(
         grid: new Map(),
         tool: "select",
         brushChar: "#",
+        showGrid: true,
 
         setOffset: (updater) =>
           set((state) => ({ offset: updater(state.offset) })),
@@ -1701,6 +1970,7 @@ export const useCanvasStore = create<CanvasState>()(
           })),
         setTool: (tool) => set({ tool, textCursor: null }),
         setBrushChar: (char) => set({ brushChar: char }),
+        setShowGrid: (show) => set({ showGrid: show }),
 
         ...createDrawingSlice(set, get, ...a),
         ...createTextSlice(set, get, ...a),
@@ -1714,17 +1984,20 @@ export const useCanvasStore = create<CanvasState>()(
         offset: state.offset,
         zoom: state.zoom,
         brushChar: state.brushChar,
+        showGrid: state.showGrid,
         grid: Array.from(state.grid.entries()),
       }),
       onRehydrateStorage: (state) => {
         return (hydratedState, error) => {
           if (error || !hydratedState) return;
 
-          if (Array.isArray(hydratedState.grid)) {
+          const hState = hydratedState as CanvasState;
+
+          if (Array.isArray(hState.grid)) {
             const recoveredMap = new Map<string, string>(
-              hydratedState.grid as any
+              hState.grid as unknown as [string, string][]
             );
-            hydratedState.grid = recoveredMap;
+            hState.grid = recoveredMap;
 
             transactWithHistory(() => {
               yMainGrid.clear();
@@ -1789,11 +2062,13 @@ export type CanvasState = {
   tool: ToolType;
   brushChar: string;
   grid: GridMap;
+  showGrid: boolean;
 
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
   setTool: (tool: ToolType) => void;
   setBrushChar: (char: string) => void;
+  setShowGrid: (show: boolean) => void;
 } & DrawingSlice &
   TextSlice &
   SelectionSlice;

@@ -7,13 +7,13 @@ import {
   Minus,
   Pencil,
   Eraser,
-  PaintBucket,
   Undo2,
   Download,
   LineSquiggle,
   Circle as CircleIcon,
   ChevronDown,
   Check,
+  Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ToolType } from "@/types";
@@ -30,6 +30,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { PALETTE } from "@/lib/constants";
 
 interface ToolbarProps {
   tool: ToolType;
@@ -42,7 +43,8 @@ const MATERIAL_PRESETS = ["*", ".", "@", "▒"];
 const SHAPE_TOOLS: ToolType[] = ["box", "circle", "line", "stepline"];
 
 export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
-  const { brushChar, setBrushChar } = useCanvasStore();
+  const { brushChar, setBrushChar, brushColor, setBrushColor } =
+    useCanvasStore();
   const [lastUsedShape, setLastUsedShape] = useState<ToolType>("box");
   const [openSubMenuId, setOpenSubMenuId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,12 +100,6 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
         hasSub: true,
       },
       {
-        id: "fill",
-        label: "Fill",
-        icon: PaintBucket,
-        onClick: () => setTool("fill"),
-      },
-      {
         id: "eraser",
         label: "Eraser",
         icon: Eraser,
@@ -111,6 +107,13 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
       },
       { id: "undo", label: "Undo", icon: Undo2, onClick: onUndo },
       { id: "export", label: "Export", icon: Download, onClick: onExport },
+      {
+        id: "color",
+        label: "Color",
+        icon: Palette,
+        onClick: () => {},
+        hasSub: true,
+      },
     ],
     [
       brushChar,
@@ -125,7 +128,11 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
   );
 
   const activeIndex = useMemo(() => {
-    const currentId = isShapeGroupActive ? "shape-group" : tool;
+    const currentId = isShapeGroupActive
+      ? "shape-group"
+      : ["select", "brush", "eraser"].includes(tool)
+      ? tool
+      : "brush";
     const idx = navItems.findIndex((item) => item.id === currentId);
     return idx !== -1 ? idx : 0;
   }, [tool, isShapeGroupActive, navItems]);
@@ -158,6 +165,7 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
           {navItems.map((item, index) => {
             const isActive = index === activeIndex;
             const Icon = item.icon;
+            const isColorTab = item.id === "color";
 
             return (
               <div
@@ -179,10 +187,18 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
                       className={cn(
                         "flex items-center justify-center h-9 px-3 outline-none rounded-l-lg transition-colors",
                         !item.hasSub && "rounded-lg",
-                        !isActive && "hover:bg-muted/50"
+                        !isActive && "hover:bg-muted/50",
+                        isColorTab && "px-2"
                       )}
                     >
-                      <Icon className="size-5" />
+                      {isColorTab ? (
+                        <div
+                          className="size-5 rounded-full border border-foreground/10 shadow-sm"
+                          style={{ backgroundColor: brushColor }}
+                        />
+                      ) : (
+                        <Icon className="size-5" />
+                      )}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs">
@@ -207,7 +223,7 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
                     </PopoverTrigger>
                     <PopoverContent
                       side="top"
-                      align="start"
+                      align={isColorTab ? "end" : "start"}
                       sideOffset={12}
                       className="w-auto p-1 flex flex-col gap-0.5 rounded-xl bg-popover/95 backdrop-blur-md border shadow-xl z-50 overflow-hidden min-w-[100px]"
                     >
@@ -235,7 +251,7 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
                             <div className="flex-1 px-1">
                               <Input
                                 ref={inputRef}
-                                className="h-6 w-14 text-center p-0 font-mono text-base font-bold border-none shadow-none ring-0 focus-visible:ring-0 bg-muted/40 hover:bg-muted/60 rounded-sm text-inherit placeholder:text-muted-foreground/50 placeholder:text-[10px] placeholder:font-sans"
+                                className="h-6 w-14 text-center p-0 font-mono text-base font-bold border-none shadow-none ring-0 focus-visible:ring-0 bg-muted/40 hover:bg-muted/60 rounded-sm text-inherit placeholder:text-muted-foreground/50"
                                 placeholder="Custom"
                                 maxLength={2}
                                 value={customChar}
@@ -273,6 +289,28 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
                             </button>
                           ))}
                         </>
+                      ) : item.id === "color" ? (
+                        <div className="grid grid-cols-5 gap-1 p-1">
+                          {PALETTE.map((c) => (
+                            <button
+                              key={c}
+                              onClick={() => {
+                                setBrushColor(c);
+                                setOpenSubMenuId(null);
+                              }}
+                              className={cn(
+                                "size-6 rounded-md border border-foreground/10 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center",
+                                brushColor === c &&
+                                  "ring-2 ring-primary ring-offset-1 ring-offset-popover"
+                              )}
+                              style={{ backgroundColor: c }}
+                            >
+                              {brushColor === c && (
+                                <Check className="size-3 text-white mix-blend-difference" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
                       ) : (
                         SHAPE_TOOLS.map((st) => {
                           const meta = getToolMeta(st);

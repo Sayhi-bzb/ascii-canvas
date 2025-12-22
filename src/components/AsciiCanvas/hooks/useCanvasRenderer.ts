@@ -4,10 +4,7 @@ import {
   CELL_HEIGHT,
   CELL_WIDTH,
   COLOR_ORIGIN_MARKER,
-  COLOR_PRIMARY_TEXT,
-  COLOR_SCRATCH_LAYER,
   COLOR_SELECTION_BG,
-  COLOR_SELECTION_BORDER,
   COLOR_TEXT_CURSOR_BG,
   COLOR_TEXT_CURSOR_FG,
   FONT_SIZE,
@@ -80,12 +77,11 @@ export const useCanvasRenderer = (
       ctx.textBaseline = "middle";
       ctx.textAlign = "center";
 
-      const drawGridInViewport = (targetGrid: GridMap, color: string) => {
-        ctx.fillStyle = color;
+      const drawGridInViewport = (targetGrid: GridMap) => {
         for (let y = startY; y <= endY; y++) {
           for (let x = startX; x <= endX; x++) {
-            const char = targetGrid.get(GridManager.toKey(x, y));
-            if (!char || char === " ") continue;
+            const cell = targetGrid.get(GridManager.toKey(x, y));
+            if (!cell || cell.char === " ") continue;
 
             const pos = GridManager.gridToScreen(
               x,
@@ -94,19 +90,20 @@ export const useCanvasRenderer = (
               offset.y,
               zoom
             );
-            const wide = GridManager.isWideChar(char);
+            const wide = GridManager.isWideChar(cell.char);
             const centerX = Math.round(pos.x + (wide ? sw : sw / 2));
             const centerY = Math.round(pos.y + sh / 2);
 
-            ctx.fillText(char, centerX, centerY);
+            ctx.fillStyle = cell.color;
+            ctx.fillText(cell.char, centerX, centerY);
           }
         }
       };
 
-      drawGridInViewport(grid, COLOR_PRIMARY_TEXT);
+      drawGridInViewport(grid);
 
       if (scratchLayer && scratchLayer.size > 0) {
-        drawGridInViewport(scratchLayer, COLOR_SCRATCH_LAYER);
+        drawGridInViewport(scratchLayer);
       }
 
       const drawSel = (area: SelectionArea) => {
@@ -140,8 +137,8 @@ export const useCanvasRenderer = (
           offset.y,
           zoom
         );
-        const char = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
-        const wide = char ? GridManager.isWideChar(char) : false;
+        const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
+        const wide = cell ? GridManager.isWideChar(cell.char) : false;
         const cursorWidth = wide ? sw * 2 : sw;
         ctx.fillStyle = COLOR_TEXT_CURSOR_BG;
         ctx.fillRect(
@@ -150,10 +147,10 @@ export const useCanvasRenderer = (
           Math.round(cursorWidth),
           Math.round(sh)
         );
-        if (char) {
+        if (cell) {
           ctx.fillStyle = COLOR_TEXT_CURSOR_FG;
           ctx.fillText(
-            char,
+            cell.char,
             Math.round(pos.x + (wide ? sw : sw / 2)),
             Math.round(pos.y + sh / 2)
           );

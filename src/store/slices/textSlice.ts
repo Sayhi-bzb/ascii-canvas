@@ -9,13 +9,10 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   get
 ) => ({
   textCursor: null,
-
-  setTextCursor: (pos) => {
-    set({ textCursor: pos, selections: [] });
-  },
+  setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
 
   writeTextString: (str, startPos) => {
-    const { textCursor } = get();
+    const { textCursor, brushColor } = get();
     const cursor = startPos || textCursor;
     if (!cursor) return;
 
@@ -30,31 +27,27 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
           currentX = startX;
           continue;
         }
-
-        placeCharInYMap(yMainGrid, currentX, currentY, char);
+        placeCharInYMap(yMainGrid, currentX, currentY, char, brushColor);
         currentX += GridManager.getCharWidth(char);
       }
     });
-
     set({ textCursor: { x: currentX, y: currentY } });
   },
 
   moveTextCursor: (dx, dy) => {
     const { textCursor, grid } = get();
     if (!textCursor) return;
-
     let newX = textCursor.x;
     const newY = textCursor.y + dy;
-
     if (dx > 0) {
-      const char = grid.get(GridManager.toKey(newX, textCursor.y));
-      newX += GridManager.getCharWidth(char || " ");
+      const cell = grid.get(GridManager.toKey(newX, textCursor.y));
+      newX += GridManager.getCharWidth(cell?.char || " ");
     } else if (dx < 0) {
       const leftKey = GridManager.toKey(newX - 1, textCursor.y);
-      const leftChar = grid.get(leftKey);
-      if (!leftChar) {
-        const farLeftChar = grid.get(GridManager.toKey(newX - 2, textCursor.y));
-        newX -= farLeftChar && GridManager.isWideChar(farLeftChar) ? 2 : 1;
+      const leftCell = grid.get(leftKey);
+      if (!leftCell) {
+        const farLeftCell = grid.get(GridManager.toKey(newX - 2, textCursor.y));
+        newX -= farLeftCell && GridManager.isWideChar(farLeftCell.char) ? 2 : 1;
       } else {
         newX -= 1;
       }
@@ -65,22 +58,18 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   backspaceText: () => {
     const { textCursor, grid } = get();
     if (!textCursor) return;
-
     transactWithHistory(() => {
       const { x, y } = textCursor;
       let deletePos = { x: x - 1, y };
-
-      const charAtMinus1 = grid.get(GridManager.toKey(x - 1, y));
-      const charAtMinus2 = grid.get(GridManager.toKey(x - 2, y));
-
+      const cellAtMinus1 = grid.get(GridManager.toKey(x - 1, y));
+      const cellAtMinus2 = grid.get(GridManager.toKey(x - 2, y));
       if (
-        !charAtMinus1 &&
-        charAtMinus2 &&
-        GridManager.isWideChar(charAtMinus2)
+        !cellAtMinus1 &&
+        cellAtMinus2 &&
+        GridManager.isWideChar(cellAtMinus2.char)
       ) {
         deletePos = { x: x - 2, y };
       }
-
       yMainGrid.delete(GridManager.toKey(deletePos.x, deletePos.y));
       set({ textCursor: deletePos });
     });

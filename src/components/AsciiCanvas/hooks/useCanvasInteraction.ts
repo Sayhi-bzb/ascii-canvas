@@ -139,7 +139,7 @@ export const useCanvasInteraction = (
       },
       onDrag: ({ xy: [x, y], delta: [dx, dy] }) => {
         if (isPanningRef.current) {
-          setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+          setOffset((prev: Point) => ({ x: prev.x + dx, y: prev.y + dy }));
           return;
         }
 
@@ -224,14 +224,14 @@ export const useCanvasInteraction = (
           if (nextZoom !== oldZoom) {
             const actualScale = nextZoom / oldZoom;
 
-            setZoom(() => nextZoom);
-            setOffset((prev) => ({
+            setZoom((prev: number) => nextZoom);
+            setOffset((prev: Point) => ({
               x: mouseX - (mouseX - prev.x) * actualScale,
               y: mouseY - (mouseY - prev.y) * actualScale,
             }));
           }
         } else {
-          setOffset((p) => ({
+          setOffset((p: Point) => ({
             x: p.x - (event as WheelEvent).deltaX,
             y: p.y - (event as WheelEvent).deltaY,
           }));

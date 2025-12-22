@@ -1,8 +1,9 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { MIN_ZOOM, MAX_ZOOM } from "../lib/constants";
+import { MIN_ZOOM, MAX_ZOOM, COLOR_PRIMARY_TEXT } from "../lib/constants";
 import { yMainGrid, transactWithHistory } from "../lib/yjs-setup";
 import type { CanvasState } from "./interfaces";
+import type { GridCell } from "../types";
 import {
   createDrawingSlice,
   createTextSlice,
@@ -15,9 +16,9 @@ export const useCanvasStore = create<CanvasState>()(
   persist(
     (set, get, ...a) => {
       yMainGrid.observe(() => {
-        const compositeGrid = new Map<string, string>();
+        const compositeGrid = new Map<string, GridCell>();
         for (const [key, value] of yMainGrid.entries()) {
-          compositeGrid.set(key, value);
+          compositeGrid.set(key, value as GridCell);
         }
         set({ grid: compositeGrid });
       });
@@ -28,6 +29,7 @@ export const useCanvasStore = create<CanvasState>()(
         grid: new Map(),
         tool: "select",
         brushChar: "#",
+        brushColor: COLOR_PRIMARY_TEXT,
         showGrid: true,
 
         setOffset: (updater) =>
@@ -38,6 +40,7 @@ export const useCanvasStore = create<CanvasState>()(
           })),
         setTool: (tool) => set({ tool, textCursor: null }),
         setBrushChar: (char) => set({ brushChar: char }),
+        setBrushColor: (color) => set({ brushColor: color }),
         setShowGrid: (show) => set({ showGrid: show }),
 
         ...createDrawingSlice(set, get, ...a),
@@ -52,6 +55,7 @@ export const useCanvasStore = create<CanvasState>()(
         offset: state.offset,
         zoom: state.zoom,
         brushChar: state.brushChar,
+        brushColor: state.brushColor,
         showGrid: state.showGrid,
         grid: Array.from(state.grid.entries()),
       }),
@@ -62,9 +66,12 @@ export const useCanvasStore = create<CanvasState>()(
           const hState = hydratedState as CanvasState;
 
           if (Array.isArray(hState.grid)) {
-            const recoveredMap = new Map<string, string>(
-              hState.grid as unknown as [string, string][]
-            );
+            const recoveredEntries = hState.grid as unknown as [
+              string,
+              GridCell
+            ][];
+            const recoveredMap = new Map<string, GridCell>(recoveredEntries);
+
             hState.grid = recoveredMap;
 
             transactWithHistory(() => {
