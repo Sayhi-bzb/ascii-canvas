@@ -7,6 +7,7 @@ import { type CanvasState } from "../../../store/canvasStore";
 import { forceHistorySave } from "../../../lib/yjs-setup";
 import bresenham from "bresenham";
 import { isCtrlOrMeta } from "../../../utils/event";
+import { MIN_ZOOM, MAX_ZOOM } from "../../../lib/constants";
 
 const isShapeTool = (tool: ToolType): boolean => {
   return ["box", "circle", "line", "stepline"].includes(tool);
@@ -50,7 +51,6 @@ export const useCanvasInteraction = (
           currentGrid.y === lastGrid.current.y)
       )
         return;
-
       const points = bresenham(
         lastGrid.current.x,
         lastGrid.current.y,
@@ -60,10 +60,8 @@ export const useCanvasInteraction = (
 
       if (tool === "brush") {
         const charWidth = GridManager.getCharWidth(brushChar);
-
         if (charWidth > 1) {
           const filteredPoints: Point[] = [];
-
           points.forEach((p) => {
             if (!lastPlacedGrid.current) {
               filteredPoints.push(p);
@@ -71,14 +69,12 @@ export const useCanvasInteraction = (
             } else {
               const dx = Math.abs(p.x - lastPlacedGrid.current.x);
               const dy = Math.abs(p.y - lastPlacedGrid.current.y);
-
               if (dx >= charWidth || dy >= 1) {
                 filteredPoints.push(p);
                 lastPlacedGrid.current = p;
               }
             }
           });
-
           if (filteredPoints.length > 0) {
             addScratchPoints(
               filteredPoints.map((p) => ({ ...p, char: brushChar }))
@@ -169,9 +165,8 @@ export const useCanvasInteraction = (
             if (tool === "line" && !lineAxisRef.current) {
               const adx = Math.abs(currentGrid.x - dragStartGrid.current.x);
               const ady = Math.abs(currentGrid.y - dragStartGrid.current.y);
-              if (adx > 0 || ady > 0) {
+              if (adx > 0 || ady > 0)
                 lineAxisRef.current = ady > adx ? "vertical" : "horizontal";
-              }
             }
             updateScratchForShape(tool, dragStartGrid.current, currentGrid, {
               axis: lineAxisRef.current,
@@ -208,10 +203,33 @@ export const useCanvasInteraction = (
         }
         document.body.style.cursor = "auto";
       },
-      onWheel: ({ delta: [, dy], event }) => {
+      onWheel: ({ xy: [clientX, clientY], delta: [, dy], event }) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
         if (isCtrlOrMeta(event)) {
           event.preventDefault();
-          setZoom((p) => p * (1 - dy * 0.002));
+
+          const mouseX = clientX - rect.left;
+          const mouseY = clientY - rect.top;
+
+          const zoomWeight = 0.002;
+          const deltaZoom = 1 - dy * zoomWeight;
+          const oldZoom = zoom;
+          const nextZoom = Math.max(
+            MIN_ZOOM,
+            Math.min(MAX_ZOOM, oldZoom * deltaZoom)
+          );
+
+          if (nextZoom !== oldZoom) {
+            const actualScale = nextZoom / oldZoom;
+
+            setZoom(() => nextZoom);
+            setOffset((prev) => ({
+              x: mouseX - (mouseX - prev.x) * actualScale,
+              y: mouseY - (mouseY - prev.y) * actualScale,
+            }));
+          }
         } else {
           setOffset((p) => ({
             x: p.x - (event as WheelEvent).deltaX,

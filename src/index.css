@@ -14,7 +14,6 @@ body,
 }
 
 @theme inline {
-  /* 城市标准建材定义：将 Maple Mono 设为默认等宽字体 */
   --font-mono: "Maple Mono NF CN", ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
 

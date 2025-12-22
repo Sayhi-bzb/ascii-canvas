@@ -705,12 +705,6 @@ function SidebarStandard({
         </div>
       </SidebarHeader>
 
-      {/* 
-          核心优化：
-          1. 移除 {!isCollapsed && ...} 的硬销毁，改用 CSS 控制显隐。
-          2. 使用 opacity 和 pointer-events 实现更平滑的内容过渡。
-          3. 这样内容一直存在于 DOM 中，滚动条状态更稳定。
-      */}
       <SidebarContent
         className={cn(
           "gap-2 px-2 py-2 transition-all duration-300",
@@ -720,8 +714,13 @@ function SidebarStandard({
         {children}
       </SidebarContent>
 
-      {!isCollapsed && footer && (
-        <SidebarFooter className="p-2 border-t animate-in slide-in-from-bottom-2 duration-300">
+      {footer && (
+        <SidebarFooter
+          className={cn(
+            "p-2 border-t transition-all duration-300",
+            isCollapsed && "flex-col items-center gap-y-2 px-0"
+          )}
+        >
           {footer}
         </SidebarFooter>
       )}

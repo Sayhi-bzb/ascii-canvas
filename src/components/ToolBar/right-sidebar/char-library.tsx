@@ -8,7 +8,7 @@ import {
   Accessibility,
   Fingerprint,
   Smile,
-  Box,
+  Hash,
 } from "lucide-react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { cn } from "@/lib/utils";
@@ -22,63 +22,77 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const genRange = (start: number, count: number) =>
-  Array.from({ length: count }, (_, i) => String.fromCodePoint(start + i));
+const MATERIAL_BLUEPRINTS = [
+  {
+    name: "Standard Blocks",
+    icon: Hash,
+    ranges: [[0x0021, 0x007e]],
+    isActive: false,
+  },
+  {
+    name: "Box Drawing",
+    icon: Square,
+    ranges: [[0x2500, 0x257f]],
+    isActive: true,
+  },
+  {
+    name: "Block Elements",
+    icon: LayoutGrid,
+    ranges: [[0x2580, 0x259f]],
+    isActive: false,
+  },
+  {
+    name: "Nerd Symbols",
+    icon: Fingerprint,
+    ranges: [
+      [0xe700, 0xe7c5],
+      [0xf000, 0xf2e0],
+      [0xe0b0, 0xe0b3],
+    ],
+    isActive: false,
+  },
+  {
+    name: "Braille Icons",
+    icon: Accessibility,
+    ranges: [[0x2800, 0x28ff]],
+    isActive: false,
+  },
+  {
+    name: "Emoticons",
+    icon: Smile,
+    ranges: [[0x1f600, 0x1f64f]],
+    isActive: false,
+  },
+];
+
+const generateChars = (ranges: number[][]): string[] => {
+  return ranges.flatMap(([start, end]) =>
+    Array.from({ length: end - start + 1 }, (_, i) =>
+      String.fromCodePoint(start + i)
+    )
+  );
+};
 
 export function CharLibrary() {
   const { brushChar, setBrushChar, setTool } = useCanvasStore();
 
   const library = useMemo(
-    () => [
-      {
-        name: "Box Drawing",
-        icon: Square,
-        chars: genRange(0x2500, 128),
-        isActive: true,
-      },
-      {
-        name: "Block Elements",
-        icon: LayoutGrid,
-        chars: genRange(0x2580, 32),
-        isActive: false,
-      },
-      {
-        name: "Accessibility",
-        icon: Accessibility,
-        chars: genRange(0x2800, 256),
-        isActive: false,
-      },
-      {
-        name: "Nerd Icons",
-        icon: Fingerprint,
-        chars: [...genRange(0xe700, 40), ...genRange(0xf000, 50)],
-        isActive: false,
-      },
-      {
-        name: "Smileys",
-        icon: Smile,
-        chars: genRange(0x1f600, 80),
-        isActive: false,
-      },
-      {
-        name: "Objects",
-        icon: Box,
-        chars: genRange(0x1f300, 80),
-        isActive: false,
-      },
-    ],
+    () =>
+      MATERIAL_BLUEPRINTS.map((category) => ({
+        ...category,
+        chars: generateChars(category.ranges),
+      })),
     []
   );
 
   const handleSelect = (char: string) => {
     setBrushChar(char);
     setTool("brush");
-    toast.success(`Copyed: ${char}`, {
+    toast.success(`Selected: ${char}`, {
       duration: 800,
       position: "top-right",
     });
@@ -86,7 +100,7 @@ export function CharLibrary() {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>ASCII Materials</SidebarGroupLabel>
+      <SidebarGroupLabel>Material Warehouse</SidebarGroupLabel>
       <SidebarMenu>
         {library.map((group) => (
           <Collapsible
@@ -96,23 +110,15 @@ export function CharLibrary() {
             className="group/collapsible"
           >
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip={group.name} className="font-medium">
-                <group.icon className="size-4 text-muted-foreground" />
-                <span>{group.name}</span>
-              </SidebarMenuButton>
-
               <CollapsibleTrigger asChild>
-                <SidebarMenuAction className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90">
-                  <ChevronRight className="size-4" />
-                  <span className="sr-only">Toggle</span>
-                </SidebarMenuAction>
+                <SidebarMenuButton tooltip={group.name} className="font-medium">
+                  <group.icon className="size-4 text-muted-foreground" />
+                  <span>{group.name}</span>
+                  <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                </SidebarMenuButton>
               </CollapsibleTrigger>
 
               <CollapsibleContent>
-                {/* 
-                  这里是关键： grid 布局中的每个按钮通过 font-mono 类名
-                  继承了我们在 index.css 中定义的 Maple Mono 字体。
-                */}
                 <div className="grid grid-cols-4 gap-1 p-2 bg-muted/20 rounded-md mt-1">
                   {group.chars.map((char, idx) => (
                     <button

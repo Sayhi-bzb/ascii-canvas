@@ -6,6 +6,7 @@ import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
 import { GridManager } from "../../utils/grid";
 import { toast } from "sonner";
 import { isCtrlOrMeta } from "../../utils/event";
+import { Minimap } from "./Minimap";
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -54,7 +55,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       copySelectionToClipboard();
       return;
     }
-
     if (textCursor) {
       e.preventDefault();
       const key = GridManager.toKey(textCursor.x, textCursor.y);
@@ -74,7 +74,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       cutSelectionToClipboard();
       return;
     }
-
     if (textCursor) {
       e.preventDefault();
       const key = GridManager.toKey(textCursor.x, textCursor.y);
@@ -91,13 +90,10 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 
   const handlePaste = (e: ClipboardEvent) => {
     if (isComposing.current) return;
-
     e.preventDefault();
     const text = e.clipboardData?.getData("text");
     if (!text) return;
-
     let pasteStartPos = textCursor;
-
     if (!pasteStartPos && selections.length > 0) {
       const firstSelection = selections[0];
       pasteStartPos = {
@@ -105,7 +101,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
         y: Math.min(firstSelection.start.y, firstSelection.end.y),
       };
     }
-
     if (pasteStartPos) {
       writeTextString(text, pasteStartPos);
       toast.success("Pasted!", {
@@ -121,7 +116,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
     if (!textCursor || !size) return { display: "none" };
-
     const { x, y } = GridManager.gridToScreen(
       textCursor.x,
       textCursor.y,
@@ -129,7 +123,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       store.offset.y,
       store.zoom
     );
-
     return {
       position: "absolute",
       left: `${x}px`,
@@ -145,7 +138,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const handleCompositionStart = () => {
     isComposing.current = true;
   };
-
   const handleCompositionEnd = (
     e: React.CompositionEvent<HTMLTextAreaElement>
   ) => {
@@ -156,7 +148,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       if (textareaRef.current) textareaRef.current.value = "";
     }
   };
-
   const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
     if (isComposing.current) return;
     const textarea = e.currentTarget;
@@ -166,17 +157,14 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       textarea.value = "";
     }
   };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
     if (isComposing.current) return;
-
     const isUndo =
       isCtrlOrMeta(e) && !e.shiftKey && e.key.toLowerCase() === "z";
     const isRedo =
       (isCtrlOrMeta(e) && e.shiftKey && e.key.toLowerCase() === "z") ||
       (isCtrlOrMeta(e) && e.key.toLowerCase() === "y");
-
     if (isUndo) {
       e.preventDefault();
       onUndo();
@@ -187,7 +175,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       onRedo();
       return;
     }
-
     if (e.key === "Delete") {
       if (selections.length > 0) {
         e.preventDefault();
@@ -195,7 +182,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
         return;
       }
     }
-
     if (e.key === "Backspace") {
       if (selections.length > 0 && !textCursor) {
         e.preventDefault();
@@ -245,9 +231,12 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     <div
       ref={containerRef}
       style={{ touchAction: "none" }}
-      className="w-full h-full overflow-hidden bg-gray-50 touch-none select-none cursor-default"
+      className="relative w-full h-full overflow-hidden bg-white touch-none select-none cursor-default"
     >
       <canvas ref={canvasRef} />
+
+      <Minimap containerSize={size} />
+
       <textarea
         ref={textareaRef}
         style={textareaStyle}

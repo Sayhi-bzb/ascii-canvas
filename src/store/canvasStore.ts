@@ -14,15 +14,6 @@ export type { CanvasState };
 export const useCanvasStore = create<CanvasState>()(
   persist(
     (set, get, ...a) => {
-      const syncPersistenceToYjs = (persistenceGrid: Map<string, string>) => {
-        transactWithHistory(() => {
-          yMainGrid.clear();
-          persistenceGrid.forEach((char, key) => {
-            yMainGrid.set(key, char);
-          });
-        }, false); 
-      };
-
       yMainGrid.observe(() => {
         const compositeGrid = new Map<string, string>();
         for (const [key, value] of yMainGrid.entries()) {
@@ -37,6 +28,7 @@ export const useCanvasStore = create<CanvasState>()(
         grid: new Map(),
         tool: "select",
         brushChar: "#",
+        showGrid: true,
 
         setOffset: (updater) =>
           set((state) => ({ offset: updater(state.offset) })),
@@ -46,6 +38,7 @@ export const useCanvasStore = create<CanvasState>()(
           })),
         setTool: (tool) => set({ tool, textCursor: null }),
         setBrushChar: (char) => set({ brushChar: char }),
+        setShowGrid: (show) => set({ showGrid: show }),
 
         ...createDrawingSlice(set, get, ...a),
         ...createTextSlice(set, get, ...a),
@@ -59,17 +52,20 @@ export const useCanvasStore = create<CanvasState>()(
         offset: state.offset,
         zoom: state.zoom,
         brushChar: state.brushChar,
+        showGrid: state.showGrid,
         grid: Array.from(state.grid.entries()),
       }),
       onRehydrateStorage: (state) => {
         return (hydratedState, error) => {
           if (error || !hydratedState) return;
 
-          if (Array.isArray(hydratedState.grid)) {
+          const hState = hydratedState as CanvasState;
+
+          if (Array.isArray(hState.grid)) {
             const recoveredMap = new Map<string, string>(
-              hydratedState.grid as any
+              hState.grid as unknown as [string, string][]
             );
-            hydratedState.grid = recoveredMap;
+            hState.grid = recoveredMap;
 
             transactWithHistory(() => {
               yMainGrid.clear();

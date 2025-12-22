@@ -1,3 +1,504 @@
+```src/components/ToolBar/dock.tsx
+"use client";
+
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import {
+  MousePointer2,
+  Square,
+  Minus,
+  Pencil,
+  Eraser,
+  PaintBucket,
+  Undo2,
+  Download,
+  LineSquiggle,
+  Circle as CircleIcon,
+  ChevronDown,
+  Check,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { ToolType } from "@/types";
+import { useCanvasStore } from "@/store/canvasStore";
+import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+interface ToolbarProps {
+  tool: ToolType;
+  setTool: (tool: ToolType) => void;
+  onUndo: () => void;
+  onExport: () => void;
+}
+
+const MATERIAL_PRESETS = ["*", ".", "@", "▒"];
+const SHAPE_TOOLS: ToolType[] = ["box", "circle", "line", "stepline"];
+
+export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
+  const { brushChar, setBrushChar } = useCanvasStore();
+  const [lastUsedShape, setLastUsedShape] = useState<ToolType>("box");
+  const [openSubMenuId, setOpenSubMenuId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const [customChar, setCustomChar] = useState(() =>
+    MATERIAL_PRESETS.includes(brushChar) ? "" : brushChar
+  );
+
+  const isShapeGroupActive = SHAPE_TOOLS.includes(tool);
+  const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const getToolMeta = useCallback((type: ToolType) => {
+    switch (type) {
+      case "box":
+        return { icon: Square, label: "Rectangle", shortcut: "R" };
+      case "circle":
+        return { icon: CircleIcon, label: "Circle", shortcut: "O" };
+      case "line":
+        return { icon: Minus, label: "Line", shortcut: "L" };
+      case "stepline":
+        return { icon: LineSquiggle, label: "Curve", shortcut: "S" };
+      default:
+        return { icon: Square, label: "Shape", shortcut: "" };
+    }
+  }, []);
+
+  const activeShapeMeta = useMemo(
+    () => getToolMeta(isShapeGroupActive ? tool : lastUsedShape),
+    [isShapeGroupActive, tool, lastUsedShape, getToolMeta]
+  );
+
+  const navItems = useMemo(
+    () => [
+      {
+        id: "select",
+        label: "Select",
+        icon: MousePointer2,
+        onClick: () => setTool("select"),
+      },
+      {
+        id: "brush",
+        label: `Brush (${brushChar})`,
+        icon: Pencil,
+        onClick: () => setTool("brush"),
+        hasSub: true,
+      },
+      {
+        id: "shape-group",
+        label: activeShapeMeta.label,
+        icon: activeShapeMeta.icon,
+        onClick: () => setTool(isShapeGroupActive ? tool : lastUsedShape),
+        hasSub: true,
+      },
+      {
+        id: "fill",
+        label: "Fill",
+        icon: PaintBucket,
+        onClick: () => setTool("fill"),
+      },
+      {
+        id: "eraser",
+        label: "Eraser",
+        icon: Eraser,
+        onClick: () => setTool("eraser"),
+      },
+      { id: "undo", label: "Undo", icon: Undo2, onClick: onUndo },
+      { id: "export", label: "Export", icon: Download, onClick: onExport },
+    ],
+    [
+      brushChar,
+      activeShapeMeta,
+      isShapeGroupActive,
+      tool,
+      lastUsedShape,
+      setTool,
+      onUndo,
+      onExport,
+    ]
+  );
+
+  const activeIndex = useMemo(() => {
+    const currentId = isShapeGroupActive ? "shape-group" : tool;
+    const idx = navItems.findIndex((item) => item.id === currentId);
+    return idx !== -1 ? idx : 0;
+  }, [tool, isShapeGroupActive, navItems]);
+
+  useEffect(() => {
+    const updateIndicator = () => {
+      const activeEl = itemRefs.current[activeIndex];
+      const container = activeEl?.closest("nav");
+      if (activeEl && container) {
+        const rect = activeEl.getBoundingClientRect();
+        const contRect = container.getBoundingClientRect();
+        const width = 20;
+        const left = rect.left - contRect.left + (rect.width - width) / 2;
+        setIndicatorStyle({ width, left });
+      }
+    };
+    updateIndicator();
+    const timer = setTimeout(updateIndicator, 16);
+    window.addEventListener("resize", updateIndicator);
+    return () => {
+      window.removeEventListener("resize", updateIndicator);
+      clearTimeout(timer);
+    };
+  }, [activeIndex]);
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+        <nav className="relative flex items-center gap-1 p-1.5 rounded-2xl bg-background/80 backdrop-blur-md border border-primary/10 shadow-2xl pointer-events-auto">
+          {navItems.map((item, index) => {
+            const isActive = index === activeIndex;
+            const Icon = item.icon;
+
+            return (
+              <div
+                key={item.id}
+                className={cn(
+                  "relative flex items-center rounded-lg transition-all",
+                  isActive
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      ref={(el) => {
+                        itemRefs.current[index] = el;
+                      }}
+                      onClick={item.onClick}
+                      className={cn(
+                        "flex items-center justify-center h-9 px-3 outline-none rounded-l-lg transition-colors",
+                        !item.hasSub && "rounded-lg",
+                        !isActive && "hover:bg-muted/50"
+                      )}
+                    >
+                      <Icon className="size-5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    {item.label}
+                  </TooltipContent>
+                </Tooltip>
+
+                {item.hasSub && (
+                  <Popover
+                    open={openSubMenuId === item.id}
+                    onOpenChange={(o) => setOpenSubMenuId(o ? item.id : null)}
+                  >
+                    <PopoverTrigger asChild>
+                      <button
+                        className={cn(
+                          "flex items-center justify-center h-9 px-1 border-l border-transparent hover:border-border/40 outline-none rounded-r-lg opacity-30 hover:opacity-100 transition-all",
+                          openSubMenuId === item.id && "bg-muted/50 opacity-100"
+                        )}
+                      >
+                        <ChevronDown className="size-3" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side="top"
+                      align="start"
+                      sideOffset={12}
+                      className="w-auto p-1 flex flex-col gap-0.5 rounded-xl bg-popover/95 backdrop-blur-md border shadow-xl z-50 overflow-hidden min-w-[100px]"
+                    >
+                      {item.id === "brush" ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              setBrushChar(customChar);
+                              setTool("brush");
+                              inputRef.current?.focus();
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
+                              brushChar === customChar && customChar !== ""
+                                ? "bg-primary text-primary-foreground shadow-sm"
+                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            )}
+                          >
+                            <div className="size-3.5 flex items-center justify-center shrink-0">
+                              {brushChar === customChar &&
+                                customChar !== "" && (
+                                  <Check className="size-3.5 stroke-[3]" />
+                                )}
+                            </div>
+                            <div className="flex-1 px-1">
+                              <Input
+                                ref={inputRef}
+                                className="h-6 w-14 text-center p-0 font-mono text-base font-bold border-none shadow-none ring-0 focus-visible:ring-0 bg-muted/40 hover:bg-muted/60 rounded-sm text-inherit placeholder:text-muted-foreground/50 placeholder:text-[10px] placeholder:font-sans"
+                                placeholder="Custom"
+                                maxLength={2}
+                                value={customChar}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setCustomChar(val);
+                                  setBrushChar(val);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          </button>
+                          {MATERIAL_PRESETS.map((char) => (
+                            <button
+                              key={char}
+                              onClick={() => {
+                                setBrushChar(char);
+                                setTool("brush");
+                              }}
+                              className={cn(
+                                "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
+                                brushChar === char
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                              )}
+                            >
+                              <div className="size-3.5 flex items-center justify-center shrink-0">
+                                {brushChar === char && (
+                                  <Check className="size-3.5 stroke-[3]" />
+                                )}
+                              </div>
+                              <span className="flex-1 font-mono font-bold text-lg text-center leading-none">
+                                {char}
+                              </span>
+                            </button>
+                          ))}
+                        </>
+                      ) : (
+                        SHAPE_TOOLS.map((st) => {
+                          const meta = getToolMeta(st);
+                          const isSubActive = tool === st;
+                          return (
+                            <button
+                              key={st}
+                              onClick={() => {
+                                setTool(st);
+                                setLastUsedShape(st);
+                              }}
+                              className={cn(
+                                "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
+                                isSubActive
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                              )}
+                            >
+                              <div className="size-3.5 flex items-center justify-center shrink-0">
+                                {isSubActive && (
+                                  <Check className="size-3.5 stroke-[3]" />
+                                )}
+                              </div>
+                              <meta.icon className="size-4 shrink-0" />
+                              <span className="flex-1 text-left text-sm font-medium pr-4 whitespace-nowrap ml-1">
+                                {meta.label}
+                              </span>
+                              <span className="text-[10px] opacity-40 font-mono">
+                                {meta.shortcut}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+            );
+          })}
+
+          <div
+            className="absolute bottom-1 left-0 bg-primary rounded-full transition-all duration-300 ease-out pointer-events-none"
+            style={{
+              width: `${indicatorStyle.width}px`,
+              transform: `translateX(${indicatorStyle.left}px)`,
+              height: "2px",
+            }}
+          />
+        </nav>
+      </div>
+    </TooltipProvider>
+  );
+}
+```
+---
+```src/components/ToolBar/sidebar-right.tsx
+"use client";
+
+import * as React from "react";
+import { Library } from "lucide-react";
+import { SidebarStandard } from "@/components/ui/sidebar";
+import { CharLibrary } from "./right-sidebar/char-library";
+
+export function SidebarRight() {
+  return (
+    <SidebarStandard
+      variant="floating"
+      side="right"
+      title="Library"
+      className="pointer-events-auto"
+      icon={
+        <div className="flex items-center justify-center rounded-lg bg-accent p-1.5 shrink-0">
+          <Library className="size-4 text-accent-foreground" />
+        </div>
+      }
+    >
+      <CharLibrary />
+    </SidebarStandard>
+  );
+}
+```
+---
+```src/components/ToolBar/right-sidebar/char-library.tsx
+"use client";
+
+import { useMemo } from "react";
+import {
+  ChevronRight,
+  Square,
+  LayoutGrid,
+  Accessibility,
+  Fingerprint,
+  Smile,
+  Box,
+} from "lucide-react";
+import { useCanvasStore } from "@/store/canvasStore";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
+
+const genRange = (start: number, count: number) =>
+  Array.from({ length: count }, (_, i) => String.fromCodePoint(start + i));
+
+export function CharLibrary() {
+  const { brushChar, setBrushChar, setTool } = useCanvasStore();
+
+  const library = useMemo(
+    () => [
+      {
+        name: "Box Drawing",
+        icon: Square,
+        chars: genRange(0x2500, 128),
+        isActive: true,
+      },
+      {
+        name: "Block Elements",
+        icon: LayoutGrid,
+        chars: genRange(0x2580, 32),
+        isActive: false,
+      },
+      {
+        name: "Accessibility",
+        icon: Accessibility,
+        chars: genRange(0x2800, 256),
+        isActive: false,
+      },
+      {
+        name: "Nerd Icons",
+        icon: Fingerprint,
+        chars: [...genRange(0xe700, 40), ...genRange(0xf000, 50)],
+        isActive: false,
+      },
+      {
+        name: "Smileys",
+        icon: Smile,
+        chars: genRange(0x1f600, 80),
+        isActive: false,
+      },
+      {
+        name: "Objects",
+        icon: Box,
+        chars: genRange(0x1f300, 80),
+        isActive: false,
+      },
+    ],
+    []
+  );
+
+  const handleSelect = (char: string) => {
+    setBrushChar(char);
+    setTool("brush");
+    toast.success(`Copyed: ${char}`, {
+      duration: 800,
+      position: "top-right",
+    });
+  };
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>ASCII Materials</SidebarGroupLabel>
+      <SidebarMenu>
+        {library.map((group) => (
+          <Collapsible
+            key={group.name}
+            asChild
+            defaultOpen={group.isActive}
+            className="group/collapsible"
+          >
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip={group.name} className="font-medium">
+                <group.icon className="size-4 text-muted-foreground" />
+                <span>{group.name}</span>
+              </SidebarMenuButton>
+
+              <CollapsibleTrigger asChild>
+                <SidebarMenuAction className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90">
+                  <ChevronRight className="size-4" />
+                  <span className="sr-only">Toggle</span>
+                </SidebarMenuAction>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent>
+                {/* 
+                  这里是关键： grid 布局中的每个按钮通过 font-mono 类名
+                  继承了我们在 index.css 中定义的 Maple Mono 字体。
+                */}
+                <div className="grid grid-cols-4 gap-1 p-2 bg-muted/20 rounded-md mt-1">
+                  {group.chars.map((char, idx) => (
+                    <button
+                      key={`${group.name}-${idx}`}
+                      onClick={() => handleSelect(char)}
+                      className={cn(
+                        "h-9 w-full flex items-center justify-center rounded-sm transition-all font-mono text-base border",
+                        brushChar === char
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm scale-95"
+                          : "bg-background hover:border-primary/30 hover:bg-accent text-foreground border-transparent"
+                      )}
+                    >
+                      {char}
+                    </button>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </SidebarMenuItem>
+          </Collapsible>
+        ))}
+      </SidebarMenu>
+    </SidebarGroup>
+  );
+}
+```
+---
 ```src/components/AsciiCanvas/index.tsx
 import { useRef, useMemo, useEffect } from "react";
 import { useSize, useEventListener } from "ahooks";
@@ -304,6 +805,8 @@ export const useCanvasInteraction = (
 
   const dragStartGrid = useRef<Point | null>(null);
   const lastGrid = useRef<Point | null>(null);
+  const lastPlacedGrid = useRef<Point | null>(null);
+
   const isPanningRef = useRef(false);
   const lineAxisRef = useRef<"vertical" | "horizontal" | null>(null);
   const [draggingSelection, setDraggingSelection] =
@@ -326,7 +829,34 @@ export const useCanvasInteraction = (
       );
 
       if (tool === "brush") {
-        addScratchPoints(points.map((p) => ({ ...p, char: brushChar })));
+        const charWidth = GridManager.getCharWidth(brushChar);
+
+        if (charWidth > 1) {
+          const filteredPoints: Point[] = [];
+
+          points.forEach((p) => {
+            if (!lastPlacedGrid.current) {
+              filteredPoints.push(p);
+              lastPlacedGrid.current = p;
+            } else {
+              const dx = Math.abs(p.x - lastPlacedGrid.current.x);
+              const dy = Math.abs(p.y - lastPlacedGrid.current.y);
+
+              if (dx >= charWidth || dy >= 1) {
+                filteredPoints.push(p);
+                lastPlacedGrid.current = p;
+              }
+            }
+          });
+
+          if (filteredPoints.length > 0) {
+            addScratchPoints(
+              filteredPoints.map((p) => ({ ...p, char: brushChar }))
+            );
+          }
+        } else {
+          addScratchPoints(points.map((p) => ({ ...p, char: brushChar })));
+        }
       } else if (tool === "eraser") {
         erasePoints(points);
       }
@@ -373,6 +903,7 @@ export const useCanvasInteraction = (
           setTextCursor(null);
           dragStartGrid.current = start;
           lastGrid.current = start;
+          lastPlacedGrid.current = start;
           lineAxisRef.current = null;
 
           if (tool === "brush")
@@ -442,6 +973,7 @@ export const useCanvasInteraction = (
           }
           dragStartGrid.current = null;
           lastGrid.current = null;
+          lastPlacedGrid.current = null;
           lineAxisRef.current = null;
         }
         document.body.style.cursor = "auto";
@@ -640,1004 +1172,6 @@ export const useCanvasRenderer = (
 };
 ```
 ---
-```src/components/ToolBar/dock.tsx
-"use client";
-
-import { useState, useRef, useEffect, useMemo } from "react";
-import {
-  MousePointer2,
-  Square,
-  Minus,
-  Pencil,
-  Eraser,
-  PaintBucket,
-  Undo2,
-  Download,
-  LineSquiggle,
-  Circle as CircleIcon,
-  ChevronDown,
-  Check,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { ToolType } from "@/types";
-import { useCanvasStore } from "@/store/canvasStore";
-import { Input } from "@/components/ui/input";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-
-interface ToolbarProps {
-  tool: ToolType;
-  setTool: (tool: ToolType) => void;
-  onUndo: () => void;
-  onExport: () => void;
-}
-
-export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
-  const { brushChar, setBrushChar } = useCanvasStore();
-  const [lastUsedShape, setLastUsedShape] = useState<ToolType>("box");
-  const [openSubMenuId, setOpenSubMenuId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const materialPresets = ["*", ".", "@", "▒"];
-  const [customChar, setCustomChar] = useState(() =>
-    materialPresets.includes(brushChar) ? "" : brushChar
-  );
-
-  useEffect(() => {
-    if (!materialPresets.includes(brushChar)) {
-      setCustomChar(brushChar);
-    }
-  }, [brushChar]);
-
-  const shapeTools: ToolType[] = ["box", "circle", "line", "stepline"];
-  const isShapeGroupActive = shapeTools.includes(tool);
-
-  const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
-  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  const getToolMeta = (type: ToolType) => {
-    switch (type) {
-      case "box":
-        return { icon: Square, label: "Rectangle", shortcut: "R" };
-      case "circle":
-        return { icon: CircleIcon, label: "Circle", shortcut: "O" };
-      case "line":
-        return { icon: Minus, label: "Line", shortcut: "L" };
-      case "stepline":
-        return { icon: LineSquiggle, label: "Curve", shortcut: "S" };
-      default:
-        return { icon: Square, label: "Shape", shortcut: "" };
-    }
-  };
-
-  const activeShapeMeta = getToolMeta(
-    isShapeGroupActive ? tool : lastUsedShape
-  );
-
-  const navItems = [
-    {
-      id: "select",
-      label: "Select",
-      icon: MousePointer2,
-      onClick: () => setTool("select"),
-    },
-    {
-      id: "brush",
-      label: `Brush (${brushChar})`,
-      icon: Pencil,
-      onClick: () => setTool("brush"),
-      hasSub: true,
-    },
-    {
-      id: "shape-group",
-      label: activeShapeMeta.label,
-      icon: activeShapeMeta.icon,
-      onClick: () => setTool(isShapeGroupActive ? tool : lastUsedShape),
-      hasSub: true,
-    },
-    {
-      id: "fill",
-      label: "Fill",
-      icon: PaintBucket,
-      onClick: () => setTool("fill"),
-    },
-    {
-      id: "eraser",
-      label: "Eraser",
-      icon: Eraser,
-      onClick: () => setTool("eraser"),
-    },
-    { id: "undo", label: "Undo", icon: Undo2, onClick: onUndo },
-    { id: "export", label: "Export", icon: Download, onClick: onExport },
-  ];
-
-  const activeIndex = useMemo(() => {
-    const currentId = isShapeGroupActive ? "shape-group" : tool;
-    const idx = navItems.findIndex((item) => item.id === currentId);
-    return idx !== -1 ? idx : 0;
-  }, [tool, isShapeGroupActive]);
-
-  useEffect(() => {
-    const updateIndicator = () => {
-      const activeEl = itemRefs.current[activeIndex];
-      const container = activeEl?.closest("nav");
-      if (activeEl && container) {
-        const rect = activeEl.getBoundingClientRect();
-        const contRect = container.getBoundingClientRect();
-        const width = 20;
-        const left = rect.left - contRect.left + (rect.width - width) / 2;
-        setIndicatorStyle({ width, left });
-      }
-    };
-    updateIndicator();
-    const timer = setTimeout(updateIndicator, 16);
-    window.addEventListener("resize", updateIndicator);
-    return () => {
-      window.removeEventListener("resize", updateIndicator);
-      clearTimeout(timer);
-    };
-  }, [activeIndex]);
-
-  return (
-    <TooltipProvider delayDuration={200}>
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-        <nav className="relative flex items-center gap-1 p-1.5 rounded-2xl bg-background/80 backdrop-blur-md border border-primary/10 shadow-2xl pointer-events-auto">
-          {navItems.map((item, index) => {
-            const isActive = index === activeIndex;
-            const Icon = item.icon;
-
-            return (
-              <div
-                key={item.id}
-                className={cn(
-                  "relative flex items-center rounded-lg transition-all",
-                  isActive
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      ref={(el) => {
-                        itemRefs.current[index] = el;
-                      }}
-                      onClick={item.onClick}
-                      className={cn(
-                        "flex items-center justify-center h-9 px-3 outline-none rounded-l-lg transition-colors",
-                        !item.hasSub && "rounded-lg",
-                        !isActive && "hover:bg-muted/50"
-                      )}
-                    >
-                      <Icon className="size-5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
-                    {item.label}
-                  </TooltipContent>
-                </Tooltip>
-
-                {item.hasSub && (
-                  <Popover
-                    open={openSubMenuId === item.id}
-                    onOpenChange={(o) => setOpenSubMenuId(o ? item.id : null)}
-                  >
-                    <PopoverTrigger asChild>
-                      <button
-                        className={cn(
-                          "flex items-center justify-center h-9 px-1 border-l border-transparent hover:border-border/40 outline-none rounded-r-lg opacity-30 hover:opacity-100 transition-all",
-                          openSubMenuId === item.id && "bg-muted/50 opacity-100"
-                        )}
-                      >
-                        <ChevronDown className="size-3" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side="top"
-                      align="start"
-                      sideOffset={12}
-                      className="w-auto p-1 flex flex-col gap-0.5 rounded-xl bg-popover/95 backdrop-blur-md border shadow-xl z-50 overflow-hidden min-w-[100px]"
-                    >
-                      {item.id === "brush" ? (
-                        <>
-                          <button
-                            onClick={() => {
-                              setBrushChar(customChar);
-                              setTool("brush");
-                              inputRef.current?.focus();
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
-                              brushChar === customChar && customChar !== ""
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                            )}
-                          >
-                            <div className="size-3.5 flex items-center justify-center shrink-0">
-                              {brushChar === customChar &&
-                                customChar !== "" && (
-                                  <Check className="size-3.5 stroke-[3]" />
-                                )}
-                            </div>
-                            <div className="flex-1 px-1">
-                              <Input
-                                ref={inputRef}
-                                className="h-6 w-14 text-center p-0 font-mono text-base font-bold border-none shadow-none ring-0 focus-visible:ring-0 bg-muted/40 hover:bg-muted/60 rounded-sm text-inherit placeholder:text-muted-foreground/50 placeholder:text-[10px] placeholder:font-sans"
-                                placeholder="Custom"
-                                maxLength={2}
-                                value={customChar}
-                                onChange={(e) => {
-                                  setCustomChar(e.target.value);
-                                  setBrushChar(e.target.value);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </div>
-                          </button>
-                          {materialPresets.map((char) => (
-                            <button
-                              key={char}
-                              onClick={() => {
-                                setBrushChar(char);
-                                setTool("brush");
-                              }}
-                              className={cn(
-                                "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
-                                brushChar === char
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                              )}
-                            >
-                              <div className="size-3.5 flex items-center justify-center shrink-0">
-                                {brushChar === char && (
-                                  <Check className="size-3.5 stroke-[3]" />
-                                )}
-                              </div>
-                              <span className="flex-1 font-mono font-bold text-lg text-center leading-none">
-                                {char}
-                              </span>
-                            </button>
-                          ))}
-                        </>
-                      ) : (
-                        shapeTools.map((st) => {
-                          const meta = getToolMeta(st);
-                          const isSubActive = tool === st;
-                          return (
-                            <button
-                              key={st}
-                              onClick={() => {
-                                setTool(st);
-                                setLastUsedShape(st);
-                              }}
-                              className={cn(
-                                "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
-                                isSubActive
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                              )}
-                            >
-                              <div className="size-3.5 flex items-center justify-center shrink-0">
-                                {isSubActive && (
-                                  <Check className="size-3.5 stroke-[3]" />
-                                )}
-                              </div>
-                              <meta.icon className="size-4 shrink-0" />
-                              <span className="flex-1 text-left text-sm font-medium pr-4 whitespace-nowrap ml-1">
-                                {meta.label}
-                              </span>
-                              <span className="text-[10px] opacity-40 font-mono">
-                                {meta.shortcut}
-                              </span>
-                            </button>
-                          );
-                        })
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                )}
-              </div>
-            );
-          })}
-
-          <div
-            className="absolute bottom-1 left-0 bg-primary rounded-full transition-all duration-300 ease-out pointer-events-none"
-            style={{
-              width: `${indicatorStyle.width}px`,
-              transform: `translateX(${indicatorStyle.left}px)`,
-              height: "2px",
-            }}
-          />
-        </nav>
-      </div>
-    </TooltipProvider>
-  );
-}
-```
----
-```src/components/ToolBar/sidebar-right.tsx
-"use client";
-
-import * as React from "react";
-import { Library } from "lucide-react";
-import { SidebarStandard } from "@/components/ui/sidebar";
-import { CharLibrary } from "./right-sidebar/char-library";
-
-export function SidebarRight({
-  ...props
-}: React.ComponentProps<typeof SidebarStandard>) {
-  return (
-    <SidebarStandard
-      variant="floating"
-      side="right"
-      title="Library"
-      className="pointer-events-auto"
-      icon={
-        <div className="flex items-center justify-center rounded-lg bg-accent p-1.5 shrink-0">
-          <Library className="size-4 text-accent-foreground" />
-        </div>
-      }
-    >
-      {/* 
-          注意：这里直接放置 CharLibrary。
-          SidebarStandard 内部的 SidebarContent 已经处理了 flex-1 和 overflow-auto。
-          不要在这里再包裹任何带有 overflow-hidden 的 div。
-      */}
-      <CharLibrary />
-    </SidebarStandard>
-  );
-}
-```
----
-```src/components/ToolBar/right-sidebar/char-library.tsx
-"use client";
-
-import { useMemo } from "react";
-import {
-  ChevronRight,
-  Type,
-  Square,
-  LayoutGrid,
-  Accessibility,
-  Fingerprint,
-  Smile,
-  Box,
-} from "lucide-react";
-import { useCanvasStore } from "@/store/canvasStore";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
-
-const genRange = (start: number, count: number) =>
-  Array.from({ length: count }, (_, i) => String.fromCodePoint(start + i));
-
-export function CharLibrary() {
-  const { brushChar, setBrushChar, setTool } = useCanvasStore();
-
-  const library = useMemo(
-    () => [
-      { name: "Box Drawing", icon: Square, chars: genRange(0x2500, 128) },
-      { name: "Block Elements", icon: LayoutGrid, chars: genRange(0x2580, 32) },
-      {
-        name: "Accessibility",
-        icon: Accessibility,
-        chars: genRange(0x2800, 256),
-      },
-      {
-        name: "Nerd Icons",
-        icon: Fingerprint,
-        chars: [...genRange(0xe700, 40), ...genRange(0xf000, 50)],
-      },
-      { name: "Smileys", icon: Smile, chars: genRange(0x1f600, 80) },
-      { name: "Objects", icon: Box, chars: genRange(0x1f300, 80) },
-    ],
-    []
-  );
-
-  const handleSelect = (char: string) => {
-    setBrushChar(char);
-    setTool("brush");
-    toast.success(`Active: ${char}`, {
-      duration: 800,
-      position: "top-right",
-    });
-  };
-
-  return (
-    <SidebarGroup>
-      <SidebarGroupLabel>ASCII Materials</SidebarGroupLabel>
-      <SidebarMenu>
-        {library.map((group) => (
-          <Collapsible
-            key={group.name}
-            asChild
-            defaultOpen={group.isActive}
-            className="group/collapsible"
-          >
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip={group.name} className="font-medium">
-                <group.icon className="size-4 text-muted-foreground" />
-                <span>{group.name}</span>
-              </SidebarMenuButton>
-
-              <CollapsibleTrigger asChild>
-                <SidebarMenuAction className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90">
-                  <ChevronRight className="size-4" />
-                  <span className="sr-only">Toggle</span>
-                </SidebarMenuAction>
-              </CollapsibleTrigger>
-
-              <CollapsibleContent>
-                <div className="grid grid-cols-4 gap-1 p-2 bg-muted/20 rounded-md mt-1">
-                  {group.chars.map((char, idx) => (
-                    <button
-                      key={`${group.name}-${idx}`}
-                      onClick={() => handleSelect(char)}
-                      className={cn(
-                        "h-9 w-full flex items-center justify-center rounded-sm transition-all font-mono text-base border",
-                        brushChar === char
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm scale-95"
-                          : "bg-background hover:border-primary/30 hover:bg-accent text-foreground border-transparent"
-                      )}
-                    >
-                      {char}
-                    </button>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </SidebarMenuItem>
-          </Collapsible>
-        ))}
-      </SidebarMenu>
-    </SidebarGroup>
-  );
-}
-```
----
-```src/lib/constants.ts
-export const CELL_WIDTH = 10;
-export const CELL_HEIGHT = 20;
-
-export const GRID_COLOR = "#e5e7eb";
-export const BACKGROUND_COLOR = "#ffffff";
-
-export const MIN_ZOOM = 0.1;
-export const MAX_ZOOM = 5;
-
-export const FONT_SIZE = 15;
-export const COLOR_PRIMARY_TEXT = "#000000";
-export const COLOR_SCRATCH_LAYER = "#3b82f6";
-export const COLOR_TEXT_CURSOR_BG = "rgba(0, 0, 0, 0.5)";
-export const COLOR_TEXT_CURSOR_FG = "#ffffff";
-export const COLOR_ORIGIN_MARKER = "red";
-
-export const COLOR_SELECTION_BG = "rgba(0, 0, 0, 0.2)";
-export const COLOR_SELECTION_BORDER = "transparent";
-
-export const EXPORT_PADDING = 1;
-
-export const BOX_CHARS = {
-  TOP_LEFT: "╭",
-  TOP_RIGHT: "╮",
-  BOTTOM_LEFT: "╰",
-  BOTTOM_RIGHT: "╯",
-  HORIZONTAL: "─",
-  VERTICAL: "│",
-  CROSS: "┼",
-};
-```
----
-```src/lib/utils.ts
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
-```
----
-```src/lib/yjs-setup.ts
-import * as Y from "yjs";
-
-const yDoc = new Y.Doc();
-
-export const yMainGrid = yDoc.getMap<string>("main-grid");
-
-export const undoManager = new Y.UndoManager([yMainGrid], {
-  captureTimeout: 500,
-  trackedOrigins: new Set([null]),
-});
-
-export const forceHistorySave = () => {
-  undoManager.stopCapturing();
-};
-
-export const transactWithHistory = (
-  fn: () => void,
-  shouldSaveHistory = true
-) => {
-  yDoc.transact(() => {
-    fn();
-  });
-  if (shouldSaveHistory) {
-    forceHistorySave();
-  }
-};
-```
----
-```src/store/canvasStore.ts
-import { create } from "zustand";
-import { MIN_ZOOM, MAX_ZOOM } from "../lib/constants";
-import { yMainGrid } from "../lib/yjs-setup";
-import type { CanvasState } from "./interfaces";
-import {
-  createDrawingSlice,
-  createTextSlice,
-  createSelectionSlice,
-} from "./slices";
-
-export type { CanvasState };
-
-export const useCanvasStore = create<CanvasState>((set, get, ...a) => {
-  const syncFromYjs = () => {
-    const compositeGrid = new Map<string, string>();
-    for (const [key, value] of yMainGrid.entries()) {
-      compositeGrid.set(key, value);
-    }
-    set({ grid: compositeGrid });
-  };
-
-  yMainGrid.observe(() => {
-    syncFromYjs();
-  });
-
-  setTimeout(syncFromYjs, 0);
-
-  return {
-    offset: { x: 0, y: 0 },
-    zoom: 1,
-    grid: new Map(),
-    tool: "select",
-    brushChar: "#",
-
-    setOffset: (updater) => set((state) => ({ offset: updater(state.offset) })),
-    setZoom: (updater) =>
-      set((state) => ({
-        zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, updater(state.zoom))),
-      })),
-    setTool: (tool) => set({ tool, textCursor: null }),
-    setBrushChar: (char) => set({ brushChar: char }),
-
-    ...createDrawingSlice(set, get, ...a),
-    ...createTextSlice(set, get, ...a),
-    ...createSelectionSlice(set, get, ...a),
-  };
-});
-```
----
-```src/store/interfaces.ts
-import type {
-  GridMap,
-  GridPoint,
-  Point,
-  SelectionArea,
-  ToolType,
-} from "../types";
-
-export interface DrawingSlice {
-  scratchLayer: GridMap | null;
-  setScratchLayer: (points: GridPoint[]) => void;
-  addScratchPoints: (points: GridPoint[]) => void;
-  commitScratch: () => void;
-  clearScratch: () => void;
-  clearCanvas: () => void;
-  erasePoints: (points: Point[]) => void;
-  updateScratchForShape: (
-    tool: ToolType,
-    start: Point,
-    end: Point,
-    options?: { axis?: "vertical" | "horizontal" | null }
-  ) => void;
-}
-
-export interface TextSlice {
-  textCursor: Point | null;
-  setTextCursor: (pos: Point | null) => void;
-  writeTextString: (str: string, startPos?: Point) => void;
-  moveTextCursor: (dx: number, dy: number) => void;
-  backspaceText: () => void;
-  newlineText: () => void;
-}
-
-export interface SelectionSlice {
-  selections: SelectionArea[];
-  addSelection: (area: SelectionArea) => void;
-  clearSelections: () => void;
-  deleteSelection: () => void;
-  fillSelections: () => void;
-  fillSelectionsWithChar: (char: string) => void;
-  copySelectionToClipboard: () => void;
-  cutSelectionToClipboard: () => void;
-}
-
-export type CanvasState = {
-  offset: Point;
-  zoom: number;
-  tool: ToolType;
-  brushChar: string;
-  grid: GridMap;
-
-  setOffset: (updater: (prev: Point) => Point) => void;
-  setZoom: (updater: (prev: number) => number) => void;
-  setTool: (tool: ToolType) => void;
-  setBrushChar: (char: string) => void;
-} & DrawingSlice &
-  TextSlice &
-  SelectionSlice;
-```
----
-```src/store/utils.ts
-import * as Y from "yjs";
-import { GridManager } from "../utils/grid";
-
-export const placeCharInYMap = (
-  targetGrid: Y.Map<string>,
-  x: number,
-  y: number,
-  char: string
-) => {
-  if (!char) return;
-
-  const leftKey = GridManager.toKey(x - 1, y);
-  const leftChar = targetGrid.get(leftKey);
-  if (leftChar && GridManager.isWideChar(leftChar)) {
-    targetGrid.delete(leftKey);
-  }
-
-  targetGrid.set(GridManager.toKey(x, y), char);
-
-  if (GridManager.isWideChar(char)) {
-    targetGrid.delete(GridManager.toKey(x + 1, y));
-  }
-};
-```
----
-```src/store/slices/drawingSlice.ts
-import type { StateCreator } from "zustand";
-import type { CanvasState, DrawingSlice } from "../interfaces";
-import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
-import { GridManager } from "../../utils/grid";
-import type { GridPoint } from "../../types";
-import { placeCharInYMap } from "../utils";
-import {
-  getBoxPoints,
-  getCirclePoints,
-  getLShapeLinePoints,
-  getStepLinePoints,
-} from "../../utils/shapes";
-
-export const createDrawingSlice: StateCreator<
-  CanvasState,
-  [],
-  [],
-  DrawingSlice
-> = (set, get) => ({
-  scratchLayer: null,
-
-  setScratchLayer: (points) => {
-    const layer = new Map<string, string>();
-    GridManager.setPoints(layer, points);
-    set({ scratchLayer: layer });
-  },
-
-  addScratchPoints: (points) => {
-    set((state) => {
-      const layer = new Map(state.scratchLayer || []);
-      GridManager.setPoints(layer, points);
-      return { scratchLayer: layer };
-    });
-  },
-
-  updateScratchForShape: (tool, start, end, options) => {
-    let points: GridPoint[] = [];
-    switch (tool) {
-      case "box":
-        points = getBoxPoints(start, end);
-        break;
-      case "circle":
-        points = getCirclePoints(start, end);
-        break;
-      case "stepline":
-        points = getStepLinePoints(start, end);
-        break;
-      case "line": {
-        const isVerticalFirst = options?.axis === "vertical";
-        points = getLShapeLinePoints(start, end, isVerticalFirst);
-        break;
-      }
-    }
-    get().setScratchLayer(points);
-  },
-
-  commitScratch: () => {
-    const { scratchLayer } = get();
-    if (!scratchLayer || scratchLayer.size === 0) return;
-
-    transactWithHistory(() => {
-      GridManager.iterate(scratchLayer, (char, x, y) => {
-        placeCharInYMap(yMainGrid, x, y, char);
-      });
-    });
-
-    set({ scratchLayer: null });
-  },
-
-  clearScratch: () => set({ scratchLayer: null }),
-
-  clearCanvas: () => {
-    transactWithHistory(() => {
-      yMainGrid.clear();
-    });
-  },
-
-  erasePoints: (points) => {
-    transactWithHistory(() => {
-      points.forEach((p) => {
-        const key = GridManager.toKey(p.x, p.y);
-        const char = yMainGrid.get(key);
-        if (!char) {
-          const leftChar = yMainGrid.get(GridManager.toKey(p.x - 1, p.y));
-          if (leftChar && GridManager.isWideChar(leftChar)) {
-            yMainGrid.delete(GridManager.toKey(p.x - 1, p.y));
-          }
-        }
-        yMainGrid.delete(key);
-      });
-    });
-  },
-});
-```
----
-```src/store/slices/index.ts
-export { createDrawingSlice } from "./drawingSlice";
-export { createTextSlice } from "./textSlice";
-export { createSelectionSlice } from "./selectionSlice";
-```
----
-```src/store/slices/selectionSlice.ts
-import type { StateCreator } from "zustand";
-import { toast } from "sonner";
-import type { CanvasState, SelectionSlice } from "../interfaces";
-import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
-import { GridManager } from "../../utils/grid";
-import { getSelectionBounds } from "../../utils/selection";
-import { exportSelectionToString } from "../../utils/export";
-import { placeCharInYMap } from "../utils";
-
-export const createSelectionSlice: StateCreator<
-  CanvasState,
-  [],
-  [],
-  SelectionSlice
-> = (set, get) => ({
-  selections: [],
-
-  addSelection: (area) => {
-    set((s) => ({ selections: [...s.selections, area] }));
-  },
-
-  clearSelections: () => set({ selections: [] }),
-
-  deleteSelection: () => {
-    const { selections } = get();
-    transactWithHistory(() => {
-      selections.forEach((area) => {
-        const { minX, maxX, minY, maxY } = getSelectionBounds(area);
-        for (let y = minY; y <= maxY; y++) {
-          for (let x = minX; x <= maxX; x++) {
-            yMainGrid.delete(GridManager.toKey(x, y));
-          }
-        }
-      });
-    });
-  },
-
-  fillSelections: () => {
-    const { selections, brushChar } = get();
-    if (selections.length > 0) get().fillSelectionsWithChar(brushChar);
-  },
-
-  fillSelectionsWithChar: (char: string) => {
-    const { selections } = get();
-    const charWidth = GridManager.getCharWidth(char);
-
-    transactWithHistory(() => {
-      selections.forEach((area) => {
-        const { minX, maxX, minY, maxY } = getSelectionBounds(area);
-        for (let y = minY; y <= maxY; y++) {
-          for (let x = minX; x <= maxX; x += charWidth) {
-            if (x + charWidth - 1 > maxX) break;
-            placeCharInYMap(yMainGrid, x, y, char);
-          }
-        }
-      });
-    });
-  },
-
-  copySelectionToClipboard: () => {
-    const { grid, selections } = get();
-    if (selections.length === 0) return;
-    const text = exportSelectionToString(grid, selections);
-    navigator.clipboard.writeText(text).then(() => toast.success("Copied!"));
-  },
-
-  cutSelectionToClipboard: () => {
-    const { grid, selections, deleteSelection } = get();
-    if (selections.length === 0) return;
-    const text = exportSelectionToString(grid, selections);
-    navigator.clipboard.writeText(text).then(() => {
-      deleteSelection();
-      toast.success("Cut!");
-    });
-  },
-});
-```
----
-```src/store/slices/textSlice.ts
-import type { StateCreator } from "zustand";
-import type { CanvasState, TextSlice } from "../interfaces";
-import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
-import { GridManager } from "../../utils/grid";
-import { placeCharInYMap } from "../utils";
-
-export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
-  set,
-  get
-) => ({
-  textCursor: null,
-
-  setTextCursor: (pos) => {
-    set({ textCursor: pos, selections: [] });
-  },
-
-  writeTextString: (str, startPos) => {
-    const { textCursor } = get();
-    const cursor = startPos || textCursor;
-    if (!cursor) return;
-
-    let currentX = cursor.x;
-    let currentY = cursor.y;
-    const startX = cursor.x;
-
-    transactWithHistory(() => {
-      for (const char of str) {
-        if (char === "\n") {
-          currentY++;
-          currentX = startX;
-          continue;
-        }
-
-        placeCharInYMap(yMainGrid, currentX, currentY, char);
-        currentX += GridManager.getCharWidth(char);
-      }
-    });
-
-    set({ textCursor: { x: currentX, y: currentY } });
-  },
-
-  moveTextCursor: (dx, dy) => {
-    const { textCursor, grid } = get();
-    if (!textCursor) return;
-
-    let newX = textCursor.x;
-    const newY = textCursor.y + dy;
-
-    if (dx > 0) {
-      const char = grid.get(GridManager.toKey(newX, textCursor.y));
-      newX += GridManager.getCharWidth(char || " ");
-    } else if (dx < 0) {
-      const leftKey = GridManager.toKey(newX - 1, textCursor.y);
-      const leftChar = grid.get(leftKey);
-      if (!leftChar) {
-        const farLeftChar = grid.get(GridManager.toKey(newX - 2, textCursor.y));
-        newX -= farLeftChar && GridManager.isWideChar(farLeftChar) ? 2 : 1;
-      } else {
-        newX -= 1;
-      }
-    }
-    set({ textCursor: { x: newX, y: newY } });
-  },
-
-  backspaceText: () => {
-    const { textCursor, grid } = get();
-    if (!textCursor) return;
-
-    transactWithHistory(() => {
-      const { x, y } = textCursor;
-      let deletePos = { x: x - 1, y };
-
-      const charAtMinus1 = grid.get(GridManager.toKey(x - 1, y));
-      const charAtMinus2 = grid.get(GridManager.toKey(x - 2, y));
-
-      if (
-        !charAtMinus1 &&
-        charAtMinus2 &&
-        GridManager.isWideChar(charAtMinus2)
-      ) {
-        deletePos = { x: x - 2, y };
-      }
-
-      yMainGrid.delete(GridManager.toKey(deletePos.x, deletePos.y));
-      set({ textCursor: deletePos });
-    });
-  },
-
-  newlineText: () => {
-    const { textCursor } = get();
-    if (!textCursor) return;
-    set({ textCursor: { x: textCursor.x, y: textCursor.y + 1 } });
-  },
-});
-```
----
-```src/types/index.ts
-import { z } from "zod";
-
-export const PointSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-});
-
-export type Point = z.infer<typeof PointSchema>;
-
-export const GridPointSchema = PointSchema.extend({
-  char: z.string(),
-});
-
-export type GridPoint = z.infer<typeof GridPointSchema>;
-
-export const SelectionAreaSchema = z.object({
-  start: PointSchema,
-  end: PointSchema,
-});
-
-export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
-
-export type GridMap = Map<string, string>;
-
-export type ToolType =
-  | "select"
-  | "fill"
-  | "brush"
-  | "eraser"
-  | "box"
-  | "line"
-  | "stepline"
-  | "circle"
-  | "text";
-```
----
 ```src/utils/event.ts
 export const isCtrlOrMeta = (event: { ctrlKey: boolean; metaKey: boolean }) => {
   return event.ctrlKey || event.metaKey;
@@ -1702,6 +1236,9 @@ export const exportSelectionToString = (
 import { CELL_WIDTH, CELL_HEIGHT } from "../lib/constants";
 import type { Point, GridMap, GridPoint } from "../types";
 
+/**
+ * 城市测绘局：负责网格与屏幕坐标的物理转换，以及建筑尺寸鉴定
+ */
 export const GridManager = {
   screenToGrid(
     screenX: number,
@@ -1759,10 +1296,22 @@ export const GridManager = {
 
   getCharWidth(char: string): number {
     if (!char) return 1;
-    const isWide =
-      /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef\ue000-\uf8ff]/.test(char) ||
-      /\p{Emoji_Presentation}/u.test(char);
-    return isWide ? 2 : 1;
+
+    const codePoint = char.codePointAt(0) || 0;
+    if (codePoint < 128) return 1;
+
+    if (/\p{Emoji_Presentation}/u.test(char)) return 2;
+
+    if (
+      (codePoint >= 0x2e80 && codePoint <= 0x9fff) ||
+      (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+      (codePoint >= 0xff00 && codePoint <= 0xffef) ||
+      (codePoint >= 0xe000 && codePoint <= 0xf8ff)
+    ) {
+      return 2;
+    }
+
+    return 1;
   },
 
   isWideChar(char: string): boolean {
@@ -2032,293 +1581,580 @@ export function getCirclePoints(center: Point, edge: Point): GridPoint[] {
 }
 ```
 ---
-```src/index.css
-@import "tailwindcss";
-@import "tw-animate-css";
+```src/lib/constants.ts
+export const CELL_WIDTH = 10;
+export const CELL_HEIGHT = 20;
 
-@custom-variant dark (&:is(.dark *));
+export const GRID_COLOR = "#e5e7eb";
+export const BACKGROUND_COLOR = "#ffffff";
 
-html,
-body,
-#root {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-}
+export const MIN_ZOOM = 0.1;
+export const MAX_ZOOM = 5;
 
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-}
+export const FONT_SIZE = 15;
+export const COLOR_PRIMARY_TEXT = "#000000";
+export const COLOR_SCRATCH_LAYER = "#3b82f6";
+export const COLOR_TEXT_CURSOR_BG = "rgba(0, 0, 0, 0.5)";
+export const COLOR_TEXT_CURSOR_FG = "#ffffff";
+export const COLOR_ORIGIN_MARKER = "red";
 
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+export const COLOR_SELECTION_BG = "rgba(0, 0, 0, 0.2)";
+export const COLOR_SELECTION_BORDER = "transparent";
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
+export const EXPORT_PADDING = 1;
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-family: "Maple Mono NF CN";
-    font-weight: normal;
-  }
-}
-
-[data-slot="sidebar-gap"] {
-  width: 0 !important;
-}
-
-[data-slot="sidebar-container"] {
-  position: absolute !important;
-  height: 100% !important;
-}
-```
----
-```src/layout.tsx
-import React from "react";
-import { Toaster } from "./components/ui/sonner";
-
-interface AppLayoutProps {
-  canvas: React.ReactNode;
-  children: React.ReactNode;
-}
-
-export const AppLayout = ({ canvas, children }: AppLayoutProps) => {
-  return (
-    <div className="w-full h-full flex flex-col bg-gray-50 relative overflow-hidden">
-      <main className="flex-1 relative z-0">{canvas}</main>
-      <Toaster />
-      {children}
-    </div>
-  );
+export const BOX_CHARS = {
+  TOP_LEFT: "╭",
+  TOP_RIGHT: "╮",
+  BOTTOM_LEFT: "╰",
+  BOTTOM_RIGHT: "╯",
+  HORIZONTAL: "─",
+  VERTICAL: "│",
+  CROSS: "┼",
 };
 ```
 ---
-```src/main.tsx
-import React, { useState } from "react";
-import ReactDOM from "react-dom/client";
-import { toast } from "sonner";
-import { useKeyPress } from "ahooks";
-import "./index.css";
+```src/lib/utils.ts
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
 
-import { AsciiCanvas } from "./components/AsciiCanvas";
-import { useCanvasStore } from "./store/canvasStore";
-import { exportToString } from "./utils/export";
-import { AppLayout } from "./layout";
-import { Toolbar } from "./components/ToolBar/dock";
-import { undoManager } from "./lib/yjs-setup";
-import { isCtrlOrMeta } from "./utils/event";
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+```
+---
+```src/lib/yjs-setup.ts
+import * as Y from "yjs";
 
-import { SidebarRight } from "./components/ToolBar/sidebar-right";
-import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
+const yDoc = new Y.Doc();
 
-function App() {
-  const {
-    tool,
-    grid,
-    setTool,
-    fillSelectionsWithChar,
-    copySelectionToClipboard,
-    cutSelectionToClipboard,
-  } = useCanvasStore();
+export const yMainGrid = yDoc.getMap<string>("main-grid");
 
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+export const undoManager = new Y.UndoManager([yMainGrid], {
+  captureTimeout: 500,
+  trackedOrigins: new Set([null]),
+});
 
-  const handleUndo = () => {
-    undoManager.undo();
-    toast.dismiss();
-  };
+export const forceHistorySave = () => {
+  undoManager.stopCapturing();
+};
 
-  const handleRedo = () => {
-    undoManager.redo();
-  };
-
-  useKeyPress(["meta.z", "ctrl.z"], (e) => {
-    e.preventDefault();
-    handleUndo();
+export const transactWithHistory = (
+  fn: () => void,
+  shouldSaveHistory = true
+) => {
+  yDoc.transact(() => {
+    fn();
   });
+  if (shouldSaveHistory) {
+    forceHistorySave();
+  }
+};
+```
+---
+```src/store/canvasStore.ts
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { MIN_ZOOM, MAX_ZOOM } from "../lib/constants";
+import { yMainGrid, transactWithHistory } from "../lib/yjs-setup";
+import type { CanvasState } from "./interfaces";
+import {
+  createDrawingSlice,
+  createTextSlice,
+  createSelectionSlice,
+} from "./slices";
 
-  useKeyPress(["meta.shift.z", "ctrl.shift.z", "meta.y", "ctrl.y"], (e) => {
-    e.preventDefault();
-    handleRedo();
-  });
+export type { CanvasState };
 
-  useKeyPress(["meta.c", "ctrl.c"], (e) => {
-    e.preventDefault();
-    copySelectionToClipboard();
-  });
+export const useCanvasStore = create<CanvasState>()(
+  persist(
+    (set, get, ...a) => {
+      const syncPersistenceToYjs = (persistenceGrid: Map<string, string>) => {
+        transactWithHistory(() => {
+          yMainGrid.clear();
+          persistenceGrid.forEach((char, key) => {
+            yMainGrid.set(key, char);
+          });
+        }, false); 
+      };
 
-  useKeyPress(["meta.x", "ctrl.x"], (e) => {
-    e.preventDefault();
-    cutSelectionToClipboard();
-  });
+      yMainGrid.observe(() => {
+        const compositeGrid = new Map<string, string>();
+        for (const [key, value] of yMainGrid.entries()) {
+          compositeGrid.set(key, value);
+        }
+        set({ grid: compositeGrid });
+      });
 
-  useKeyPress(
-    (event) => !isCtrlOrMeta(event) && !event.altKey && event.key.length === 1,
-    (event) => {
-      const { selections, textCursor } = useCanvasStore.getState();
-      if (selections.length > 0 && !textCursor) {
-        event.preventDefault();
-        fillSelectionsWithChar(event.key);
-      }
+      return {
+        offset: { x: 0, y: 0 },
+        zoom: 1,
+        grid: new Map(),
+        tool: "select",
+        brushChar: "#",
+
+        setOffset: (updater) =>
+          set((state) => ({ offset: updater(state.offset) })),
+        setZoom: (updater) =>
+          set((state) => ({
+            zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, updater(state.zoom))),
+          })),
+        setTool: (tool) => set({ tool, textCursor: null }),
+        setBrushChar: (char) => set({ brushChar: char }),
+
+        ...createDrawingSlice(set, get, ...a),
+        ...createTextSlice(set, get, ...a),
+        ...createSelectionSlice(set, get, ...a),
+      };
     },
     {
-      events: ["keydown"],
+      name: "ascii-canvas-persistence",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        offset: state.offset,
+        zoom: state.zoom,
+        brushChar: state.brushChar,
+        grid: Array.from(state.grid.entries()),
+      }),
+      onRehydrateStorage: (state) => {
+        return (hydratedState, error) => {
+          if (error || !hydratedState) return;
+
+          if (Array.isArray(hydratedState.grid)) {
+            const recoveredMap = new Map<string, string>(
+              hydratedState.grid as any
+            );
+            hydratedState.grid = recoveredMap;
+
+            transactWithHistory(() => {
+              yMainGrid.clear();
+              recoveredMap.forEach((val, key) => yMainGrid.set(key, val));
+            }, false);
+          }
+        };
+      },
     }
-  );
+  )
+);
+```
+---
+```src/store/interfaces.ts
+import type {
+  GridMap,
+  GridPoint,
+  Point,
+  SelectionArea,
+  ToolType,
+} from "../types";
 
-  const handleExport = () => {
-    const text = exportToString(grid);
-    if (!text) {
-      toast.warning("Canvas is empty!", {
-        description: "Draw something before exporting.",
-      });
-      return;
-    }
-    navigator.clipboard.writeText(text).then(() => {
-      toast.success("Copied to clipboard!", {
-        description: `${text.length} characters ready to paste.`,
-      });
-    });
-  };
-
-  return (
-    <SidebarProvider className="flex h-full w-full overflow-hidden">
-      <SidebarInset className="relative flex flex-1 flex-col overflow-hidden">
-        <AppLayout
-          canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
-        >
-          <Toolbar
-            tool={tool}
-            setTool={setTool}
-            onUndo={handleUndo}
-            onExport={handleExport}
-          />
-        </AppLayout>
-
-        {/* 建材总库：固定在右侧，通过 SidebarProvider 管理 */}
-        <div className="absolute top-0 right-0 h-full pointer-events-none z-50">
-          <SidebarProvider
-            open={isRightPanelOpen}
-            onOpenChange={setIsRightPanelOpen}
-            className="h-full items-end"
-          >
-            <SidebarRight />
-          </SidebarProvider>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
-  );
+export interface DrawingSlice {
+  scratchLayer: GridMap | null;
+  setScratchLayer: (points: GridPoint[]) => void;
+  addScratchPoints: (points: GridPoint[]) => void;
+  commitScratch: () => void;
+  clearScratch: () => void;
+  clearCanvas: () => void;
+  erasePoints: (points: Point[]) => void;
+  updateScratchForShape: (
+    tool: ToolType,
+    start: Point,
+    end: Point,
+    options?: { axis?: "vertical" | "horizontal" | null }
+  ) => void;
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+export interface TextSlice {
+  textCursor: Point | null;
+  setTextCursor: (pos: Point | null) => void;
+  writeTextString: (str: string, startPos?: Point) => void;
+  moveTextCursor: (dx: number, dy: number) => void;
+  backspaceText: () => void;
+  newlineText: () => void;
+}
+
+export interface SelectionSlice {
+  selections: SelectionArea[];
+  addSelection: (area: SelectionArea) => void;
+  clearSelections: () => void;
+  deleteSelection: () => void;
+  fillSelections: () => void;
+  fillSelectionsWithChar: (char: string) => void;
+  copySelectionToClipboard: () => void;
+  cutSelectionToClipboard: () => void;
+}
+
+export type CanvasState = {
+  offset: Point;
+  zoom: number;
+  tool: ToolType;
+  brushChar: string;
+  grid: GridMap;
+
+  setOffset: (updater: (prev: Point) => Point) => void;
+  setZoom: (updater: (prev: number) => number) => void;
+  setTool: (tool: ToolType) => void;
+  setBrushChar: (char: string) => void;
+} & DrawingSlice &
+  TextSlice &
+  SelectionSlice;
+```
+---
+```src/store/utils.ts
+import * as Y from "yjs";
+import { GridManager } from "../utils/grid";
+
+export const placeCharInMap = (
+  targetMap: {
+    set(key: string, value: string): void;
+    delete(key: string): void;
+    get(key: string): string | undefined;
+  },
+  x: number,
+  y: number,
+  char: string
+) => {
+  if (!char) return;
+
+  const leftKey = GridManager.toKey(x - 1, y);
+  const leftChar = targetMap.get(leftKey);
+  if (leftChar && GridManager.isWideChar(leftChar)) {
+    targetMap.delete(leftKey);
+  }
+
+  targetMap.set(GridManager.toKey(x, y), char);
+
+  if (GridManager.isWideChar(char)) {
+    const rightKey = GridManager.toKey(x + 1, y);
+    targetMap.delete(rightKey);
+  }
+};
+
+export const placeCharInYMap = (
+  targetGrid: Y.Map<string>,
+  x: number,
+  y: number,
+  char: string
+) => {
+  placeCharInMap(targetGrid, x, y, char);
+};
+```
+---
+```src/store/slices/drawingSlice.ts
+import type { StateCreator } from "zustand";
+import type { CanvasState, DrawingSlice } from "../interfaces";
+import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
+import { GridManager } from "../../utils/grid";
+import type { GridPoint } from "../../types";
+import { placeCharInMap, placeCharInYMap } from "../utils";
+import {
+  getBoxPoints,
+  getCirclePoints,
+  getLShapeLinePoints,
+  getStepLinePoints,
+} from "../../utils/shapes";
+
+export const createDrawingSlice: StateCreator<
+  CanvasState,
+  [],
+  [],
+  DrawingSlice
+> = (set, get) => ({
+  scratchLayer: null,
+
+  setScratchLayer: (points) => {
+    const layer = new Map<string, string>();
+    points.forEach((p) => {
+      placeCharInMap(layer, p.x, p.y, p.char);
+    });
+    set({ scratchLayer: layer });
+  },
+
+  addScratchPoints: (points) => {
+    set((state) => {
+      const layer = new Map(state.scratchLayer || []);
+      points.forEach((p) => {
+        placeCharInMap(layer, p.x, p.y, p.char);
+      });
+      return { scratchLayer: layer };
+    });
+  },
+
+  updateScratchForShape: (tool, start, end, options) => {
+    let points: GridPoint[] = [];
+    switch (tool) {
+      case "box":
+        points = getBoxPoints(start, end);
+        break;
+      case "circle":
+        points = getCirclePoints(start, end);
+        break;
+      case "stepline":
+        points = getStepLinePoints(start, end);
+        break;
+      case "line": {
+        const isVerticalFirst = options?.axis === "vertical";
+        points = getLShapeLinePoints(start, end, isVerticalFirst);
+        break;
+      }
+    }
+    get().setScratchLayer(points);
+  },
+
+  commitScratch: () => {
+    const { scratchLayer } = get();
+    if (!scratchLayer || scratchLayer.size === 0) return;
+
+    transactWithHistory(() => {
+      GridManager.iterate(scratchLayer, (char, x, y) => {
+        placeCharInYMap(yMainGrid, x, y, char);
+      });
+    });
+
+    set({ scratchLayer: null });
+  },
+
+  clearScratch: () => set({ scratchLayer: null }),
+
+  clearCanvas: () => {
+    transactWithHistory(() => {
+      yMainGrid.clear();
+    });
+  },
+
+  erasePoints: (points) => {
+    transactWithHistory(() => {
+      points.forEach((p) => {
+        const key = GridManager.toKey(p.x, p.y);
+        const char = yMainGrid.get(key);
+        if (!char) {
+          const leftKey = GridManager.toKey(p.x - 1, p.y);
+          const leftChar = yMainGrid.get(leftKey);
+          if (leftChar && GridManager.isWideChar(leftChar)) {
+            yMainGrid.delete(leftKey);
+          }
+        }
+        yMainGrid.delete(key);
+      });
+    });
+  },
+});
+```
+---
+```src/store/slices/index.ts
+export { createDrawingSlice } from "./drawingSlice";
+export { createTextSlice } from "./textSlice";
+export { createSelectionSlice } from "./selectionSlice";
+```
+---
+```src/store/slices/selectionSlice.ts
+import type { StateCreator } from "zustand";
+import { toast } from "sonner";
+import type { CanvasState, SelectionSlice } from "../interfaces";
+import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
+import { GridManager } from "../../utils/grid";
+import { getSelectionBounds } from "../../utils/selection";
+import { exportSelectionToString } from "../../utils/export";
+import { placeCharInYMap } from "../utils";
+
+export const createSelectionSlice: StateCreator<
+  CanvasState,
+  [],
+  [],
+  SelectionSlice
+> = (set, get) => ({
+  selections: [],
+
+  addSelection: (area) => {
+    set((s) => ({ selections: [...s.selections, area] }));
+  },
+
+  clearSelections: () => set({ selections: [] }),
+
+  deleteSelection: () => {
+    const { selections } = get();
+    transactWithHistory(() => {
+      selections.forEach((area) => {
+        const { minX, maxX, minY, maxY } = getSelectionBounds(area);
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            yMainGrid.delete(GridManager.toKey(x, y));
+          }
+        }
+      });
+    });
+  },
+
+  fillSelections: () => {
+    const { selections, brushChar } = get();
+    if (selections.length > 0) get().fillSelectionsWithChar(brushChar);
+  },
+
+  fillSelectionsWithChar: (char: string) => {
+    const { selections } = get();
+    const charWidth = GridManager.getCharWidth(char);
+
+    transactWithHistory(() => {
+      selections.forEach((area) => {
+        const { minX, maxX, minY, maxY } = getSelectionBounds(area);
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x += charWidth) {
+            if (x + charWidth - 1 > maxX) break;
+            placeCharInYMap(yMainGrid, x, y, char);
+          }
+        }
+      });
+    });
+  },
+
+  copySelectionToClipboard: () => {
+    const { grid, selections } = get();
+    if (selections.length === 0) return;
+    const text = exportSelectionToString(grid, selections);
+    navigator.clipboard.writeText(text).then(() => toast.success("Copied!"));
+  },
+
+  cutSelectionToClipboard: () => {
+    const { grid, selections, deleteSelection } = get();
+    if (selections.length === 0) return;
+    const text = exportSelectionToString(grid, selections);
+    navigator.clipboard.writeText(text).then(() => {
+      deleteSelection();
+      toast.success("Cut!");
+    });
+  },
+});
+```
+---
+```src/store/slices/textSlice.ts
+import type { StateCreator } from "zustand";
+import type { CanvasState, TextSlice } from "../interfaces";
+import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
+import { GridManager } from "../../utils/grid";
+import { placeCharInYMap } from "../utils";
+
+export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
+  set,
+  get
+) => ({
+  textCursor: null,
+
+  setTextCursor: (pos) => {
+    set({ textCursor: pos, selections: [] });
+  },
+
+  writeTextString: (str, startPos) => {
+    const { textCursor } = get();
+    const cursor = startPos || textCursor;
+    if (!cursor) return;
+
+    let currentX = cursor.x;
+    let currentY = cursor.y;
+    const startX = cursor.x;
+
+    transactWithHistory(() => {
+      for (const char of str) {
+        if (char === "\n") {
+          currentY++;
+          currentX = startX;
+          continue;
+        }
+
+        placeCharInYMap(yMainGrid, currentX, currentY, char);
+        currentX += GridManager.getCharWidth(char);
+      }
+    });
+
+    set({ textCursor: { x: currentX, y: currentY } });
+  },
+
+  moveTextCursor: (dx, dy) => {
+    const { textCursor, grid } = get();
+    if (!textCursor) return;
+
+    let newX = textCursor.x;
+    const newY = textCursor.y + dy;
+
+    if (dx > 0) {
+      const char = grid.get(GridManager.toKey(newX, textCursor.y));
+      newX += GridManager.getCharWidth(char || " ");
+    } else if (dx < 0) {
+      const leftKey = GridManager.toKey(newX - 1, textCursor.y);
+      const leftChar = grid.get(leftKey);
+      if (!leftChar) {
+        const farLeftChar = grid.get(GridManager.toKey(newX - 2, textCursor.y));
+        newX -= farLeftChar && GridManager.isWideChar(farLeftChar) ? 2 : 1;
+      } else {
+        newX -= 1;
+      }
+    }
+    set({ textCursor: { x: newX, y: newY } });
+  },
+
+  backspaceText: () => {
+    const { textCursor, grid } = get();
+    if (!textCursor) return;
+
+    transactWithHistory(() => {
+      const { x, y } = textCursor;
+      let deletePos = { x: x - 1, y };
+
+      const charAtMinus1 = grid.get(GridManager.toKey(x - 1, y));
+      const charAtMinus2 = grid.get(GridManager.toKey(x - 2, y));
+
+      if (
+        !charAtMinus1 &&
+        charAtMinus2 &&
+        GridManager.isWideChar(charAtMinus2)
+      ) {
+        deletePos = { x: x - 2, y };
+      }
+
+      yMainGrid.delete(GridManager.toKey(deletePos.x, deletePos.y));
+      set({ textCursor: deletePos });
+    });
+  },
+
+  newlineText: () => {
+    const { textCursor } = get();
+    if (!textCursor) return;
+    set({ textCursor: { x: textCursor.x, y: textCursor.y + 1 } });
+  },
+});
+```
+---
+```src/types/index.ts
+import { z } from "zod";
+
+export const PointSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+});
+
+export type Point = z.infer<typeof PointSchema>;
+
+export const GridPointSchema = PointSchema.extend({
+  char: z.string(),
+});
+
+export type GridPoint = z.infer<typeof GridPointSchema>;
+
+export const SelectionAreaSchema = z.object({
+  start: PointSchema,
+  end: PointSchema,
+});
+
+export type SelectionArea = z.infer<typeof SelectionAreaSchema>;
+
+export type GridMap = Map<string, string>;
+
+export type ToolType =
+  | "select"
+  | "fill"
+  | "brush"
+  | "eraser"
+  | "box"
+  | "line"
+  | "stepline"
+  | "circle"
+  | "text";
 ```

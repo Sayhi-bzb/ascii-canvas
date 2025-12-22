@@ -48,11 +48,13 @@ export type CanvasState = {
   tool: ToolType;
   brushChar: string;
   grid: GridMap;
+  showGrid: boolean;
 
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
   setTool: (tool: ToolType) => void;
   setBrushChar: (char: string) => void;
+  setShowGrid: (show: boolean) => void;
 } & DrawingSlice &
   TextSlice &
   SelectionSlice;
