@@ -29,6 +29,7 @@ export interface TextSlice {
   moveTextCursor: (dx: number, dy: number) => void;
   backspaceText: () => void;
   newlineText: () => void;
+  indentText: () => void;
 }
 
 export interface SelectionSlice {

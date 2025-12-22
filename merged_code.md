@@ -54,15 +54,19 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     draggingSelection
   );
 
+  // 修复核心：只要有光标或者有选区，就必须保持焦点以接收键盘事件（如 Delete）
   useEffect(() => {
-    if (textCursor && textareaRef.current) {
+    const shouldFocus = textCursor || selections.length > 0;
+    if (shouldFocus && textareaRef.current) {
+      // 使用 setTimeout 确保在渲染周期完成后获取焦点
       setTimeout(() => {
         textareaRef.current?.focus();
       }, 0);
-    } else if (textareaRef.current) {
+    } else if (textareaRef.current && !shouldFocus) {
+      // 只有在既没有光标也没有选区时（例如切换到笔刷工具），才放弃焦点
       textareaRef.current.blur();
     }
-  }, [textCursor]);
+  }, [textCursor, selections.length]); // 监听 selections 长度变化
 
   const handleCopy = (e: ClipboardEvent) => {
     if (selections.length > 0) {
@@ -122,25 +126,50 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   useEventListener("paste", handlePaste);
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
-    if (!textCursor || !size) return { display: "none" };
-    const { x, y } = GridManager.gridToScreen(
-      textCursor.x,
-      textCursor.y,
-      store.offset.x,
-      store.offset.y,
-      store.zoom
-    );
+    // 即使没有 textCursor，如果有 selections，我们也需要 input 存在以便接收按键
+    // 但我们可以把它藏得更深一点，或者保持原样，因为 opacity 是 0
+    if ((!textCursor && selections.length === 0) || !size)
+      return { display: "none" };
+
+    // 如果只有选区没有光标，我们将 textarea 定位到选区左上角，或者屏幕中心
+    let targetX = 0;
+    let targetY = 0;
+
+    if (textCursor) {
+      const pos = GridManager.gridToScreen(
+        textCursor.x,
+        textCursor.y,
+        store.offset.x,
+        store.offset.y,
+        store.zoom
+      );
+      targetX = pos.x;
+      targetY = pos.y;
+    } else if (selections.length > 0) {
+      // 简单的定位兜底，防止输入法弹出在奇怪的位置
+      const sel = selections[0];
+      const pos = GridManager.gridToScreen(
+        sel.start.x,
+        sel.start.y,
+        store.offset.x,
+        store.offset.y,
+        store.zoom
+      );
+      targetX = pos.x;
+      targetY = pos.y;
+    }
+
     return {
       position: "absolute",
-      left: `${x}px`,
-      top: `${y}px`,
+      left: `${targetX}px`,
+      top: `${targetY}px`,
       width: "1px",
       height: "1px",
       opacity: 0,
       pointerEvents: "none",
       zIndex: -1,
     };
-  }, [textCursor, store.offset, store.zoom, size]);
+  }, [textCursor, selections, store.offset, store.zoom, size]);
 
   const handleCompositionStart = () => {
     isComposing.current = true;
@@ -182,17 +211,18 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       onRedo();
       return;
     }
-    if (e.key === "Delete" && selections.length > 0) {
+
+    // 优先处理选区删除：无论是 Delete 还是 Backspace
+    if (
+      (e.key === "Delete" || e.key === "Backspace") &&
+      selections.length > 0
+    ) {
       e.preventDefault();
       deleteSelection();
       return;
     }
+
     if (e.key === "Backspace") {
-      if (selections.length > 0 && !textCursor) {
-        e.preventDefault();
-        deleteSelection();
-        return;
-      }
       if (textCursor) {
         e.preventDefault();
         backspaceText();
@@ -2387,6 +2417,12 @@ import {
   Download,
   Copy,
   ImageIcon,
+  CircleHelp,
+  Keyboard,
+  Mouse,
+  Move,
+  Type,
+  Maximize,
 } from "lucide-react";
 import { SidebarStandard, useSidebar } from "@/components/ui/sidebar";
 import { CharLibrary } from "./right-sidebar/char-library";
@@ -2421,6 +2457,7 @@ import {
 import { exportToString, exportToPNG } from "@/utils/export";
 import { ExportPreview } from "./export-preview";
 import { ActionButton } from "@/components/ui/action-button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function SidebarRight() {
   const {
@@ -2472,6 +2509,7 @@ export function SidebarRight() {
                 isCollapsed && "flex-col"
               )}
             >
+              {/* Export Dialog */}
               <Dialog>
                 <TooltipProvider>
                   <Tooltip>
@@ -2602,6 +2640,169 @@ export function SidebarRight() {
                   </TooltipTrigger>
                   <TooltipContent side="left">Reset View</TooltipContent>
                 </Tooltip>
+
+                {/* Help Manual Dialog */}
+                <Dialog>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-primary"
+                        >
+                          <CircleHelp className="size-4" />
+                        </Button>
+                      </DialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">User Manual</TooltipContent>
+                  </Tooltip>
+                  <DialogContent className="sm:max-w-[500px] p-0 gap-0 overflow-hidden">
+                    <div className="bg-muted/30 p-5 pb-4 border-b">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Keyboard className="size-5 text-primary" />
+                          <span>Mayor's Handbook</span>
+                        </DialogTitle>
+                        <DialogDescription>
+                          Operational protocols for your ASCII Metropolis.
+                        </DialogDescription>
+                      </DialogHeader>
+                    </div>
+                    <ScrollArea className="max-h-[60vh] overflow-y-auto">
+                      <div className="p-5 space-y-6">
+                        {/* Navigation Section */}
+                        <section className="space-y-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
+                            <Move className="size-4" /> Navigation & Viewport
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center">
+                              <span>Pan View</span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-background px-1.5 py-0.5 rounded border text-[10px] font-mono shadow-sm">
+                                  Space
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <Mouse className="size-3 my-auto" />
+                              </div>
+                            </div>
+                            <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center">
+                              <span>Zoom In/Out</span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-background px-1.5 py-0.5 rounded border text-[10px] font-mono shadow-sm">
+                                  Ctrl
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <span className="font-mono">Scroll</span>
+                              </div>
+                            </div>
+                            <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center col-span-2">
+                              <span>Middle Mouse Pan</span>
+                              <div className="flex gap-1 items-center">
+                                <span className="font-mono">Wheel Click</span>
+                                <span className="text-muted-foreground">&</span>
+                                <span className="font-mono">Drag</span>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        {/* Editing Section */}
+                        <section className="space-y-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
+                            <Type className="size-4" /> Construction & Editing
+                          </h4>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex items-center justify-between py-1 border-b border-border/50">
+                              <span className="text-muted-foreground">
+                                Undo Action
+                              </span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Ctrl
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Z
+                                </kbd>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between py-1 border-b border-border/50">
+                              <span className="text-muted-foreground">
+                                Redo Action
+                              </span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Ctrl
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Shift
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Z
+                                </kbd>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between py-1 border-b border-border/50">
+                              <span className="text-muted-foreground">
+                                Delete Selection
+                              </span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Backspace
+                                </kbd>
+                                <span className="text-muted-foreground">/</span>
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Del
+                                </kbd>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        {/* Selection Section */}
+                        <section className="space-y-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
+                            <Maximize className="size-4" /> Zoning (Selection)
+                          </h4>
+                          <div className="bg-muted/30 p-3 rounded-lg text-xs space-y-2 text-muted-foreground">
+                            <p>
+                              <strong className="text-foreground">
+                                Select Area:
+                              </strong>{" "}
+                              Use the Select tool to drag a box around cells.
+                            </p>
+                            <p>
+                              <strong className="text-foreground">
+                                Copy / Cut:
+                              </strong>{" "}
+                              Standard <kbd className="font-mono">Ctrl+C</kbd> /{" "}
+                              <kbd className="font-mono">Ctrl+X</kbd> works on
+                              active selections.
+                            </p>
+                            <p>
+                              <strong className="text-foreground">
+                                Paste:
+                              </strong>{" "}
+                              <kbd className="font-mono">Ctrl+V</kbd> will paste
+                              at the cursor position or the center of your view.
+                            </p>
+                            <p>
+                              <strong className="text-foreground">
+                                Text Mode:
+                              </strong>{" "}
+                              Click anywhere with the Select tool to place the
+                              text cursor and start typing directly.
+                            </p>
+                          </div>
+                        </section>
+                      </div>
+                    </ScrollArea>
+                  </DialogContent>
+                </Dialog>
               </TooltipProvider>
             </div>
 

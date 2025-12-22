@@ -7,6 +7,15 @@ import { GridManager } from "../../utils/grid";
 import { toast } from "sonner";
 import { isCtrlOrMeta } from "../../utils/event";
 import { Minimap } from "./Minimap";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  ContextMenuShortcut,
+} from "@/components/ui/context-menu";
+import { Copy, Scissors, Trash2, Clipboard } from "lucide-react";
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -22,7 +31,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isComposing = useRef(false);
 
-  // 这里的 size 会根据容器的实际排版大小进行上报
   const size = useSize(containerRef);
   const store = useCanvasStore();
   const {
@@ -30,6 +38,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     writeTextString,
     backspaceText,
     newlineText,
+    indentText,
     moveTextCursor,
     setTextCursor,
     selections,
@@ -53,28 +62,25 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     draggingSelection
   );
 
-  // 修复核心：只要有光标或者有选区，就必须保持焦点以接收键盘事件（如 Delete）
   useEffect(() => {
     const shouldFocus = textCursor || selections.length > 0;
     if (shouldFocus && textareaRef.current) {
-      // 使用 setTimeout 确保在渲染周期完成后获取焦点
       setTimeout(() => {
         textareaRef.current?.focus();
       }, 0);
     } else if (textareaRef.current && !shouldFocus) {
-      // 只有在既没有光标也没有选区时（例如切换到笔刷工具），才放弃焦点
       textareaRef.current.blur();
     }
-  }, [textCursor, selections.length]); // 监听 selections 长度变化
+  }, [textCursor, selections.length]);
 
-  const handleCopy = (e: ClipboardEvent) => {
+  const handleCopy = (e?: ClipboardEvent) => {
     if (selections.length > 0) {
-      e.preventDefault();
+      e?.preventDefault();
       copySelectionToClipboard();
       return;
     }
     if (textCursor) {
-      e.preventDefault();
+      e?.preventDefault();
       const key = GridManager.toKey(textCursor.x, textCursor.y);
       const cell = grid.get(key);
       const char = cell?.char || " ";
@@ -85,14 +91,14 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   };
   useEventListener("copy", handleCopy);
 
-  const handleCut = (e: ClipboardEvent) => {
+  const handleCut = (e?: ClipboardEvent) => {
     if (selections.length > 0) {
-      e.preventDefault();
+      e?.preventDefault();
       cutSelectionToClipboard();
       return;
     }
     if (textCursor) {
-      e.preventDefault();
+      e?.preventDefault();
       const key = GridManager.toKey(textCursor.x, textCursor.y);
       const cell = grid.get(key);
       const char = cell?.char || " ";
@@ -104,11 +110,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   };
   useEventListener("cut", handleCut);
 
-  const handlePaste = (e: ClipboardEvent) => {
-    if (isComposing.current) return;
-    e.preventDefault();
-    const text = e.clipboardData?.getData("text");
-    if (!text) return;
+  const performPaste = (text: string) => {
     let pasteStartPos = textCursor;
     if (!pasteStartPos && selections.length > 0) {
       const firstSelection = selections[0];
@@ -120,17 +122,39 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     if (pasteStartPos) {
       writeTextString(text, pasteStartPos);
       toast.success("Pasted!");
+    } else {
+      const centerX = Math.floor(
+        (-store.offset.x + (size?.width || 0) / 2) / (10 * store.zoom)
+      );
+      const centerY = Math.floor(
+        (-store.offset.y + (size?.height || 0) / 2) / (20 * store.zoom)
+      );
+      writeTextString(text, { x: centerX, y: centerY });
+      toast.success("Pasted to center!");
     }
+  };
+
+  const handlePaste = (e: ClipboardEvent) => {
+    if (isComposing.current) return;
+    e.preventDefault();
+    const text = e.clipboardData?.getData("text");
+    if (text) performPaste(text);
   };
   useEventListener("paste", handlePaste);
 
+  const handleMenuPaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) performPaste(text);
+    } catch (err) {
+      toast.error("Failed to read clipboard");
+    }
+  };
+
   const textareaStyle: React.CSSProperties = useMemo(() => {
-    // 即使没有 textCursor，如果有 selections，我们也需要 input 存在以便接收按键
-    // 但我们可以把它藏得更深一点，或者保持原样，因为 opacity 是 0
     if ((!textCursor && selections.length === 0) || !size)
       return { display: "none" };
 
-    // 如果只有选区没有光标，我们将 textarea 定位到选区左上角，或者屏幕中心
     let targetX = 0;
     let targetY = 0;
 
@@ -145,7 +169,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       targetX = pos.x;
       targetY = pos.y;
     } else if (selections.length > 0) {
-      // 简单的定位兜底，防止输入法弹出在奇怪的位置
       const sel = selections[0];
       const pos = GridManager.gridToScreen(
         sel.start.x,
@@ -211,7 +234,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       return;
     }
 
-    // 优先处理选区删除：无论是 Delete 还是 Backspace
     if (
       (e.key === "Delete" || e.key === "Backspace") &&
       selections.length > 0
@@ -229,6 +251,9 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     } else if (e.key === "Enter") {
       e.preventDefault();
       newlineText();
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      indentText();
     } else if (e.key.startsWith("Arrow") && textCursor) {
       e.preventDefault();
       const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
@@ -240,34 +265,71 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
   };
 
-  // 城市规划核心修正：强制 Canvas 占满父容器，不留缝隙
   const canvasClassName =
     "absolute inset-0 w-full h-full block pointer-events-none";
 
   return (
-    <div
-      ref={containerRef}
-      style={{ touchAction: "none" }}
-      className="relative w-screen h-screen overflow-hidden bg-background touch-none select-none cursor-default"
-    >
-      <canvas ref={bgCanvasRef} className={canvasClassName} />
-      <canvas ref={scratchCanvasRef} className={canvasClassName} />
-      <canvas ref={uiCanvasRef} className={canvasClassName} />
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={containerRef}
+          style={{ touchAction: "none" }}
+          className="relative w-screen h-screen overflow-hidden bg-background touch-none select-none cursor-default"
+        >
+          <canvas ref={bgCanvasRef} className={canvasClassName} />
+          <canvas ref={scratchCanvasRef} className={canvasClassName} />
+          <canvas ref={uiCanvasRef} className={canvasClassName} />
 
-      <Minimap containerSize={size} />
+          <Minimap containerSize={size} />
 
-      <textarea
-        ref={textareaRef}
-        style={textareaStyle}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
-        onInput={handleInput}
-        onKeyDown={handleKeyDown}
-        autoCapitalize="off"
-        autoComplete="off"
-        autoCorrect="off"
-        spellCheck="false"
-      />
-    </div>
+          <textarea
+            ref={textareaRef}
+            style={textareaStyle}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            autoCapitalize="off"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck="false"
+          />
+        </div>
+      </ContextMenuTrigger>
+
+      <ContextMenuContent className="w-56">
+        <ContextMenuItem
+          onClick={() => handleCopy()}
+          disabled={!textCursor && selections.length === 0}
+        >
+          <Copy className="mr-2 size-4" />
+          <span>Copy Zone</span>
+          <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => handleCut()}
+          disabled={!textCursor && selections.length === 0}
+        >
+          <Scissors className="mr-2 size-4" />
+          <span>Cut Zone</span>
+          <ContextMenuShortcut>⌘X</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem onClick={handleMenuPaste}>
+          <Clipboard className="mr-2 size-4" />
+          <span>Paste Lot</span>
+          <ContextMenuShortcut>⌘V</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onClick={() => deleteSelection()}
+          className="text-destructive focus:text-destructive"
+          disabled={selections.length === 0}
+        >
+          <Trash2 className="mr-2 size-4" />
+          <span>Demolish (Delete)</span>
+          <ContextMenuShortcut>⌫</ContextMenuShortcut>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 };

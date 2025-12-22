@@ -16,6 +16,7 @@ import {
   Move,
   Type,
   Maximize,
+  Info,
 } from "lucide-react";
 import { SidebarStandard, useSidebar } from "@/components/ui/sidebar";
 import { CharLibrary } from "./right-sidebar/char-library";
@@ -102,7 +103,6 @@ export function SidebarRight() {
                 isCollapsed && "flex-col"
               )}
             >
-              {/* Export Dialog */}
               <Dialog>
                 <TooltipProvider>
                   <Tooltip>
@@ -234,7 +234,6 @@ export function SidebarRight() {
                   <TooltipContent side="left">Reset View</TooltipContent>
                 </Tooltip>
 
-                {/* Help Manual Dialog */}
                 <Dialog>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -255,16 +254,16 @@ export function SidebarRight() {
                       <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                           <Keyboard className="size-5 text-primary" />
-                          <span>Mayor's Handbook</span>
+                          <span>Mayor's Handbook v2.0</span>
                         </DialogTitle>
                         <DialogDescription>
-                          Operational protocols for your ASCII Metropolis.
+                          Advanced protocols for your ASCII Metropolis.
                         </DialogDescription>
                       </DialogHeader>
                     </div>
-                    <ScrollArea className="max-h-[60vh] overflow-y-auto">
+                    <ScrollArea className="max-h-[65vh] overflow-y-auto">
                       <div className="p-5 space-y-6">
-                        {/* Navigation Section */}
+                        {/* 1. Navigation */}
                         <section className="space-y-3">
                           <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
                             <Move className="size-4" /> Navigation & Viewport
@@ -272,44 +271,106 @@ export function SidebarRight() {
                           <div className="grid grid-cols-2 gap-2 text-xs">
                             <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center">
                               <span>Pan View</span>
-                              <div className="flex gap-1">
-                                <kbd className="bg-background px-1.5 py-0.5 rounded border text-[10px] font-mono shadow-sm">
+                              <div className="flex gap-1 items-center">
+                                <kbd className="bg-background px-1.2 py-0.5 rounded border text-[9px] font-mono shadow-sm">
                                   Space
                                 </kbd>
-                                <span className="text-muted-foreground">+</span>
-                                <Mouse className="size-3 my-auto" />
+                                <span className="text-muted-foreground text-[10px]">
+                                  +
+                                </span>
+                                <Mouse className="size-3" />
                               </div>
                             </div>
                             <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center">
-                              <span>Zoom In/Out</span>
+                              <span>Zoom</span>
                               <div className="flex gap-1">
-                                <kbd className="bg-background px-1.5 py-0.5 rounded border text-[10px] font-mono shadow-sm">
+                                <kbd className="bg-background px-1.2 py-0.5 rounded border text-[9px] font-mono shadow-sm">
                                   Ctrl
                                 </kbd>
-                                <span className="text-muted-foreground">+</span>
-                                <span className="font-mono">Scroll</span>
-                              </div>
-                            </div>
-                            <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center col-span-2">
-                              <span>Middle Mouse Pan</span>
-                              <div className="flex gap-1 items-center">
-                                <span className="font-mono">Wheel Click</span>
-                                <span className="text-muted-foreground">&</span>
-                                <span className="font-mono">Drag</span>
+                                <span className="text-muted-foreground text-[10px]">
+                                  +
+                                </span>
+                                <span className="font-mono text-[10px]">
+                                  Scroll
+                                </span>
                               </div>
                             </div>
                           </div>
                         </section>
 
-                        {/* Editing Section */}
+                        {/* 2. Zoning (The selection part - Major Update) */}
+                        <section className="space-y-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-primary">
+                            <Maximize className="size-4" /> Rapid Zoning
+                            (Selection)
+                          </h4>
+                          <div className="bg-primary/5 border border-primary/20 p-3 rounded-lg text-xs space-y-3">
+                            <div className="flex justify-between items-start">
+                              <div className="space-y-1">
+                                <p className="font-bold text-foreground">
+                                  Anchor Surveying
+                                </p>
+                                <p className="text-muted-foreground">
+                                  Click a point, then{" "}
+                                  <kbd className="font-mono bg-muted px-1 rounded">
+                                    Shift + Click
+                                  </kbd>{" "}
+                                  another to instantly frame the lot.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-start border-t border-primary/10 pt-2">
+                              <div className="space-y-1">
+                                <p className="font-bold text-foreground">
+                                  Mass Pouring (Fill)
+                                </p>
+                                <p className="text-muted-foreground">
+                                  Select an area and{" "}
+                                  <span className="text-primary font-bold">
+                                    press any character
+                                  </span>{" "}
+                                  to fill the entire sector instantly.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        {/* 3. Typography (The Enter/Tab part - Major Update) */}
                         <section className="space-y-3">
                           <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
-                            <Type className="size-4" /> Construction & Editing
+                            <Type className="size-4" /> Construction & Typing
                           </h4>
                           <div className="space-y-2 text-xs">
-                            <div className="flex items-center justify-between py-1 border-b border-border/50">
-                              <span className="text-muted-foreground">
-                                Undo Action
+                            <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  Setback Inheritance
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  Auto-aligns newline with previous indentation
+                                </span>
+                              </div>
+                              <kbd className="bg-muted px-2 py-0.5 rounded border text-[10px] font-mono">
+                                Enter
+                              </kbd>
+                            </div>
+                            <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  Modular Paving
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  Instantly pavs 2 grids of vacant space
+                                </span>
+                              </div>
+                              <kbd className="bg-muted px-2 py-0.5 rounded border text-[10px] font-mono">
+                                Tab
+                              </kbd>
+                            </div>
+                            <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                              <span className="text-muted-foreground italic">
+                                Quick Undo
                               </span>
                               <div className="flex gap-1">
                                 <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
@@ -318,80 +379,28 @@ export function SidebarRight() {
                                 <span className="text-muted-foreground">+</span>
                                 <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
                                   Z
-                                </kbd>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between py-1 border-b border-border/50">
-                              <span className="text-muted-foreground">
-                                Redo Action
-                              </span>
-                              <div className="flex gap-1">
-                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
-                                  Ctrl
-                                </kbd>
-                                <span className="text-muted-foreground">+</span>
-                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
-                                  Shift
-                                </kbd>
-                                <span className="text-muted-foreground">+</span>
-                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
-                                  Z
-                                </kbd>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between py-1 border-b border-border/50">
-                              <span className="text-muted-foreground">
-                                Delete Selection
-                              </span>
-                              <div className="flex gap-1">
-                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
-                                  Backspace
-                                </kbd>
-                                <span className="text-muted-foreground">/</span>
-                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
-                                  Del
                                 </kbd>
                               </div>
                             </div>
                           </div>
                         </section>
 
-                        {/* Selection Section */}
-                        <section className="space-y-3">
-                          <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
-                            <Maximize className="size-4" /> Zoning (Selection)
-                          </h4>
-                          <div className="bg-muted/30 p-3 rounded-lg text-xs space-y-2 text-muted-foreground">
-                            <p>
-                              <strong className="text-foreground">
-                                Select Area:
-                              </strong>{" "}
-                              Use the Select tool to drag a box around cells.
-                            </p>
-                            <p>
-                              <strong className="text-foreground">
-                                Copy / Cut:
-                              </strong>{" "}
-                              Standard <kbd className="font-mono">Ctrl+C</kbd> /{" "}
-                              <kbd className="font-mono">Ctrl+X</kbd> works on
-                              active selections.
-                            </p>
-                            <p>
-                              <strong className="text-foreground">
-                                Paste:
-                              </strong>{" "}
-                              <kbd className="font-mono">Ctrl+V</kbd> will paste
-                              at the cursor position or the center of your view.
-                            </p>
-                            <p>
-                              <strong className="text-foreground">
-                                Text Mode:
-                              </strong>{" "}
-                              Click anywhere with the Select tool to place the
-                              text cursor and start typing directly.
-                            </p>
-                          </div>
-                        </section>
+                        {/* Pro Tips */}
+                        <div className="flex gap-2 p-3 rounded-md bg-accent/50 border border-border">
+                          <Info className="size-4 text-primary shrink-0" />
+                          <p className="text-[11px] leading-relaxed text-muted-foreground">
+                            <strong className="text-foreground">
+                              Pro Tip:
+                            </strong>{" "}
+                            Use the{" "}
+                            <span className="font-bold underline">
+                              Select tool
+                            </span>{" "}
+                            to place the cursor. Once a zoning box is active,
+                            typing acts as a fill command instead of cursor
+                            placement.
+                          </p>
+                        </div>
                       </div>
                     </ScrollArea>
                   </DialogContent>

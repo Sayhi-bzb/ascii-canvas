@@ -12,7 +12,17 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
 
   writeTextString: (str, startPos) => {
-    const { textCursor, brushColor } = get();
+    const { selections, fillSelectionsWithChar, textCursor, brushColor } =
+      get();
+
+    if (selections.length > 0) {
+      const fillChar = str.charAt(0);
+      if (fillChar) {
+        fillSelectionsWithChar(fillChar);
+        return;
+      }
+    }
+
     const cursor = startPos || textCursor;
     if (!cursor) return;
 
@@ -76,8 +86,36 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   },
 
   newlineText: () => {
+    const { textCursor, grid } = get();
+    if (!textCursor) return;
+
+    const currentY = textCursor.y;
+    const currentX = textCursor.x;
+
+    let minLineX = currentX;
+    grid.forEach((_, key) => {
+      const { x, y } = GridManager.fromKey(key);
+      if (y === currentY) {
+        minLineX = Math.min(minLineX, x);
+      }
+    });
+
+    let leadingSpaces = 0;
+    for (let x = minLineX; x < currentX; x++) {
+      const cell = grid.get(GridManager.toKey(x, currentY));
+      if (!cell || cell.char === " ") {
+        leadingSpaces++;
+      } else {
+        break;
+      }
+    }
+    const targetX = minLineX + leadingSpaces;
+    set({ textCursor: { x: targetX, y: currentY + 1 } });
+  },
+
+  indentText: () => {
     const { textCursor } = get();
     if (!textCursor) return;
-    set({ textCursor: { x: textCursor.x, y: textCursor.y + 1 } });
+    set({ textCursor: { x: textCursor.x + 2, y: textCursor.y } });
   },
 });

@@ -38,6 +38,7 @@ export const useCanvasInteraction = (
   const dragStartGrid = useRef<Point | null>(null);
   const lastGrid = useRef<Point | null>(null);
   const lastPlacedGrid = useRef<Point | null>(null);
+  const anchorGrid = useRef<Point | null>(null);
 
   const isPanningRef = useRef(false);
   const lineAxisRef = useRef<"vertical" | "horizontal" | null>(null);
@@ -133,7 +134,21 @@ export const useCanvasInteraction = (
           const start = GridManager.snapToCharStart(raw, grid);
 
           if (tool === "select") {
-            if (!mouseEvent.shiftKey) clearSelections();
+            if (mouseEvent.shiftKey && anchorGrid.current) {
+              clearSelections();
+              setTextCursor(null);
+              addSelection({
+                start: { ...anchorGrid.current },
+                end: start,
+              });
+              return;
+            }
+
+            if (!mouseEvent.shiftKey) {
+              clearSelections();
+              anchorGrid.current = start;
+            }
+
             setDraggingSelection({ start, end: start });
             dragStartGrid.current = start;
             setTextCursor(null);
@@ -145,6 +160,7 @@ export const useCanvasInteraction = (
           dragStartGrid.current = start;
           lastGrid.current = start;
           lastPlacedGrid.current = start;
+          anchorGrid.current = start;
           lineAxisRef.current = null;
 
           if (tool === "brush")
