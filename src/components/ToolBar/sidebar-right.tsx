@@ -5,9 +5,7 @@ import { Library } from "lucide-react";
 import { SidebarStandard } from "@/components/ui/sidebar";
 import { CharLibrary } from "./right-sidebar/char-library";
 
-export function SidebarRight({
-  ...props
-}: React.ComponentProps<typeof SidebarStandard>) {
+export function SidebarRight() {
   return (
     <SidebarStandard
       variant="floating"
@@ -20,11 +18,6 @@ export function SidebarRight({
         </div>
       }
     >
-      {/* 
-          注意：这里直接放置 CharLibrary。
-          SidebarStandard 内部的 SidebarContent 已经处理了 flex-1 和 overflow-auto。
-          不要在这里再包裹任何带有 overflow-hidden 的 div。
-      */}
       <CharLibrary />
     </SidebarStandard>
   );

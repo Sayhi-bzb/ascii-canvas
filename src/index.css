@@ -14,6 +14,10 @@ body,
 }
 
 @theme inline {
+  /* 城市标准建材定义：将 Maple Mono 设为默认等宽字体 */
+  --font-mono: "Maple Mono NF CN", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -128,9 +132,7 @@ body,
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
-    font-family: "Maple Mono NF CN";
-    font-weight: normal;
+    @apply bg-background text-foreground font-mono;
   }
 }
 

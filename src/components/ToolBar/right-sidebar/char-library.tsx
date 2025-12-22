@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import {
   ChevronRight,
-  Type,
   Square,
   LayoutGrid,
   Accessibility,
@@ -36,20 +35,42 @@ export function CharLibrary() {
 
   const library = useMemo(
     () => [
-      { name: "Box Drawing", icon: Square, chars: genRange(0x2500, 128) },
-      { name: "Block Elements", icon: LayoutGrid, chars: genRange(0x2580, 32) },
+      {
+        name: "Box Drawing",
+        icon: Square,
+        chars: genRange(0x2500, 128),
+        isActive: true,
+      },
+      {
+        name: "Block Elements",
+        icon: LayoutGrid,
+        chars: genRange(0x2580, 32),
+        isActive: false,
+      },
       {
         name: "Accessibility",
         icon: Accessibility,
         chars: genRange(0x2800, 256),
+        isActive: false,
       },
       {
         name: "Nerd Icons",
         icon: Fingerprint,
         chars: [...genRange(0xe700, 40), ...genRange(0xf000, 50)],
+        isActive: false,
       },
-      { name: "Smileys", icon: Smile, chars: genRange(0x1f600, 80) },
-      { name: "Objects", icon: Box, chars: genRange(0x1f300, 80) },
+      {
+        name: "Smileys",
+        icon: Smile,
+        chars: genRange(0x1f600, 80),
+        isActive: false,
+      },
+      {
+        name: "Objects",
+        icon: Box,
+        chars: genRange(0x1f300, 80),
+        isActive: false,
+      },
     ],
     []
   );
@@ -57,7 +78,7 @@ export function CharLibrary() {
   const handleSelect = (char: string) => {
     setBrushChar(char);
     setTool("brush");
-    toast.success(`Active: ${char}`, {
+    toast.success(`Copyed: ${char}`, {
       duration: 800,
       position: "top-right",
     });
@@ -88,6 +109,10 @@ export function CharLibrary() {
               </CollapsibleTrigger>
 
               <CollapsibleContent>
+                {/* 
+                  这里是关键： grid 布局中的每个按钮通过 font-mono 类名
+                  继承了我们在 index.css 中定义的 Maple Mono 字体。
+                */}
                 <div className="grid grid-cols-4 gap-1 p-2 bg-muted/20 rounded-md mt-1">
                   {group.chars.map((char, idx) => (
                     <button

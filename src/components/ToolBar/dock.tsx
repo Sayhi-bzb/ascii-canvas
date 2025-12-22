@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   MousePointer2,
   Square,
@@ -38,30 +38,24 @@ interface ToolbarProps {
   onExport: () => void;
 }
 
+const MATERIAL_PRESETS = ["*", ".", "@", "▒"];
+const SHAPE_TOOLS: ToolType[] = ["box", "circle", "line", "stepline"];
+
 export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
   const { brushChar, setBrushChar } = useCanvasStore();
   const [lastUsedShape, setLastUsedShape] = useState<ToolType>("box");
   const [openSubMenuId, setOpenSubMenuId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const materialPresets = ["*", ".", "@", "▒"];
   const [customChar, setCustomChar] = useState(() =>
-    materialPresets.includes(brushChar) ? "" : brushChar
+    MATERIAL_PRESETS.includes(brushChar) ? "" : brushChar
   );
 
-  useEffect(() => {
-    if (!materialPresets.includes(brushChar)) {
-      setCustomChar(brushChar);
-    }
-  }, [brushChar]);
-
-  const shapeTools: ToolType[] = ["box", "circle", "line", "stepline"];
-  const isShapeGroupActive = shapeTools.includes(tool);
-
+  const isShapeGroupActive = SHAPE_TOOLS.includes(tool);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const getToolMeta = (type: ToolType) => {
+  const getToolMeta = useCallback((type: ToolType) => {
     switch (type) {
       case "box":
         return { icon: Square, label: "Rectangle", shortcut: "R" };
@@ -74,54 +68,67 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
       default:
         return { icon: Square, label: "Shape", shortcut: "" };
     }
-  };
+  }, []);
 
-  const activeShapeMeta = getToolMeta(
-    isShapeGroupActive ? tool : lastUsedShape
+  const activeShapeMeta = useMemo(
+    () => getToolMeta(isShapeGroupActive ? tool : lastUsedShape),
+    [isShapeGroupActive, tool, lastUsedShape, getToolMeta]
   );
 
-  const navItems = [
-    {
-      id: "select",
-      label: "Select",
-      icon: MousePointer2,
-      onClick: () => setTool("select"),
-    },
-    {
-      id: "brush",
-      label: `Brush (${brushChar})`,
-      icon: Pencil,
-      onClick: () => setTool("brush"),
-      hasSub: true,
-    },
-    {
-      id: "shape-group",
-      label: activeShapeMeta.label,
-      icon: activeShapeMeta.icon,
-      onClick: () => setTool(isShapeGroupActive ? tool : lastUsedShape),
-      hasSub: true,
-    },
-    {
-      id: "fill",
-      label: "Fill",
-      icon: PaintBucket,
-      onClick: () => setTool("fill"),
-    },
-    {
-      id: "eraser",
-      label: "Eraser",
-      icon: Eraser,
-      onClick: () => setTool("eraser"),
-    },
-    { id: "undo", label: "Undo", icon: Undo2, onClick: onUndo },
-    { id: "export", label: "Export", icon: Download, onClick: onExport },
-  ];
+  const navItems = useMemo(
+    () => [
+      {
+        id: "select",
+        label: "Select",
+        icon: MousePointer2,
+        onClick: () => setTool("select"),
+      },
+      {
+        id: "brush",
+        label: `Brush (${brushChar})`,
+        icon: Pencil,
+        onClick: () => setTool("brush"),
+        hasSub: true,
+      },
+      {
+        id: "shape-group",
+        label: activeShapeMeta.label,
+        icon: activeShapeMeta.icon,
+        onClick: () => setTool(isShapeGroupActive ? tool : lastUsedShape),
+        hasSub: true,
+      },
+      {
+        id: "fill",
+        label: "Fill",
+        icon: PaintBucket,
+        onClick: () => setTool("fill"),
+      },
+      {
+        id: "eraser",
+        label: "Eraser",
+        icon: Eraser,
+        onClick: () => setTool("eraser"),
+      },
+      { id: "undo", label: "Undo", icon: Undo2, onClick: onUndo },
+      { id: "export", label: "Export", icon: Download, onClick: onExport },
+    ],
+    [
+      brushChar,
+      activeShapeMeta,
+      isShapeGroupActive,
+      tool,
+      lastUsedShape,
+      setTool,
+      onUndo,
+      onExport,
+    ]
+  );
 
   const activeIndex = useMemo(() => {
     const currentId = isShapeGroupActive ? "shape-group" : tool;
     const idx = navItems.findIndex((item) => item.id === currentId);
     return idx !== -1 ? idx : 0;
-  }, [tool, isShapeGroupActive]);
+  }, [tool, isShapeGroupActive, navItems]);
 
   useEffect(() => {
     const updateIndicator = () => {
@@ -233,14 +240,15 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
                                 maxLength={2}
                                 value={customChar}
                                 onChange={(e) => {
-                                  setCustomChar(e.target.value);
-                                  setBrushChar(e.target.value);
+                                  const val = e.target.value;
+                                  setCustomChar(val);
+                                  setBrushChar(val);
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </div>
                           </button>
-                          {materialPresets.map((char) => (
+                          {MATERIAL_PRESETS.map((char) => (
                             <button
                               key={char}
                               onClick={() => {
@@ -266,7 +274,7 @@ export function Toolbar({ tool, setTool, onUndo, onExport }: ToolbarProps) {
                           ))}
                         </>
                       ) : (
-                        shapeTools.map((st) => {
+                        SHAPE_TOOLS.map((st) => {
                           const meta = getToolMeta(st);
                           const isSubActive = tool === st;
                           return (

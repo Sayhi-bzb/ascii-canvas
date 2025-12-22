@@ -228,7 +228,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
+          className="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm overflow-hidden"
         >
           {children}
         </div>
@@ -356,7 +356,9 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        // 使用 scrollbar-gutter: stable 预留滚动条空间，防止内容跳变
+        // 使用 min-h-0 确保 flex 子元素正确收缩
+        "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] group-data-[collapsible=icon]:overflow-hidden",
         className
       )}
       {...props}
@@ -568,10 +570,16 @@ function SidebarMenuSkeleton({
   showIcon = false,
   ...props
 }: React.ComponentProps<"div"> & { showIcon?: boolean }) {
-  const width = React.useMemo(
-    () => `${Math.floor(Math.random() * 40) + 50}%`,
-    []
-  );
+  // 修复 Lint 错误：使用 useId 配合确定性逻辑替代 Math.random()
+  const id = React.useId();
+  const width = React.useMemo(() => {
+    // 简单的确定性伪随机宽度
+    const seed = id
+      .split("")
+      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return `${(seed % 40) + 50}%`;
+  }, [id]);
+
   return (
     <div
       data-slot="sidebar-menu-skeleton"
@@ -654,10 +662,6 @@ function SidebarMenuSubButton({
   );
 }
 
-/**
- * 市长自定义的高层组件：SidebarStandard
- * 集成了折叠时自动隐藏 Content 的逻辑
- */
 function SidebarStandard({
   children,
   icon,
@@ -690,7 +694,7 @@ function SidebarStandard({
         <div className="flex items-center gap-2">
           {icon && <div className="shrink-0">{icon}</div>}
           {!isCollapsed && title && (
-            <span className="font-bold text-sm tracking-tight whitespace-nowrap">
+            <span className="font-bold text-sm tracking-tight whitespace-nowrap animate-in fade-in duration-300">
               {title}
             </span>
           )}
@@ -705,15 +709,25 @@ function SidebarStandard({
         </div>
       </SidebarHeader>
 
-      {/* 核心改动：折叠模式下，直接隐藏所有内容区域 */}
-      {!isCollapsed && (
-        <SidebarContent className={cn("gap-2 px-2 py-2")}>
-          {children}
-        </SidebarContent>
-      )}
+      {/* 
+          核心优化：
+          1. 移除 {!isCollapsed && ...} 的硬销毁，改用 CSS 控制显隐。
+          2. 使用 opacity 和 pointer-events 实现更平滑的内容过渡。
+          3. 这样内容一直存在于 DOM 中，滚动条状态更稳定。
+      */}
+      <SidebarContent
+        className={cn(
+          "gap-2 px-2 py-2 transition-all duration-300",
+          isCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"
+        )}
+      >
+        {children}
+      </SidebarContent>
 
       {!isCollapsed && footer && (
-        <SidebarFooter className="p-2 border-t">{footer}</SidebarFooter>
+        <SidebarFooter className="p-2 border-t animate-in slide-in-from-bottom-2 duration-300">
+          {footer}
+        </SidebarFooter>
       )}
     </Sidebar>
   );
