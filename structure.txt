@@ -1,32 +1,32 @@
 src
+├── App.tsx
 ├── components
 │   ├── AsciiCanvas
+│   │   ├── Minimap.tsx
 │   │   ├── hooks
 │   │   │   ├── useCanvasInteraction.ts
 │   │   │   └── useCanvasRenderer.ts
 │   │   └── index.tsx
 │   ├── ToolBar
 │   │   ├── dock.tsx
-│   │   ├── left-sidebar
-│   │   │   ├── logo.tsx
-│   │   │   └── sidebar-node.tsx
-│   │   ├── node-status.tsx
+│   │   ├── export-preview.tsx
 │   │   ├── right-sidebar
-│   │   │   ├── empty-state.tsx
-│   │   │   └── node-properties.tsx
-│   │   ├── sidebar-left.tsx
+│   │   │   └── char-library.tsx
 │   │   └── sidebar-right.tsx
 │   └── ui
+│       ├── action-button.tsx
+│       ├── alert-dialog.tsx
 │       ├── button.tsx
 │       ├── collapsible.tsx
-│       ├── context-menu.tsx
+│       ├── dialog.tsx
 │       ├── input.tsx
-│       ├── label.tsx
 │       ├── popover.tsx
 │       ├── separator.tsx
 │       ├── sheet.tsx
 │       ├── sidebar.tsx
+│       ├── skeleton.tsx
 │       ├── sonner.tsx
+│       ├── toggle.tsx
 │       └── tooltip.tsx
 ├── hooks
 │   └── use-mobile.ts
@@ -43,7 +43,6 @@ src
 │   ├── slices
 │   │   ├── drawingSlice.ts
 │   │   ├── index.ts
-│   │   ├── nodeSlice.ts
 │   │   ├── selectionSlice.ts
 │   │   └── textSlice.ts
 │   └── utils.ts
@@ -53,6 +52,5 @@ src
     ├── event.ts
     ├── export.ts
     ├── grid.ts
-    ├── scene.ts
     ├── selection.ts
     └── shapes.ts

@@ -10,6 +10,12 @@ import {
   Download,
   Copy,
   ImageIcon,
+  CircleHelp,
+  Keyboard,
+  Mouse,
+  Move,
+  Type,
+  Maximize,
 } from "lucide-react";
 import { SidebarStandard, useSidebar } from "@/components/ui/sidebar";
 import { CharLibrary } from "./right-sidebar/char-library";
@@ -44,6 +50,7 @@ import {
 import { exportToString, exportToPNG } from "@/utils/export";
 import { ExportPreview } from "./export-preview";
 import { ActionButton } from "@/components/ui/action-button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function SidebarRight() {
   const {
@@ -95,6 +102,7 @@ export function SidebarRight() {
                 isCollapsed && "flex-col"
               )}
             >
+              {/* Export Dialog */}
               <Dialog>
                 <TooltipProvider>
                   <Tooltip>
@@ -225,6 +233,169 @@ export function SidebarRight() {
                   </TooltipTrigger>
                   <TooltipContent side="left">Reset View</TooltipContent>
                 </Tooltip>
+
+                {/* Help Manual Dialog */}
+                <Dialog>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-primary"
+                        >
+                          <CircleHelp className="size-4" />
+                        </Button>
+                      </DialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">User Manual</TooltipContent>
+                  </Tooltip>
+                  <DialogContent className="sm:max-w-[500px] p-0 gap-0 overflow-hidden">
+                    <div className="bg-muted/30 p-5 pb-4 border-b">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Keyboard className="size-5 text-primary" />
+                          <span>Mayor's Handbook</span>
+                        </DialogTitle>
+                        <DialogDescription>
+                          Operational protocols for your ASCII Metropolis.
+                        </DialogDescription>
+                      </DialogHeader>
+                    </div>
+                    <ScrollArea className="max-h-[60vh] overflow-y-auto">
+                      <div className="p-5 space-y-6">
+                        {/* Navigation Section */}
+                        <section className="space-y-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
+                            <Move className="size-4" /> Navigation & Viewport
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center">
+                              <span>Pan View</span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-background px-1.5 py-0.5 rounded border text-[10px] font-mono shadow-sm">
+                                  Space
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <Mouse className="size-3 my-auto" />
+                              </div>
+                            </div>
+                            <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center">
+                              <span>Zoom In/Out</span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-background px-1.5 py-0.5 rounded border text-[10px] font-mono shadow-sm">
+                                  Ctrl
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <span className="font-mono">Scroll</span>
+                              </div>
+                            </div>
+                            <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center col-span-2">
+                              <span>Middle Mouse Pan</span>
+                              <div className="flex gap-1 items-center">
+                                <span className="font-mono">Wheel Click</span>
+                                <span className="text-muted-foreground">&</span>
+                                <span className="font-mono">Drag</span>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        {/* Editing Section */}
+                        <section className="space-y-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
+                            <Type className="size-4" /> Construction & Editing
+                          </h4>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex items-center justify-between py-1 border-b border-border/50">
+                              <span className="text-muted-foreground">
+                                Undo Action
+                              </span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Ctrl
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Z
+                                </kbd>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between py-1 border-b border-border/50">
+                              <span className="text-muted-foreground">
+                                Redo Action
+                              </span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Ctrl
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Shift
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Z
+                                </kbd>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between py-1 border-b border-border/50">
+                              <span className="text-muted-foreground">
+                                Delete Selection
+                              </span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Backspace
+                                </kbd>
+                                <span className="text-muted-foreground">/</span>
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Del
+                                </kbd>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        {/* Selection Section */}
+                        <section className="space-y-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
+                            <Maximize className="size-4" /> Zoning (Selection)
+                          </h4>
+                          <div className="bg-muted/30 p-3 rounded-lg text-xs space-y-2 text-muted-foreground">
+                            <p>
+                              <strong className="text-foreground">
+                                Select Area:
+                              </strong>{" "}
+                              Use the Select tool to drag a box around cells.
+                            </p>
+                            <p>
+                              <strong className="text-foreground">
+                                Copy / Cut:
+                              </strong>{" "}
+                              Standard <kbd className="font-mono">Ctrl+C</kbd> /{" "}
+                              <kbd className="font-mono">Ctrl+X</kbd> works on
+                              active selections.
+                            </p>
+                            <p>
+                              <strong className="text-foreground">
+                                Paste:
+                              </strong>{" "}
+                              <kbd className="font-mono">Ctrl+V</kbd> will paste
+                              at the cursor position or the center of your view.
+                            </p>
+                            <p>
+                              <strong className="text-foreground">
+                                Text Mode:
+                              </strong>{" "}
+                              Click anywhere with the Select tool to place the
+                              text cursor and start typing directly.
+                            </p>
+                          </div>
+                        </section>
+                      </div>
+                    </ScrollArea>
+                  </DialogContent>
+                </Dialog>
               </TooltipProvider>
             </div>
 

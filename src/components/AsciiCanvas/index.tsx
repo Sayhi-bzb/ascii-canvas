@@ -53,15 +53,19 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     draggingSelection
   );
 
+  // 修复核心：只要有光标或者有选区，就必须保持焦点以接收键盘事件（如 Delete）
   useEffect(() => {
-    if (textCursor && textareaRef.current) {
+    const shouldFocus = textCursor || selections.length > 0;
+    if (shouldFocus && textareaRef.current) {
+      // 使用 setTimeout 确保在渲染周期完成后获取焦点
       setTimeout(() => {
         textareaRef.current?.focus();
       }, 0);
-    } else if (textareaRef.current) {
+    } else if (textareaRef.current && !shouldFocus) {
+      // 只有在既没有光标也没有选区时（例如切换到笔刷工具），才放弃焦点
       textareaRef.current.blur();
     }
-  }, [textCursor]);
+  }, [textCursor, selections.length]); // 监听 selections 长度变化
 
   const handleCopy = (e: ClipboardEvent) => {
     if (selections.length > 0) {
@@ -121,25 +125,50 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   useEventListener("paste", handlePaste);
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
-    if (!textCursor || !size) return { display: "none" };
-    const { x, y } = GridManager.gridToScreen(
-      textCursor.x,
-      textCursor.y,
-      store.offset.x,
-      store.offset.y,
-      store.zoom
-    );
+    // 即使没有 textCursor，如果有 selections，我们也需要 input 存在以便接收按键
+    // 但我们可以把它藏得更深一点，或者保持原样，因为 opacity 是 0
+    if ((!textCursor && selections.length === 0) || !size)
+      return { display: "none" };
+
+    // 如果只有选区没有光标，我们将 textarea 定位到选区左上角，或者屏幕中心
+    let targetX = 0;
+    let targetY = 0;
+
+    if (textCursor) {
+      const pos = GridManager.gridToScreen(
+        textCursor.x,
+        textCursor.y,
+        store.offset.x,
+        store.offset.y,
+        store.zoom
+      );
+      targetX = pos.x;
+      targetY = pos.y;
+    } else if (selections.length > 0) {
+      // 简单的定位兜底，防止输入法弹出在奇怪的位置
+      const sel = selections[0];
+      const pos = GridManager.gridToScreen(
+        sel.start.x,
+        sel.start.y,
+        store.offset.x,
+        store.offset.y,
+        store.zoom
+      );
+      targetX = pos.x;
+      targetY = pos.y;
+    }
+
     return {
       position: "absolute",
-      left: `${x}px`,
-      top: `${y}px`,
+      left: `${targetX}px`,
+      top: `${targetY}px`,
       width: "1px",
       height: "1px",
       opacity: 0,
       pointerEvents: "none",
       zIndex: -1,
     };
-  }, [textCursor, store.offset, store.zoom, size]);
+  }, [textCursor, selections, store.offset, store.zoom, size]);
 
   const handleCompositionStart = () => {
     isComposing.current = true;
@@ -181,17 +210,18 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       onRedo();
       return;
     }
-    if (e.key === "Delete" && selections.length > 0) {
+
+    // 优先处理选区删除：无论是 Delete 还是 Backspace
+    if (
+      (e.key === "Delete" || e.key === "Backspace") &&
+      selections.length > 0
+    ) {
       e.preventDefault();
       deleteSelection();
       return;
     }
+
     if (e.key === "Backspace") {
-      if (selections.length > 0 && !textCursor) {
-        e.preventDefault();
-        deleteSelection();
-        return;
-      }
       if (textCursor) {
         e.preventDefault();
         backspaceText();
