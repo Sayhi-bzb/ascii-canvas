@@ -3,8 +3,14 @@ import { toast } from "sonner";
 import type { CanvasState, SelectionSlice } from "../interfaces";
 import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
-import { getSelectionBounds } from "../../utils/selection";
-import { exportSelectionToString } from "../../utils/export";
+import {
+  getSelectionBounds,
+  getSelectionsBoundingBox,
+} from "../../utils/selection";
+import {
+  exportSelectionToString,
+  generateCanvasFromGrid,
+} from "../../utils/export";
 import { placeCharInYMap } from "../utils";
 
 export const createSelectionSlice: StateCreator<
@@ -35,7 +41,9 @@ export const createSelectionSlice: StateCreator<
     const { grid, selections } = get();
     if (selections.length === 0) return;
     const text = exportSelectionToString(grid, selections);
-    navigator.clipboard.writeText(text).then(() => toast.success("Copied!"));
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success("Copied Text!"));
   },
 
   cutSelectionToClipboard: () => {
@@ -44,7 +52,7 @@ export const createSelectionSlice: StateCreator<
     const text = exportSelectionToString(grid, selections);
     navigator.clipboard.writeText(text).then(() => {
       deleteSelection();
-      toast.success("Cut!");
+      toast.success("Cut Text!");
     });
   },
 
@@ -63,5 +71,38 @@ export const createSelectionSlice: StateCreator<
       });
     });
     toast.success(`Filled area with ${char}`);
+  },
+
+  copySelectionAsPngToClipboard: (showGrid = true) => {
+    const { grid, selections } = get();
+    if (selections.length === 0) {
+      toast.error("Select an area first");
+      return;
+    }
+
+    const bounds = getSelectionsBoundingBox(selections);
+    const canvas = generateCanvasFromGrid(grid, {
+      ...bounds,
+      showGrid,
+      padding: 1,
+    });
+
+    if (canvas) {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          toast.error("Failed to generate image");
+          return;
+        }
+        try {
+          const item = new ClipboardItem({ "image/png": blob });
+          navigator.clipboard.write([item]).then(() => {
+            toast.success("Copied Image!");
+          });
+        } catch (err) {
+          console.error(err);
+          toast.error("Clipboard write failed (Browser limit?)");
+        }
+      });
+    }
   },
 });
