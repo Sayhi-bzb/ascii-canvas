@@ -135,6 +135,11 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   };
 
   const handlePaste = (e: ClipboardEvent) => {
+    const activeTag = document.activeElement?.tagName.toLowerCase();
+    if (activeTag === "input" || activeTag === "textarea") {
+      return;
+    }
+
     if (isComposing.current) return;
     e.preventDefault();
     const text = e.clipboardData?.getData("text");

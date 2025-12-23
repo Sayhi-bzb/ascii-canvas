@@ -1,169 +1,362 @@
-```README.md
-[English] | [简体中文](./README.zh-CN.md)
+```src/components/ToolBar/right-sidebar/char-library.tsx
+"use client";
 
-# ASCII Canvas
+import {
+  ChevronRight,
+  Sparkles,
+  Languages,
+  SearchX,
+  Loader2,
+  Folder,
+  Terminal,
+} from "lucide-react";
+import { useCanvasStore } from "@/store/canvasStore";
+import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
+} from "@/components/ui/sidebar";
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![React](https://img.shields.io/badge/Framework-React_18-61DAFB?logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![Collaboration](https://img.shields.io/badge/Sync-Yjs_CRDT-orange?logo=distributed-systems)](https://yjs.dev/)
-[![Deploy](https://img.shields.io/badge/Demo-Live_Preview-22c55e?logo=cloudflare-pages)](https://ascii-canvas.pages.dev/)
+const CharButton = ({
+  char,
+  isSelected,
+  onClick,
+}: {
+  char: string;
+  isSelected: boolean;
+  onClick: (c: string) => void;
+}) => (
+  <button
+    onClick={() => onClick(char)}
+    className={cn(
+      "size-7 flex items-center justify-center rounded-md transition-all font-mono text-sm border shrink-0",
+      isSelected
+        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+        : "bg-background hover:border-primary/50 hover:bg-accent text-foreground border-border"
+    )}
+  >
+    {char}
+  </button>
+);
 
-**ASCII Canvas** is a high-performance, collaborative ASCII art creation and character-based layout framework. Built with modern graphics engineering principles, it provides a seamless, infinite-canvas environment for precision character design and real-time multiplayer coordination.
+export function CharLibrary() {
+  const { brushChar, setBrushChar, setTool } = useCanvasStore();
+  const { data, isLoading, searchQuery, searchResults } = useLibraryStore();
 
-[**Live Demo**](https://ascii-canvas.pages.dev/) | [**GitHub Repository**](https://github.com/Sayhi-bzb/ascii-canvas.git)
+  const handleSelect = (char: string) => {
+    setBrushChar(char);
+    setTool("brush");
+    toast.success(`Picked: ${char}`, { duration: 600, position: "top-right" });
+  };
 
----
+  if (searchQuery.trim() !== "") {
+    return (
+      <SidebarGroup>
+        <SidebarGroupLabel className="px-4">
+          Results ({searchResults.length})
+        </SidebarGroupLabel>
+        <SidebarGroupContent>
+          <div className="flex flex-wrap gap-1 p-3">
+            {searchResults.map((char, idx) => (
+              <CharButton
+                key={`search-${idx}`}
+                char={char}
+                isSelected={brushChar === char}
+                onClick={handleSelect}
+              />
+            ))}
+            {searchResults.length === 0 && (
+              <div className="w-full flex flex-col items-center py-10 text-muted-foreground">
+                <SearchX className="size-8 mb-2 opacity-20" />
+                <p className="text-[10px]">No blueprints found</p>
+              </div>
+            )}
+          </div>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
 
-## 🛠 Core Features
+  if (isLoading || !data) {
+    return (
+      <div className="flex items-center justify-center py-20 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin mr-2" />
+        <span className="text-[10px] font-medium tracking-widest uppercase">
+          Syncing...
+        </span>
+      </div>
+    );
+  }
 
-### 1. High-Performance Rendering
+  return (
+    <SidebarMenu className="px-2 gap-1 pb-10">
+      <Collapsible className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton>
+              <Terminal className="size-4 text-cyan-500" />
+              <span className="font-bold text-xs uppercase tracking-tight">
+                Nerd Icons
+              </span>
+              <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+              {Object.entries(data.nerdfonts).map(([name, chars]) => (
+                <Collapsible key={name} className="group/sub">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="h-7 text-[10px] opacity-70 hover:opacity-100">
+                        <Folder className="size-3 mr-1" /> {name}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
+                        {chars.map((char, idx) => (
+                          <CharButton
+                            key={idx}
+                            char={char}
+                            isSelected={brushChar === char}
+                            onClick={handleSelect}
+                          />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
 
-- **Multi-layer Canvas Architecture**: Utilizes three distinct layers (Background, Scratch, and UI) to maintain 60FPS performance even during complex operations.
-- **Infinite Viewport**: Integrated screen-to-grid mapping allows for seamless panning and zooming across an unbounded workspace.
+      <Collapsible defaultOpen className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton>
+              <Sparkles className="size-4 text-yellow-500" />
+              <span className="font-bold text-xs uppercase tracking-tight">
+                Curated Emoji
+              </span>
+              <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+              {Object.entries(data.lists).map(([name, chars]) => (
+                <Collapsible key={name} className="group/sub">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="h-7 text-[10px] opacity-70 hover:opacity-100">
+                        <Folder className="size-3 mr-1" /> {name}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
+                        {chars.map((char, idx) => (
+                          <CharButton
+                            key={idx}
+                            char={char}
+                            isSelected={brushChar === char}
+                            onClick={handleSelect}
+                          />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
 
-### 2. Intelligent Layout Engine
-
-- **Setback Inheritance**: Smart newline logic that automatically detects and maintains indentation from previous lines.
-- **Wide-Character Support**: Fully compatible with CJK characters and Emojis, featuring automatic grid-occupancy correction.
-- **Modular Indentation**: A professional Tab system that shifts the cursor by two standard grid units for structured layouts.
-
-### 3. Distributed Collaboration
-
-- **Yjs CRDT Integration**: Powered by conflict-free replicated data types (CRDT) to enable real-time, low-latency collaborative editing.
-- **Robust Persistence**: High-granularity undo/redo management with local storage synchronization.
-
-### 4. Precision Editing Tools
-
-- **Anchor-based Selection**: `Shift + Click` functionality for rapid, anchored rectangular zoning.
-- **Mass Pouring (Fill)**: Instantly fill active selection areas with any character input.
-- **Contextual Command Hub**: Professional context menu for Copy, Cut, Paste, and Demolish (Delete) operations.
-
----
-
-## 🏗 Tech Stack
-
-- **Frontend**: React 18, TypeScript
-- **State Management**: Zustand (Slice Pattern)
-- **Synchronization**: Yjs / Y-IndexedDB
-- **Gestures**: @use-gesture/react
-- **UI Components**: Tailwind CSS, Shadcn UI, Radix UI
-
----
-
-## 🚀 Getting Started
-
-### Installation
-
-```bash
-git clone https://github.com/Sayhi-bzb/ascii-canvas.git
-cd ascii-canvas
-npm install
+      <Collapsible className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton>
+              <Languages className="size-4 text-indigo-500" />
+              <span className="font-bold text-xs uppercase tracking-tight">
+                Characters
+              </span>
+              <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+              {Object.entries(data.alphabets).map(([name, chars]) => (
+                <Collapsible key={name} className="group/sub">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="h-7 text-[10px] opacity-70 hover:opacity-100">
+                        <Folder className="size-3 mr-1" /> {name}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
+                        {chars.map((char, idx) => (
+                          <CharButton
+                            key={idx}
+                            char={char}
+                            isSelected={brushChar === char}
+                            onClick={handleSelect}
+                          />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    </SidebarMenu>
+  );
+}
 ```
+---
+```src/components/ToolBar/right-sidebar/search-form.tsx
+"use client";
 
-### Development
+import * as React from "react";
+import { Search } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarInput,
+} from "@/components/ui/sidebar";
+import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
 
-```bash
-npm run dev
+export function SearchForm({ ...props }: React.ComponentProps<"form">) {
+  const { searchQuery, setSearchQuery } = useLibraryStore();
+
+  return (
+    <form {...props} onSubmit={(e) => e.preventDefault()}>
+      <SidebarGroup className="py-2 border-b">
+        <SidebarGroupContent className="relative">
+          <Label htmlFor="search" className="sr-only">
+            Search Blueprint
+          </Label>
+          <SidebarInput
+            id="search"
+            placeholder="Search characters (e.g. 'copy', 'arrow')..."
+            className="pl-8 bg-muted/50 focus-visible:bg-background transition-colors"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 opacity-50 select-none" />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute top-1/2 right-2.5 -translate-y-1/2 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ESC
+            </button>
+          )}
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </form>
+  );
+}
 ```
-
-### Build
-
-```bash
-npm run build
-```
-
 ---
+```src/components/ToolBar/right-sidebar/useLibraryStore.ts
+import { create } from "zustand";
 
-## ⌨️ Shortcuts Reference
+export interface LibraryData {
+  entities: Record<string, Record<string, string>>;
+  related: Record<string, string[]>;
+  alphabets: Record<string, string[]>;
+  lists: Record<string, string[]>;
+  nerdfonts: Record<string, string[]>;
+}
 
-| Action            | Shortcut        | Description                                       |
-| :---------------- | :-------------- | :------------------------------------------------ |
-| **Zoning**        | `Drag`          | Traditional rectangular area selection            |
-| **Anchor Zoning** | `Shift + Click` | Create selection between anchor and current point |
-| **Mass Fill**     | `Char Key`      | Fill active selection with the pressed character  |
-| **Smart Newline** | `Enter`         | New line with inherited indentation               |
-| **Pave Space**    | `Tab`           | Shift cursor right by 2 grid units                |
-| **Context Menu**  | `Right Click`   | Access Copy, Cut, Paste, and Delete commands      |
+interface LibraryState {
+  data: LibraryData | null;
+  isLoading: boolean;
+  error: string | null;
+  searchQuery: string;
+  searchResults: string[];
+  fetchLibrary: () => Promise<void>;
+  setSearchQuery: (query: string) => void;
+}
 
----
+export const useLibraryStore = create<LibraryState>((set, get) => ({
+  data: null,
+  isLoading: false,
+  error: null,
+  searchQuery: "",
+  searchResults: [],
 
-## 🗺 Roadmap
+  fetchLibrary: async () => {
+    if (get().data) return;
 
-- [x] Multi-layer Canvas rendering engine.
-- [x] Real-time collaboration via Yjs.
-- [x] Intelligent Indentation & Tab system.
-- [x] Context Menu & Clipboard integration.
-- [ ] **NES (Next Edit Suggestion)**: Predictive character placement based on layout patterns.
-- [ ] **AI Chat Integration**: Natural language interface for generating canvas components and complex ASCII structures.
-- [ ] ANSI Sequence & SVG Export support.
+    set({ isLoading: true, error: null });
+    try {
+      const files = ["entities", "related", "alphabets", "lists", "nerdfonts"];
+      const [entities, related, alphabets, lists, nerdfonts] =
+        await Promise.all(
+          files.map((f) => fetch(`/data/${f}.json`).then((res) => res.json()))
+        );
 
----
+      set({
+        data: { entities, related, alphabets, lists, nerdfonts },
+        isLoading: false,
+      });
+    } catch (err) {
+      set({ error: "Failed to load logistics data", isLoading: false });
+      console.error("Library fetch error:", err);
+    }
+  },
 
-## 📄 License
+  setSearchQuery: (query: string) => {
+    const { data } = get();
+    if (!data || !query.trim()) {
+      set({ searchQuery: query, searchResults: [] });
+      return;
+    }
 
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+    const lowerQuery = query.toLowerCase();
+    const results = new Set<string>();
 
----
-```
----
-```README.zh-CN.md
-[English](./README.md) | [简体中文]
+    Object.values(data.entities).forEach((category) => {
+      Object.entries(category).forEach(([name, char]) => {
+        if (name.toLowerCase().includes(lowerQuery)) results.add(char);
+      });
+    });
 
-# ASCII Canvas (中文文档)
+    if (query.length === 1 && data.related[query]) {
+      data.related[query].forEach((char) => results.add(char));
+    }
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![React](https://img.shields.io/badge/Framework-React_18-61DAFB?logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![Collaboration](https://img.shields.io/badge/Sync-Yjs_CRDT-orange?logo=distributed-systems)](https://yjs.dev/)
-[![Deploy](https://img.shields.io/badge/Demo-Live_Preview-22c55e?logo=cloudflare-pages)](https://ascii-canvas.pages.dev/)
-
-**ASCII Canvas** 是一款高性能、协同式的 ASCII 艺术创作与字符布局框架。它结合了现代图形工程原理，为精准的字符设计和实时多用户协作提供了一个流畅、无限画布的环境。
-
-[**在线体验**](https://ascii-canvas.pages.dev/) | [**GitHub 仓库**](https://github.com/Sayhi-bzb/ascii-canvas.git)
-
----
-
-## 🛠 核心特性
-
-### 1. 高性能渲染
-
-- **多层 Canvas 架构**: 采用三层独立画布（背景层、草图层、UI 层），确保在复杂操作下依然维持 60FPS 的性能。
-- **无限视口**: 集成屏幕到网格的映射算法，支持在无限空间内进行平滑的平移与缩放。
-
-### 2. 智能布局引擎
-
-- **缩进继承**: 智能换行逻辑，自动检测并保持前序行的缩进位置。
-- **全角字符支持**: 完美兼容 CJK（中日韩）字符与 Emoji，具备自动网格占位修正功能。
-- **模块化缩进**: 专业的 Tab 系统，支持将光标向右平移两个标准网格单位。
-
-### 3. 分布式协同
-
-- **Yjs CRDT 集成**: 基于无冲突复制数据类型 (CRDT)，实现低延迟、实时的多用户协同编辑。
-- **可靠的持久化**: 具备高颗粒度的撤销/重做管理，并支持本地存储同步。
-
-### 4. 精准编辑工具
-
-- **锚点式选区**: 支持 `Shift + Click` 快速锚点定点，实现高效的矩形区域划定。
-- **批量填充 (Fill)**: 在激活选区内通过任意按键输入即可实现大面积字符填充。
-- **右键指令中心**: 集成右键上下文菜单，支持复制、剪切、粘贴及删除操作。
-
----
-
-## 🗺 发展路线 (Roadmap)
-
-- [x] 多层 Canvas 渲染引擎。
-- [x] 基于 Yjs 的实时协同编辑。
-- [x] 智能缩进与 Tab 系统。
-- [x] 右键上下文菜单与剪贴板集成。
-- [ ] **NES (Next Edit Suggestion)**: 基于布局模式的下一处编辑智能建议。
-- [ ] **AI Chat 集成**: 通过自然语言交互生成画布组件与复杂的 ASCII 结构。
-- [ ] 支持导出 ANSI 序列与 SVG 格式。
+    set({
+      searchQuery: query,
+      searchResults: Array.from(results).slice(0, 100),
+    });
+  },
+}));
 ```
 ---
 ```src/components/ToolBar/sidebar-right.tsx
 "use client";
 
+import { useEffect } from "react";
 import {
   Library,
   Trash2,
@@ -184,7 +377,9 @@ import {
 } from "lucide-react";
 import { SidebarStandard, useSidebar } from "@/components/ui/sidebar";
 import { CharLibrary } from "./right-sidebar/char-library";
+import { SearchForm } from "./right-sidebar/search-form";
 import { useCanvasStore } from "@/store/canvasStore";
+import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -195,8 +390,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertDialogTrigger } from "@radix-ui/react-alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -229,8 +424,13 @@ export function SidebarRight() {
     setZoom,
   } = useCanvasStore();
 
+  const { fetchLibrary } = useLibraryStore();
   const { state, isMobile } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
+
+  useEffect(() => {
+    fetchLibrary();
+  }, [fetchLibrary]);
 
   const handleResetView = () => {
     setZoom(() => 1);
@@ -427,7 +627,6 @@ export function SidebarRight() {
                     </div>
                     <ScrollArea className="max-h-[65vh] overflow-y-auto">
                       <div className="p-5 space-y-6">
-                        {/* 1. Navigation */}
                         <section className="space-y-3">
                           <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
                             <Move className="size-4" /> Navigation & Viewport
@@ -462,7 +661,6 @@ export function SidebarRight() {
                           </div>
                         </section>
 
-                        {/* 2. Zoning (The selection part - Major Update) */}
                         <section className="space-y-3">
                           <h4 className="text-sm font-semibold flex items-center gap-2 text-primary">
                             <Maximize className="size-4" /> Rapid Zoning
@@ -500,7 +698,6 @@ export function SidebarRight() {
                           </div>
                         </section>
 
-                        {/* 3. Typography (The Enter/Tab part - Major Update) */}
                         <section className="space-y-3">
                           <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
                             <Type className="size-4" /> Construction & Typing
@@ -549,7 +746,6 @@ export function SidebarRight() {
                           </div>
                         </section>
 
-                        {/* Pro Tips */}
                         <div className="flex gap-2 p-3 rounded-md bg-accent/50 border border-border">
                           <Info className="size-4 text-primary shrink-0" />
                           <p className="text-[11px] leading-relaxed text-muted-foreground">
@@ -640,147 +836,13 @@ export function SidebarRight() {
         </div>
       }
     >
-      <CharLibrary />
+      <div className="flex flex-col h-full">
+        {!isCollapsed && <SearchForm />}
+        <ScrollArea className="flex-1">
+          <CharLibrary />
+        </ScrollArea>
+      </div>
     </SidebarStandard>
-  );
-}
-```
----
-```src/components/ToolBar/right-sidebar/char-library.tsx
-"use client";
-
-import { useMemo } from "react";
-import {
-  ChevronRight,
-  Square,
-  LayoutGrid,
-  Accessibility,
-  Fingerprint,
-  Smile,
-} from "lucide-react";
-import { useCanvasStore } from "@/store/canvasStore";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
-  SidebarGroup,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
-
-const MATERIAL_BLUEPRINTS = [
-  {
-    name: "Nerd Symbols",
-    icon: Fingerprint,
-    ranges: [
-      [0xe700, 0xe7c5],
-      [0xf000, 0xf2e0],
-      [0xe0b0, 0xe0b3],
-    ],
-    isActive: false,
-  },
-  {
-    name: "Box Drawing",
-    icon: Square,
-    ranges: [[0x2500, 0x257f]],
-    isActive: true,
-  },
-  {
-    name: "Block Elements",
-    icon: LayoutGrid,
-    ranges: [[0x2580, 0x259f]],
-    isActive: false,
-  },
-  {
-    name: "Braille Icons",
-    icon: Accessibility,
-    ranges: [[0x2800, 0x28ff]],
-    isActive: false,
-  },
-  {
-    name: "Emoticons",
-    icon: Smile,
-    ranges: [[0x1f600, 0x1f64f]],
-    isActive: false,
-  },
-];
-
-const generateChars = (ranges: number[][]): string[] => {
-  return ranges.flatMap(([start, end]) =>
-    Array.from({ length: end - start + 1 }, (_, i) =>
-      String.fromCodePoint(start + i)
-    )
-  );
-};
-
-export function CharLibrary() {
-  const { brushChar, setBrushChar, setTool } = useCanvasStore();
-
-  const library = useMemo(
-    () =>
-      MATERIAL_BLUEPRINTS.map((category) => ({
-        ...category,
-        chars: generateChars(category.ranges),
-      })),
-    []
-  );
-
-  const handleSelect = (char: string) => {
-    setBrushChar(char);
-    setTool("brush");
-    toast.success(`Selected: ${char}`, {
-      duration: 800,
-      position: "top-right",
-    });
-  };
-
-  return (
-    <SidebarGroup>
-      <SidebarMenu>
-        {library.map((group) => (
-          <Collapsible
-            key={group.name}
-            asChild
-            defaultOpen={group.isActive}
-            className="group/collapsible"
-          >
-            <SidebarMenuItem>
-              <CollapsibleTrigger asChild>
-                <SidebarMenuButton tooltip={group.name} className="font-medium">
-                  <group.icon className="size-4 text-muted-foreground" />
-                  <span>{group.name}</span>
-                  <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                </SidebarMenuButton>
-              </CollapsibleTrigger>
-
-              <CollapsibleContent>
-                <div className="grid grid-cols-4 gap-1 p-2 bg-muted/20 rounded-md mt-1">
-                  {group.chars.map((char, idx) => (
-                    <button
-                      key={`${group.name}-${idx}`}
-                      onClick={() => handleSelect(char)}
-                      className={cn(
-                        "h-9 w-full flex items-center justify-center rounded-sm transition-all font-mono text-base border",
-                        brushChar === char
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm scale-95"
-                          : "bg-background hover:border-primary/30 hover:bg-accent text-foreground border-transparent"
-                      )}
-                    >
-                      {char}
-                    </button>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </SidebarMenuItem>
-          </Collapsible>
-        ))}
-      </SidebarMenu>
-    </SidebarGroup>
   );
 }
 ```

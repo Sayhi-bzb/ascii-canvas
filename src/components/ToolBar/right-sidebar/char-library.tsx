@@ -8,6 +8,7 @@ import {
   Loader2,
   Folder,
   Terminal,
+  FolderOpen,
 } from "lucide-react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
@@ -101,7 +102,7 @@ export function CharLibrary() {
 
   return (
     <SidebarMenu className="px-2 gap-1 pb-10">
-      <Collapsible className="group/collapsible">
+      <Collapsible defaultOpen className="group/collapsible">
         <SidebarMenuItem>
           <CollapsibleTrigger asChild>
             <SidebarMenuButton>
@@ -114,7 +115,7 @@ export function CharLibrary() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
-              {Object.entries(data.nerdfonts).map(([name, chars]) => (
+              {Object.entries(data.nerdfonts).map(([name, items]) => (
                 <Collapsible key={name} className="group/sub">
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
@@ -124,11 +125,11 @@ export function CharLibrary() {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
-                        {chars.map((char, idx) => (
+                        {items.map((item, idx) => (
                           <CharButton
-                            key={idx}
-                            char={char}
-                            isSelected={brushChar === char}
+                            key={`${name}-${item.name}-${idx}`}
+                            char={item.char}
+                            isSelected={brushChar === item.char}
                             onClick={handleSelect}
                           />
                         ))}
@@ -155,25 +156,46 @@ export function CharLibrary() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
-              {Object.entries(data.lists).map(([name, chars]) => (
-                <Collapsible key={name} className="group/sub">
+              {Object.entries(data.emojis).map(([groupName, subgroups]) => (
+                <Collapsible key={groupName} className="group/sub">
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton className="h-7 text-[10px] opacity-70 hover:opacity-100">
-                        <Folder className="size-3 mr-1" /> {name}
+                        <FolderOpen className="size-3 mr-1" /> {groupName}
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                      <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
-                        {chars.map((char, idx) => (
-                          <CharButton
-                            key={idx}
-                            char={char}
-                            isSelected={brushChar === char}
-                            onClick={handleSelect}
-                          />
-                        ))}
-                      </div>
+                      <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+                        {Object.entries(subgroups).map(
+                          ([subgroupName, items]) => (
+                            <Collapsible
+                              key={subgroupName}
+                              className="group/sub2"
+                            >
+                              <SidebarMenuItem>
+                                <CollapsibleTrigger asChild>
+                                  <SidebarMenuButton className="h-6 text-[9px] opacity-60 hover:opacity-100">
+                                    <Folder className="size-2.5 mr-1" />{" "}
+                                    {subgroupName}
+                                  </SidebarMenuButton>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
+                                    {items.map((item, idx) => (
+                                      <CharButton
+                                        key={`${subgroupName}-${idx}`}
+                                        char={item.char}
+                                        isSelected={brushChar === item.char}
+                                        onClick={handleSelect}
+                                      />
+                                    ))}
+                                  </div>
+                                </CollapsibleContent>
+                              </SidebarMenuItem>
+                            </Collapsible>
+                          )
+                        )}
+                      </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>
                 </Collapsible>

@@ -4,8 +4,8 @@ export interface LibraryData {
   entities: Record<string, Record<string, string>>;
   related: Record<string, string[]>;
   alphabets: Record<string, string[]>;
-  lists: Record<string, string[]>;
-  nerdfonts: Record<string, string[]>;
+  nerdfonts: Record<string, { name: string; char: string }[]>;
+  emojis: Record<string, Record<string, { name: string; char: string }[]>>;
 }
 
 interface LibraryState {
@@ -30,14 +30,20 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const files = ["entities", "related", "alphabets", "lists", "nerdfonts"];
-      const [entities, related, alphabets, lists, nerdfonts] =
+      const files = [
+        "entities",
+        "related",
+        "alphabets",
+        "nerdfonts_enriched",
+        "emojis_enriched",
+      ];
+      const [entities, related, alphabets, nerdfonts, emojis] =
         await Promise.all(
           files.map((f) => fetch(`/data/${f}.json`).then((res) => res.json()))
         );
 
       set({
-        data: { entities, related, alphabets, lists, nerdfonts },
+        data: { entities, related, alphabets, nerdfonts, emojis },
         isLoading: false,
       });
     } catch (err) {
@@ -59,6 +65,24 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     Object.values(data.entities).forEach((category) => {
       Object.entries(category).forEach(([name, char]) => {
         if (name.toLowerCase().includes(lowerQuery)) results.add(char);
+      });
+    });
+
+    Object.values(data.nerdfonts).forEach((items) => {
+      items.forEach((item) => {
+        if (item.name.toLowerCase().includes(lowerQuery)) {
+          results.add(item.char);
+        }
+      });
+    });
+
+    Object.values(data.emojis).forEach((group) => {
+      Object.values(group).forEach((subgroup) => {
+        subgroup.forEach((item) => {
+          if (item.name.toLowerCase().includes(lowerQuery)) {
+            results.add(item.char);
+          }
+        });
       });
     });
 
