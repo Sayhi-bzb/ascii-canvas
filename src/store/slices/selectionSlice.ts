@@ -3,8 +3,12 @@ import type { CanvasState, SelectionSlice } from "../interfaces";
 import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
-import { exportSelectionToString } from "../../utils/export";
+import {
+  exportSelectionToString,
+  copySelectionToPngClipboard,
+} from "../../utils/export";
 import { placeCharInYMap } from "../utils";
+import { toast } from "sonner";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -51,6 +55,21 @@ export const createSelectionSlice: StateCreator<
       .catch((err) => {
         console.error("Failed to cut text: ", err);
       });
+  },
+
+  copySelectionAsPng: async (withGrid) => {
+    const { grid, selections } = get();
+    if (selections.length === 0) return;
+    try {
+      await copySelectionToPngClipboard(grid, selections, withGrid);
+      toast.success("Snapshot Copied", {
+        description: "Image with grid lines is ready to paste.",
+      });
+    } catch (error) {
+      toast.error("Snapshot Failed", {
+        description: "Could not write image to clipboard.",
+      });
+    }
   },
 
   fillSelectionsWithChar: (char) => {

@@ -5,7 +5,6 @@ import { useCanvasStore } from "../../store/canvasStore";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
 import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
 import { GridManager } from "../../utils/grid";
-import { toast } from "sonner";
 import { isCtrlOrMeta } from "../../utils/event";
 import { Minimap } from "./Minimap";
 import {
@@ -85,9 +84,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       const key = GridManager.toKey(textCursor.x, textCursor.y);
       const cell = grid.get(key);
       const char = cell?.char || " ";
-      navigator.clipboard.writeText(char).then(() => {
-        toast.success("Copied Char!");
-      });
+      navigator.clipboard.writeText(char);
     }
   };
   useEventListener("copy", handleCopy);
@@ -105,7 +102,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       const char = cell?.char || " ";
       navigator.clipboard.writeText(char).then(() => {
         erasePoints([textCursor]);
-        toast.success("Cut Char!");
       });
     }
   };
@@ -122,7 +118,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
     if (pasteStartPos) {
       writeTextString(text, pasteStartPos);
-      toast.success("Pasted!");
     } else {
       const centerX = Math.floor(
         (-store.offset.x + (size?.width || 0) / 2) / (10 * store.zoom)
@@ -131,7 +126,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
         (-store.offset.y + (size?.height || 0) / 2) / (20 * store.zoom)
       );
       writeTextString(text, { x: centerX, y: centerY });
-      toast.success("Pasted to center!");
     }
   };
 
@@ -153,7 +147,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       const text = await navigator.clipboard.readText();
       if (text) performPaste(text);
     } catch (err) {
-      toast.error("Failed to read clipboard");
+      console.error("Failed to read clipboard", err);
     }
   };
 
@@ -1133,15 +1127,23 @@ export const GridManager = {
     if (!char) return 1;
 
     const codePoint = char.codePointAt(0) || 0;
+
     if (codePoint < 128) return 1;
 
     if (/\p{Emoji_Presentation}/u.test(char)) return 2;
 
     if (
+      (codePoint >= 0xe000 && codePoint <= 0xf8ff) ||
+      (codePoint >= 0xf0000 && codePoint <= 0xffffd) ||
+      (codePoint >= 0x100000 && codePoint <= 0x10fffd)
+    ) {
+      return 2;
+    }
+
+    if (
       (codePoint >= 0x2e80 && codePoint <= 0x9fff) ||
       (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
-      (codePoint >= 0xff00 && codePoint <= 0xffef) ||
-      (codePoint >= 0xe000 && codePoint <= 0xf8ff)
+      (codePoint >= 0xff00 && codePoint <= 0xffef)
     ) {
       return 2;
     }
@@ -1431,6 +1433,89 @@ export function getCirclePoints(center: Point, edge: Point): GridPoint[] {
 
   return result;
 }
+```
+---
+```src/lib/constants.ts
+export const CELL_WIDTH = 10;
+export const CELL_HEIGHT = 20;
+
+export const GRID_COLOR = "#e5e7eb";
+export const BACKGROUND_COLOR = "#ffffff";
+
+export const MIN_ZOOM = 0.1;
+export const MAX_ZOOM = 5;
+
+export const FONT_SIZE = 15;
+export const COLOR_PRIMARY_TEXT = "#000000";
+export const COLOR_TEXT_CURSOR_BG = "rgba(0, 0, 0, 0.5)";
+export const COLOR_TEXT_CURSOR_FG = "#ffffff";
+export const COLOR_ORIGIN_MARKER = "red";
+
+export const COLOR_SELECTION_BG = "rgba(0, 0, 0, 0.2)";
+
+export const EXPORT_PADDING = 1;
+
+export const BOX_CHARS = {
+  TOP_LEFT: "╭",
+  TOP_RIGHT: "╮",
+  BOTTOM_LEFT: "╰",
+  BOTTOM_RIGHT: "╯",
+  HORIZONTAL: "─",
+  VERTICAL: "│",
+  CROSS: "┼",
+};
+
+export const PALETTE = [
+  "#000000", // Black
+  "#ef4444", // Red
+  "#f97316", // Orange
+  "#eab308", // Yellow
+  "#22c55e", // Green
+  "#06b6d4", // Cyan
+  "#3b82f6", // Blue
+  "#a855f7", // Purple
+  "#ec4899", // Pink
+  "#64748b", // Slate
+];
+```
+---
+```src/lib/utils.ts
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+```
+---
+```src/lib/yjs-setup.ts
+import * as Y from "yjs";
+import type { GridCell } from "../types";
+
+const yDoc = new Y.Doc();
+
+export const yMainGrid = yDoc.getMap<GridCell>("main-grid");
+
+export const undoManager = new Y.UndoManager([yMainGrid], {
+  captureTimeout: 500,
+  trackedOrigins: new Set([null]),
+});
+
+export const forceHistorySave = () => {
+  undoManager.stopCapturing();
+};
+
+export const transactWithHistory = (
+  fn: () => void,
+  shouldSaveHistory = true
+) => {
+  yDoc.transact(() => {
+    fn();
+  });
+  if (shouldSaveHistory) {
+    forceHistorySave();
+  }
+};
 ```
 ---
 ```src/store/canvasStore.ts
@@ -1752,7 +1837,6 @@ export { createSelectionSlice } from "./selectionSlice";
 ---
 ```src/store/slices/selectionSlice.ts
 import type { StateCreator } from "zustand";
-import { toast } from "sonner";
 import type { CanvasState, SelectionSlice } from "../interfaces";
 import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
@@ -1788,17 +1872,23 @@ export const createSelectionSlice: StateCreator<
     const { grid, selections } = get();
     if (selections.length === 0) return;
     const text = exportSelectionToString(grid, selections);
-    navigator.clipboard.writeText(text).then(() => toast.success("Copied!"));
+    navigator.clipboard.writeText(text).catch((err) => {
+      console.error("Failed to copy text: ", err);
+    });
   },
 
   cutSelectionToClipboard: () => {
     const { grid, selections, deleteSelection } = get();
     if (selections.length === 0) return;
     const text = exportSelectionToString(grid, selections);
-    navigator.clipboard.writeText(text).then(() => {
-      deleteSelection();
-      toast.success("Cut!");
-    });
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        deleteSelection();
+      })
+      .catch((err) => {
+        console.error("Failed to cut text: ", err);
+      });
   },
 
   fillSelectionsWithChar: (char) => {
@@ -1815,7 +1905,6 @@ export const createSelectionSlice: StateCreator<
         }
       });
     });
-    toast.success(`Filled area with ${char}`);
   },
 });
 ```
@@ -1976,4 +2065,263 @@ export type ToolType =
   | "stepline"
   | "circle"
   | "text";
+```
+---
+```src/App.tsx
+import { toast } from "sonner";
+import { useKeyPress, useLocalStorageState } from "ahooks";
+import { AsciiCanvas } from "./components/AsciiCanvas";
+import { useCanvasStore } from "./store/canvasStore";
+import { exportToString } from "./utils/export";
+import { AppLayout } from "./layout";
+import { Toolbar } from "./components/ToolBar/dock";
+import { undoManager } from "./lib/yjs-setup";
+import { isCtrlOrMeta } from "./utils/event";
+import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
+import { Suspense, lazy } from "react";
+
+const SidebarRight = lazy(() =>
+  import("./components/ToolBar/sidebar-right").then((module) => ({
+    default: module.SidebarRight,
+  }))
+);
+
+export default function App() {
+  const {
+    tool,
+    grid,
+    setTool,
+    fillSelectionsWithChar,
+    copySelectionToClipboard,
+    cutSelectionToClipboard,
+  } = useCanvasStore();
+
+  const [isRightPanelOpen, setIsRightPanelOpen] = useLocalStorageState<boolean>(
+    "ui-right-panel-status",
+    { defaultValue: true }
+  );
+
+  const handleUndo = () => {
+    undoManager.undo();
+    toast.dismiss();
+  };
+
+  const handleRedo = () => {
+    undoManager.redo();
+  };
+
+  useKeyPress(["meta.z", "ctrl.z"], (e) => {
+    e.preventDefault();
+    handleUndo();
+  });
+
+  useKeyPress(["meta.shift.z", "ctrl.shift.z", "meta.y", "ctrl.y"], (e) => {
+    e.preventDefault();
+    handleRedo();
+  });
+
+  useKeyPress(["meta.c", "ctrl.c"], (e) => {
+    e.preventDefault();
+    copySelectionToClipboard();
+  });
+
+  useKeyPress(["meta.x", "ctrl.x"], (e) => {
+    e.preventDefault();
+    cutSelectionToClipboard();
+  });
+
+  useKeyPress(
+    (event) => !isCtrlOrMeta(event) && !event.altKey && event.key.length === 1,
+    (event) => {
+      const { selections, textCursor } = useCanvasStore.getState();
+      if (selections.length > 0 && !textCursor) {
+        const activeTag = document.activeElement?.tagName.toLowerCase();
+        if (activeTag !== "input" && activeTag !== "textarea") {
+          event.preventDefault();
+          fillSelectionsWithChar(event.key);
+        }
+      }
+    },
+    {
+      events: ["keydown"],
+    }
+  );
+
+  const handleExport = () => {
+    const text = exportToString(grid);
+    if (!text) {
+      toast.warning("Canvas is empty!", {
+        description: "Draw something before exporting.",
+      });
+      return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success("Copied to clipboard!", {
+        description: `${text.length} characters ready to paste.`,
+      });
+    });
+  };
+
+  return (
+    <SidebarProvider className="flex h-full w-full overflow-hidden">
+      <SidebarInset className="relative flex flex-1 flex-col overflow-hidden">
+        <AppLayout
+          canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
+        >
+          <Toolbar
+            tool={tool}
+            setTool={setTool}
+            onUndo={handleUndo}
+            onExport={handleExport}
+          />
+        </AppLayout>
+
+        <div className="absolute top-0 right-0 h-full pointer-events-none z-50">
+          <SidebarProvider
+            open={isRightPanelOpen}
+            onOpenChange={setIsRightPanelOpen}
+            className="h-full items-end"
+          >
+            <Suspense fallback={<div className="w-0" />}>
+              <SidebarRight />
+            </Suspense>
+          </SidebarProvider>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
+```
+---
+```README.md
+[English] | [简体中文](./README.zh-CN.md)
+
+# ASCII Canvas
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![React](https://img.shields.io/badge/Framework-React_18-61DAFB?logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+[![Collaboration](https://img.shields.io/badge/Sync-Yjs_CRDT-orange?logo=distributed-systems)](https://yjs.dev/)
+[![Deploy](https://img.shields.io/badge/Demo-Live_Preview-22c55e?logo=cloudflare-pages)](https://ascii-canvas.pages.dev/)
+
+> **"The native visual interface for the LLM era: An infinite, multi-byte ASCII canvas designed to be the shared whiteboard for Humans and AI."**
+
+<br />
+
+<p align="center">
+  <img src="public/Cover.png" alt="ASCII Canvas Cover" width="100%" style="border-radius: 8px; border: 1px solid #333; box-shadow: 0 8px 30px rgba(0,0,0,0.12);">
+</p>
+
+<p align="center">
+  <a href="https://ascii-canvas.pages.dev/">
+    <img src="https://img.shields.io/badge/✨_Try_Live_Demo-Click_Here-22c55e?style=for-the-badge&logo=rocket" height="40">
+  </a>
+</p>
+
+---
+
+## 🛠 Core Features
+
+**ASCII Canvas** is a high-performance, collaborative ASCII art creation engine. Unlike traditional whiteboards that output pixels (opaque to LLMs), this engine renders structured, semantic Unicode grids.
+
+### 1. High-Performance Rendering
+
+- **Multi-layer Architecture**: Utilizes three distinct layers (Background, Scratch, and UI) to maintain 60FPS.
+- **Infinite Viewport**: Integrated screen-to-grid mapping for seamless panning and zooming.
+
+### 2. Intelligent Layout Engine
+
+- **Setback Inheritance**: Smart newline logic automatically detects and maintains indentation.
+- **Wide-Character Support**: Native support for **CJK characters**, **Nerd Fonts**, and **Emojis**.
+- **Modular Indentation**: Professional Tab system shifting cursor by 2 grid units.
+
+### 3. Distributed Collaboration
+
+- **Yjs CRDT Integration**: Real-time, low-latency collaborative editing.
+- **Robust Persistence**: High-granularity undo/redo management with local storage sync.
+
+### 4. Precision Editing Tools
+
+- **Anchor Zoning**: `Shift + Click` for rapid rectangular selection.
+- **Mass Fill**: Instantly fill active selections with any character.
+- **Context Hub**: Professional menu for Copy, Cut, Paste, and Demolish operations.
+
+---
+
+## ✨ Showcase
+
+<div align="center">
+  <img src="public/Case/Case1.webp" width="48%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;" />
+  <img src="public/Case/Case2.webp" width="48%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;" />
+</div>
+<div align="center">
+  <img src="public/Case/Case3.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
+  <img src="public/Case/Case4.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
+  <img src="public/Case/Case5.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
+</div>
+
+---
+
+## 🏗 Tech Stack
+
+- **Frontend**: React 18, TypeScript
+- **State Management**: Zustand (Slice Pattern)
+- **Synchronization**: Yjs / Y-IndexedDB
+- **Gestures**: @use-gesture/react
+- **UI Components**: Tailwind CSS, Shadcn UI, Radix UI
+
+---
+
+## 🚀 Getting Started
+
+### Installation
+
+```bash
+git clone https://github.com/Sayhi-bzb/ascii-canvas.git
+cd ascii-canvas
+npm install
+```
+
+### Development
+
+```bash
+npm run dev
+```
+
+### Build
+
+```bash
+npm run build
+```
+
+---
+
+## ⌨️ Shortcuts Reference
+
+| Action            | Shortcut        | Description                                       |
+| :---------------- | :-------------- | :------------------------------------------------ |
+| **Zoning**        | `Drag`          | Traditional rectangular area selection            |
+| **Anchor Zoning** | `Shift + Click` | Create selection between anchor and current point |
+| **Mass Fill**     | `Char Key`      | Fill active selection with the pressed character  |
+| **Smart Newline** | `Enter`         | New line with inherited indentation               |
+| **Pave Space**    | `Tab`           | Shift cursor right by 2 grid units                |
+| **Context Menu**  | `Right Click`   | Access Copy, Cut, Paste, and Delete commands      |
+
+---
+
+## 🗺 Roadmap
+
+- [x] Multi-layer Canvas rendering engine.
+- [x] Real-time collaboration via Yjs.
+- [x] Intelligent Indentation & Tab system.
+- [x] Context Menu & Clipboard integration.
+- [ ] **NES (Next Edit Suggestion)**: Predictive character placement based on layout patterns.
+- [ ] **AI Chat Integration**: Natural language interface for generating canvas components.
+- [ ] ANSI Sequence & SVG Export support.
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 ```

@@ -39,6 +39,7 @@ export interface SelectionSlice {
   deleteSelection: () => void;
   copySelectionToClipboard: () => void;
   cutSelectionToClipboard: () => void;
+  copySelectionAsPng: (withGrid: boolean) => Promise<void>;
   fillSelectionsWithChar: (char: string) => void;
 }
 

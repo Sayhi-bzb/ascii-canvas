@@ -14,7 +14,7 @@ import {
   ContextMenuTrigger,
   ContextMenuShortcut,
 } from "@/components/ui/context-menu";
-import { Copy, Scissors, Trash2, Clipboard } from "lucide-react";
+import { Copy, Scissors, Trash2, Clipboard, Image } from "lucide-react";
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -46,6 +46,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     erasePoints,
     copySelectionToClipboard,
     cutSelectionToClipboard,
+    copySelectionAsPng,
   } = store;
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
@@ -304,6 +305,13 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
           <Copy className="mr-2 size-4" />
           <span>Copy Zone</span>
           <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => copySelectionAsPng(true)}
+          disabled={selections.length === 0}
+        >
+          <Image className="mr-2 size-4" />
+          <span>Snapshot (PNG)</span>
         </ContextMenuItem>
         <ContextMenuItem
           onClick={() => handleCut()}

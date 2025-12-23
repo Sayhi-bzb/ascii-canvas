@@ -57,6 +57,91 @@ export const exportSelectionToString = (
   return generateStringFromBounds(grid, minX, maxX, minY, maxY);
 };
 
+export const copySelectionToPngClipboard = async (
+  grid: GridMap,
+  selections: SelectionArea[],
+  showGrid: boolean = true
+) => {
+  if (selections.length === 0) return;
+
+  const { minX, maxX, minY, maxY } = getSelectionsBoundingBox(selections);
+  const padding = 1;
+
+  const cols = maxX - minX + 1 + padding * 2;
+  const rows = maxY - minY + 1 + padding * 2;
+
+  const width = cols * CELL_WIDTH;
+  const height = rows * CELL_HEIGHT;
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const dpr = 2;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillRect(0, 0, width, height);
+
+  if (showGrid) {
+    ctx.beginPath();
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.lineWidth = 1;
+
+    for (let i = 0; i <= cols; i++) {
+      const x = i * CELL_WIDTH;
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+    }
+
+    for (let i = 0; i <= rows; i++) {
+      const y = i * CELL_HEIGHT;
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
+    ctx.stroke();
+  }
+
+  ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+
+  for (let y = minY - padding; y <= maxY + padding; y++) {
+    for (let x = minX - padding; x <= maxX + padding; x++) {
+      const cell = grid.get(GridManager.toKey(x, y));
+      if (!cell) continue;
+
+      const drawX = (x - (minX - padding)) * CELL_WIDTH;
+      const drawY = (y - (minY - padding)) * CELL_HEIGHT;
+      const wide = GridManager.isWideChar(cell.char);
+
+      ctx.fillStyle = cell.color;
+      ctx.fillText(
+        cell.char,
+        drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
+        drawY + CELL_HEIGHT / 2
+      );
+    }
+  }
+
+  try {
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png", 1.0)
+    );
+
+    if (blob) {
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blob.type]: blob }),
+      ]);
+    }
+  } catch (err) {
+    console.error("Failed to copy image to clipboard", err);
+    throw err;
+  }
+};
+
 export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
   if (grid.size === 0) return;
 
