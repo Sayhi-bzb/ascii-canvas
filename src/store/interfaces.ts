@@ -40,7 +40,6 @@ export interface SelectionSlice {
   copySelectionToClipboard: () => void;
   cutSelectionToClipboard: () => void;
   fillSelectionsWithChar: (char: string) => void;
-  copySelectionAsPngToClipboard: (showGrid?: boolean) => void; // 新增
 }
 
 export type CanvasState = {

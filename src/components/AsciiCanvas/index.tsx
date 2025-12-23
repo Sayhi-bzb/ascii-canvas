@@ -4,7 +4,6 @@ import { useCanvasStore } from "../../store/canvasStore";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
 import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
 import { GridManager } from "../../utils/grid";
-import { toast } from "sonner";
 import { isCtrlOrMeta } from "../../utils/event";
 import { Minimap } from "./Minimap";
 import {
@@ -15,13 +14,7 @@ import {
   ContextMenuTrigger,
   ContextMenuShortcut,
 } from "@/components/ui/context-menu";
-import {
-  Copy,
-  Scissors,
-  Trash2,
-  Clipboard,
-  Image as ImageIcon,
-} from "lucide-react";
+import { Copy, Scissors, Trash2, Clipboard } from "lucide-react";
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -53,7 +46,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     erasePoints,
     copySelectionToClipboard,
     cutSelectionToClipboard,
-    copySelectionAsPngToClipboard, // 新增
   } = store;
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
@@ -91,9 +83,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       const key = GridManager.toKey(textCursor.x, textCursor.y);
       const cell = grid.get(key);
       const char = cell?.char || " ";
-      navigator.clipboard.writeText(char).then(() => {
-        toast.success("Copied Char!");
-      });
+      navigator.clipboard.writeText(char);
     }
   };
   useEventListener("copy", handleCopy);
@@ -111,7 +101,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       const char = cell?.char || " ";
       navigator.clipboard.writeText(char).then(() => {
         erasePoints([textCursor]);
-        toast.success("Cut Char!");
       });
     }
   };
@@ -128,7 +117,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
     if (pasteStartPos) {
       writeTextString(text, pasteStartPos);
-      toast.success("Pasted!");
     } else {
       const centerX = Math.floor(
         (-store.offset.x + (size?.width || 0) / 2) / (10 * store.zoom)
@@ -137,7 +125,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
         (-store.offset.y + (size?.height || 0) / 2) / (20 * store.zoom)
       );
       writeTextString(text, { x: centerX, y: centerY });
-      toast.success("Pasted to center!");
     }
   };
 
@@ -159,7 +146,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       const text = await navigator.clipboard.readText();
       if (text) performPaste(text);
     } catch (err) {
-      toast.error("Failed to read clipboard");
+      console.error("Failed to read clipboard", err);
     }
   };
 
@@ -315,25 +302,15 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
           disabled={!textCursor && selections.length === 0}
         >
           <Copy className="mr-2 size-4" />
-          <span>Copy Text</span>
+          <span>Copy Zone</span>
           <ContextMenuShortcut>⌘C</ContextMenuShortcut>
         </ContextMenuItem>
-
-        <ContextMenuItem
-          onClick={() => copySelectionAsPngToClipboard(true)}
-          disabled={selections.length === 0}
-        >
-          <ImageIcon className="mr-2 size-4" />
-          <span>Copy PNG (Grid)</span>
-          <ContextMenuShortcut>⇧⌘C</ContextMenuShortcut>
-        </ContextMenuItem>
-
         <ContextMenuItem
           onClick={() => handleCut()}
           disabled={!textCursor && selections.length === 0}
         >
           <Scissors className="mr-2 size-4" />
-          <span>Cut Text</span>
+          <span>Cut Zone</span>
           <ContextMenuShortcut>⌘X</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem onClick={handleMenuPaste}>

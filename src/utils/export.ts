@@ -57,38 +57,22 @@ export const exportSelectionToString = (
   return generateStringFromBounds(grid, minX, maxX, minY, maxY);
 };
 
-export const generateCanvasFromGrid = (
-  grid: GridMap,
-  options: {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-    showGrid?: boolean;
-    padding?: number;
-    scale?: number;
-  }
-): HTMLCanvasElement | null => {
-  const {
-    minX,
-    maxX,
-    minY,
-    maxY,
-    showGrid = false,
-    padding = 2,
-    scale = 2,
-  } = options;
+export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
+  if (grid.size === 0) return;
 
+  const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
+  const padding = 2;
   const width = (maxX - minX + 1 + padding * 2) * CELL_WIDTH;
   const height = (maxY - minY + 1 + padding * 2) * CELL_HEIGHT;
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
+  if (!ctx) return;
 
-  canvas.width = width * scale;
-  canvas.height = height * scale;
-  ctx.scale(scale, scale);
+  const dpr = 2;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.scale(dpr, dpr);
 
   ctx.fillStyle = BACKGROUND_COLOR;
   ctx.fillRect(0, 0, width, height);
@@ -97,14 +81,13 @@ export const generateCanvasFromGrid = (
     ctx.beginPath();
     ctx.strokeStyle = GRID_COLOR;
     ctx.lineWidth = 0.5;
-    const gridCols = maxX - minX + 1 + padding * 2;
-    const gridRows = maxY - minY + 1 + padding * 2;
-
-    for (let x = 0; x <= gridCols; x++) {
+    const gridWidth = maxX - minX + 1 + padding * 2;
+    const gridHeight = maxY - minY + 1 + padding * 2;
+    for (let x = 0; x <= gridWidth; x++) {
       ctx.moveTo(x * CELL_WIDTH, 0);
       ctx.lineTo(x * CELL_WIDTH, height);
     }
-    for (let y = 0; y <= gridRows; y++) {
+    for (let y = 0; y <= gridHeight; y++) {
       ctx.moveTo(0, y * CELL_HEIGHT);
       ctx.lineTo(width, y * CELL_HEIGHT);
     }
@@ -115,37 +98,21 @@ export const generateCanvasFromGrid = (
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
 
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = minX; x <= maxX; x++) {
-      const cell = grid.get(GridManager.toKey(x, y));
-      if (!cell) continue;
+  GridManager.iterate(grid, (cell, x, y) => {
+    const drawX = (x - minX + padding) * CELL_WIDTH;
+    const drawY = (y - minY + padding) * CELL_HEIGHT;
+    const wide = GridManager.isWideChar(cell.char);
 
-      const drawX = (x - minX + padding) * CELL_WIDTH;
-      const drawY = (y - minY + padding) * CELL_HEIGHT;
-      const wide = GridManager.isWideChar(cell.char);
+    ctx.fillStyle = cell.color;
+    ctx.fillText(
+      cell.char,
+      drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
+      drawY + CELL_HEIGHT / 2
+    );
+  });
 
-      ctx.fillStyle = cell.color;
-      ctx.fillText(
-        cell.char,
-        drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
-        drawY + CELL_HEIGHT / 2
-      );
-
-    }
-  }
-
-  return canvas;
-};
-
-export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
-  if (grid.size === 0) return;
-  const bounds = GridManager.getGridBounds(grid);
-  const canvas = generateCanvasFromGrid(grid, { ...bounds, showGrid });
-
-  if (canvas) {
-    const link = document.createElement("a");
-    link.download = `ascii-city-${Date.now()}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  }
+  const link = document.createElement("a");
+  link.download = `ascii-city-${Date.now()}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
 };

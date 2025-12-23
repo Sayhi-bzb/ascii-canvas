@@ -8,35 +8,61 @@
 [![Collaboration](https://img.shields.io/badge/Sync-Yjs_CRDT-orange?logo=distributed-systems)](https://yjs.dev/)
 [![Deploy](https://img.shields.io/badge/Demo-Live_Preview-22c55e?logo=cloudflare-pages)](https://ascii-canvas.pages.dev/)
 
-**ASCII Canvas** is a high-performance, collaborative ASCII art creation and character-based layout framework. Built with modern graphics engineering principles, it provides a seamless, infinite-canvas environment for precision character design and real-time multiplayer coordination.
+> **"The native visual interface for the LLM era: An infinite, multi-byte ASCII canvas designed to be the shared whiteboard for Humans and AI."**
 
-[**Live Demo**](https://ascii-canvas.pages.dev/) | [**GitHub Repository**](https://github.com/Sayhi-bzb/ascii-canvas.git)
+<br />
+
+<p align="center">
+  <img src="public/Cover.png" alt="ASCII Canvas Cover" width="100%" style="border-radius: 8px; border: 1px solid #333; box-shadow: 0 8px 30px rgba(0,0,0,0.12);">
+</p>
+
+<p align="center">
+  <a href="https://ascii-canvas.pages.dev/">
+    <img src="https://img.shields.io/badge/✨_Try_Live_Demo-Click_Here-22c55e?style=for-the-badge&logo=rocket" height="40">
+  </a>
+</p>
 
 ---
 
 ## 🛠 Core Features
 
+**ASCII Canvas** is a high-performance, collaborative ASCII art creation engine. Unlike traditional whiteboards that output pixels (opaque to LLMs), this engine renders structured, semantic Unicode grids.
+
 ### 1. High-Performance Rendering
 
-- **Multi-layer Canvas Architecture**: Utilizes three distinct layers (Background, Scratch, and UI) to maintain 60FPS performance even during complex operations.
-- **Infinite Viewport**: Integrated screen-to-grid mapping allows for seamless panning and zooming across an unbounded workspace.
+- **Multi-layer Architecture**: Utilizes three distinct layers (Background, Scratch, and UI) to maintain 60FPS.
+- **Infinite Viewport**: Integrated screen-to-grid mapping for seamless panning and zooming.
 
 ### 2. Intelligent Layout Engine
 
-- **Setback Inheritance**: Smart newline logic that automatically detects and maintains indentation from previous lines.
-- **Wide-Character Support**: Fully compatible with CJK characters and Emojis, featuring automatic grid-occupancy correction.
-- **Modular Indentation**: A professional Tab system that shifts the cursor by two standard grid units for structured layouts.
+- **Setback Inheritance**: Smart newline logic automatically detects and maintains indentation.
+- **Wide-Character Support**: Native support for **CJK characters**, **Nerd Fonts**, and **Emojis**.
+- **Modular Indentation**: Professional Tab system shifting cursor by 2 grid units.
 
 ### 3. Distributed Collaboration
 
-- **Yjs CRDT Integration**: Powered by conflict-free replicated data types (CRDT) to enable real-time, low-latency collaborative editing.
-- **Robust Persistence**: High-granularity undo/redo management with local storage synchronization.
+- **Yjs CRDT Integration**: Real-time, low-latency collaborative editing.
+- **Robust Persistence**: High-granularity undo/redo management with local storage sync.
 
 ### 4. Precision Editing Tools
 
-- **Anchor-based Selection**: `Shift + Click` functionality for rapid, anchored rectangular zoning.
-- **Mass Pouring (Fill)**: Instantly fill active selection areas with any character input.
-- **Contextual Command Hub**: Professional context menu for Copy, Cut, Paste, and Demolish (Delete) operations.
+- **Anchor Zoning**: `Shift + Click` for rapid rectangular selection.
+- **Mass Fill**: Instantly fill active selections with any character.
+- **Context Hub**: Professional menu for Copy, Cut, Paste, and Demolish operations.
+
+---
+
+## ✨ Showcase
+
+<div align="center">
+  <img src="public/Case/Case1.webp" width="48%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;" />
+  <img src="public/Case/Case2.webp" width="48%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;" />
+</div>
+<div align="center">
+  <img src="public/Case/Case3.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
+  <img src="public/Case/Case4.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
+  <img src="public/Case/Case5.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
+</div>
 
 ---
 
@@ -94,7 +120,7 @@ npm run build
 - [x] Intelligent Indentation & Tab system.
 - [x] Context Menu & Clipboard integration.
 - [ ] **NES (Next Edit Suggestion)**: Predictive character placement based on layout patterns.
-- [ ] **AI Chat Integration**: Natural language interface for generating canvas components and complex ASCII structures.
+- [ ] **AI Chat Integration**: Natural language interface for generating canvas components.
 - [ ] ANSI Sequence & SVG Export support.
 
 ---
@@ -102,5 +128,3 @@ npm run build
 ## 📄 License
 
 This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
-
----
