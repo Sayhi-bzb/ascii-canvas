@@ -51,15 +51,23 @@ export const GridManager = {
     if (!char) return 1;
 
     const codePoint = char.codePointAt(0) || 0;
+
     if (codePoint < 128) return 1;
 
     if (/\p{Emoji_Presentation}/u.test(char)) return 2;
 
     if (
+      (codePoint >= 0xe000 && codePoint <= 0xf8ff) ||
+      (codePoint >= 0xf0000 && codePoint <= 0xffffd) ||
+      (codePoint >= 0x100000 && codePoint <= 0x10fffd)
+    ) {
+      return 2;
+    }
+
+    if (
       (codePoint >= 0x2e80 && codePoint <= 0x9fff) ||
       (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
-      (codePoint >= 0xff00 && codePoint <= 0xffef) ||
-      (codePoint >= 0xe000 && codePoint <= 0xf8ff)
+      (codePoint >= 0xff00 && codePoint <= 0xffef)
     ) {
       return 2;
     }
