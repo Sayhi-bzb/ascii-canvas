@@ -7,8 +7,14 @@ import { AppLayout } from "./layout";
 import { Toolbar } from "./components/ToolBar/dock";
 import { undoManager } from "./lib/yjs-setup";
 import { isCtrlOrMeta } from "./utils/event";
-import { SidebarRight } from "./components/ToolBar/sidebar-right";
 import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
+import { Suspense, lazy } from "react";
+
+const SidebarRight = lazy(() =>
+  import("./components/ToolBar/sidebar-right").then((module) => ({
+    default: module.SidebarRight,
+  }))
+);
 
 export default function App() {
   const {
@@ -96,7 +102,7 @@ export default function App() {
             tool={tool}
             setTool={setTool}
             onUndo={handleUndo}
-            onExport={handleExport} 
+            onExport={handleExport}
           />
         </AppLayout>
 
@@ -106,7 +112,9 @@ export default function App() {
             onOpenChange={setIsRightPanelOpen}
             className="h-full items-end"
           >
-            <SidebarRight />
+            <Suspense fallback={<div className="w-0" />}>
+              <SidebarRight />
+            </Suspense>
           </SidebarProvider>
         </div>
       </SidebarInset>
