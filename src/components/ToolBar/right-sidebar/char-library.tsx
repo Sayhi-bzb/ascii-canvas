@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
 import {
   ChevronRight,
-  Square,
-  LayoutGrid,
-  Accessibility,
-  Fingerprint,
-  Smile,
+  Sparkles,
+  Languages,
+  SearchX,
+  Loader2,
+  Folder,
+  Terminal,
 } from "lucide-react";
 import { useCanvasStore } from "@/store/canvasStore";
+import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -18,119 +19,214 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  SidebarGroup,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
 } from "@/components/ui/sidebar";
 
-const MATERIAL_BLUEPRINTS = [
-  {
-    name: "Nerd Symbols",
-    icon: Fingerprint,
-    ranges: [
-      [0xe700, 0xe7c5],
-      [0xf000, 0xf2e0],
-      [0xe0b0, 0xe0b3],
-    ],
-    isActive: false,
-  },
-  {
-    name: "Box Drawing",
-    icon: Square,
-    ranges: [[0x2500, 0x257f]],
-    isActive: true,
-  },
-  {
-    name: "Block Elements",
-    icon: LayoutGrid,
-    ranges: [[0x2580, 0x259f]],
-    isActive: false,
-  },
-  {
-    name: "Braille Icons",
-    icon: Accessibility,
-    ranges: [[0x2800, 0x28ff]],
-    isActive: false,
-  },
-  {
-    name: "Emoticons",
-    icon: Smile,
-    ranges: [[0x1f600, 0x1f64f]],
-    isActive: false,
-  },
-];
-
-const generateChars = (ranges: number[][]): string[] => {
-  return ranges.flatMap(([start, end]) =>
-    Array.from({ length: end - start + 1 }, (_, i) =>
-      String.fromCodePoint(start + i)
-    )
-  );
-};
+const CharButton = ({
+  char,
+  isSelected,
+  onClick,
+}: {
+  char: string;
+  isSelected: boolean;
+  onClick: (c: string) => void;
+}) => (
+  <button
+    onClick={() => onClick(char)}
+    className={cn(
+      "size-7 flex items-center justify-center rounded-md transition-all font-mono text-sm border shrink-0",
+      isSelected
+        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+        : "bg-background hover:border-primary/50 hover:bg-accent text-foreground border-border"
+    )}
+  >
+    {char}
+  </button>
+);
 
 export function CharLibrary() {
   const { brushChar, setBrushChar, setTool } = useCanvasStore();
-
-  const library = useMemo(
-    () =>
-      MATERIAL_BLUEPRINTS.map((category) => ({
-        ...category,
-        chars: generateChars(category.ranges),
-      })),
-    []
-  );
+  const { data, isLoading, searchQuery, searchResults } = useLibraryStore();
 
   const handleSelect = (char: string) => {
     setBrushChar(char);
     setTool("brush");
-    toast.success(`Selected: ${char}`, {
-      duration: 800,
-      position: "top-right",
-    });
+    toast.success(`Picked: ${char}`, { duration: 600, position: "top-right" });
   };
 
-  return (
-    <SidebarGroup>
-      <SidebarMenu>
-        {library.map((group) => (
-          <Collapsible
-            key={group.name}
-            asChild
-            defaultOpen={group.isActive}
-            className="group/collapsible"
-          >
-            <SidebarMenuItem>
-              <CollapsibleTrigger asChild>
-                <SidebarMenuButton tooltip={group.name} className="font-medium">
-                  <group.icon className="size-4 text-muted-foreground" />
-                  <span>{group.name}</span>
-                  <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                </SidebarMenuButton>
-              </CollapsibleTrigger>
+  // 1. 搜索模式：快速通行证
+  if (searchQuery.trim() !== "") {
+    return (
+      <SidebarGroup>
+        <SidebarGroupLabel className="px-4">
+          Results ({searchResults.length})
+        </SidebarGroupLabel>
+        <SidebarGroupContent>
+          <div className="flex flex-wrap gap-1 p-3">
+            {searchResults.map((char, idx) => (
+              <CharButton
+                key={`search-${idx}`}
+                char={char}
+                isSelected={brushChar === char}
+                onClick={handleSelect}
+              />
+            ))}
+            {searchResults.length === 0 && (
+              <div className="w-full flex flex-col items-center py-10 text-muted-foreground">
+                <SearchX className="size-8 mb-2 opacity-20" />
+                <p className="text-[10px]">No blueprints found</p>
+              </div>
+            )}
+          </div>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
 
-              <CollapsibleContent>
-                <div className="grid grid-cols-4 gap-1 p-2 bg-muted/20 rounded-md mt-1">
-                  {group.chars.map((char, idx) => (
-                    <button
-                      key={`${group.name}-${idx}`}
-                      onClick={() => handleSelect(char)}
-                      className={cn(
-                        "h-9 w-full flex items-center justify-center rounded-sm transition-all font-mono text-base border",
-                        brushChar === char
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm scale-95"
-                          : "bg-background hover:border-primary/30 hover:bg-accent text-foreground border-transparent"
-                      )}
-                    >
-                      {char}
-                    </button>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </SidebarMenuItem>
-          </Collapsible>
-        ))}
-      </SidebarMenu>
-    </SidebarGroup>
+  if (isLoading || !data) {
+    return (
+      <div className="flex items-center justify-center py-20 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin mr-2" />
+        <span className="text-[10px] font-medium tracking-widest uppercase">
+          Syncing...
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <SidebarMenu className="px-2 gap-1 pb-10">
+      {/* SECTION 1: NERD ICONS (极客街区) */}
+      <Collapsible className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton>
+              <Terminal className="size-4 text-cyan-500" />
+              <span className="font-bold text-xs uppercase tracking-tight">
+                Nerd Icons
+              </span>
+              <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+              {Object.entries(data.nerdfonts).map(([name, chars]) => (
+                <Collapsible key={name} className="group/sub">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="h-7 text-[10px] opacity-70 hover:opacity-100">
+                        <Folder className="size-3 mr-1" /> {name}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
+                        {chars.map((char, idx) => (
+                          <CharButton
+                            key={idx}
+                            char={char}
+                            isSelected={brushChar === char}
+                            onClick={handleSelect}
+                          />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+
+      {/* SECTION 2: EMOJI CURATED (样板间) */}
+      <Collapsible defaultOpen className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton>
+              <Sparkles className="size-4 text-yellow-500" />
+              <span className="font-bold text-xs uppercase tracking-tight">
+                Curated Emoji
+              </span>
+              <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+              {Object.entries(data.lists).map(([name, chars]) => (
+                <Collapsible key={name} className="group/sub">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="h-7 text-[10px] opacity-70 hover:opacity-100">
+                        <Folder className="size-3 mr-1" /> {name}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
+                        {chars.map((char, idx) => (
+                          <CharButton
+                            key={idx}
+                            char={char}
+                            isSelected={brushChar === char}
+                            onClick={handleSelect}
+                          />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+
+      {/* SECTION 3: CULTURAL CHARACTERS (文化广场) */}
+      <Collapsible className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton>
+              <Languages className="size-4 text-indigo-500" />
+              <span className="font-bold text-xs uppercase tracking-tight">
+                Characters
+              </span>
+              <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+              {Object.entries(data.alphabets).map(([name, chars]) => (
+                <Collapsible key={name} className="group/sub">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="h-7 text-[10px] opacity-70 hover:opacity-100">
+                        <Folder className="size-3 mr-1" /> {name}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
+                        {chars.map((char, idx) => (
+                          <CharButton
+                            key={idx}
+                            char={char}
+                            isSelected={brushChar === char}
+                            onClick={handleSelect}
+                          />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    </SidebarMenu>
   );
 }

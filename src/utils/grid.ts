@@ -98,10 +98,6 @@ export const GridManager = {
     return { minX, maxX, minY, maxY };
   },
 
-  /**
-   * 优化核心：视口计算
-   * 确定当前屏幕显示范围对应的网格坐标边界
-   */
   getViewportGridBounds(
     width: number,
     height: number,
