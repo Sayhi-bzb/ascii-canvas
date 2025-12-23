@@ -66,7 +66,7 @@ export const createSelectionSlice: StateCreator<
       toast.success("Snapshot Copied", {
         description: "Image with grid lines is ready to paste.",
       });
-    } catch (error) {
+    } catch {
       toast.error("Snapshot Failed", {
         description: "Could not write image to clipboard.",
       });

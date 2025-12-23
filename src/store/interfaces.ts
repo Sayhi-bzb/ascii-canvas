@@ -50,6 +50,7 @@ export interface SelectionSlice {
   copySelectionAsPng: (withGrid: boolean) => Promise<void>;
   fillSelectionsWithChar: (char: string) => void;
   fillArea: (area: SelectionArea) => void;
+}
 
 export type CanvasState = {
   offset: Point;

@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useCallback } from "react";
 import { useSize, useEventListener } from "ahooks";
 import { useCanvasStore } from "../../store/canvasStore";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
@@ -14,7 +14,14 @@ import {
   ContextMenuTrigger,
   ContextMenuShortcut,
 } from "@/components/ui/context-menu";
-import { Copy, Scissors, Trash2, Clipboard, Image } from "lucide-react";
+import {
+  Copy,
+  Scissors,
+  Trash2,
+  Clipboard,
+  Image,
+  Palette,
+} from "lucide-react";
 import {
   exportSelectionToString,
   exportSelectionToJSON,
@@ -31,7 +38,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const bgCanvasRef = useRef<HTMLCanvasElement>(null);
   const scratchCanvasRef = useRef<HTMLCanvasElement>(null);
   const uiCanvasRef = useRef<HTMLCanvasElement>(null);
-
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isComposing = useRef(false);
@@ -57,11 +63,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
 
   useCanvasRenderer(
-    {
-      bg: bgCanvasRef,
-      scratch: scratchCanvasRef,
-      ui: uiCanvasRef,
-    },
+    { bg: bgCanvasRef, scratch: scratchCanvasRef, ui: uiCanvasRef },
     size,
     store,
     draggingSelection
@@ -70,145 +72,131 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   useEffect(() => {
     const shouldFocus = textCursor || selections.length > 0;
     if (shouldFocus && textareaRef.current) {
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 0);
+      setTimeout(() => textareaRef.current?.focus(), 0);
     } else if (textareaRef.current && !shouldFocus) {
       textareaRef.current.blur();
     }
   }, [textCursor, selections.length]);
 
-  const handleCopy = async (e?: ClipboardEvent) => {
-    if (selections.length === 0 && !textCursor) return;
-    e?.preventDefault();
-
-    let plainText = "";
-    let richJSON: string | null = null;
-
+  const getTransferData = useCallback(() => {
     if (selections.length > 0) {
-      plainText = exportSelectionToString(grid, selections);
-      richJSON = exportSelectionToJSON(grid, selections);
+      return {
+        plain: exportSelectionToString(grid, selections),
+        rich: exportSelectionToJSON(grid, selections),
+      };
     } else if (textCursor) {
       const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
-      plainText = cell?.char || " ";
-      richJSON = JSON.stringify({
-        type: "ascii-metropolis-zone",
-        version: 1,
-        cells: [
-          {
-            x: 0,
-            y: 0,
-            char: plainText,
-            color: cell?.color || store.brushColor,
-          },
-        ],
-      });
+      const char = cell?.char || " ";
+      return {
+        plain: char,
+        rich: JSON.stringify({
+          type: "ascii-metropolis-zone",
+          version: 1,
+          cells: [{ x: 0, y: 0, char, color: cell?.color || store.brushColor }],
+        }),
+      };
     }
+    return null;
+  }, [grid, selections, textCursor, store.brushColor]);
 
-    try {
-      const blobPlain = new Blob([plainText], { type: "text/plain" });
-      const clipboardMap: Record<string, Blob> = { "text/plain": blobPlain };
+  const writeClipboard = useCallback(
+    async (plain: string, rich?: string | null, syncEvent?: ClipboardEvent) => {
+      if (syncEvent?.clipboardData) {
+        syncEvent.preventDefault();
+        syncEvent.clipboardData.setData("text/plain", plain);
+        if (rich) syncEvent.clipboardData.setData(MIME_RICH_DATA, rich);
+      } else {
+        const clipboardMap: Record<string, Blob> = {
+          "text/plain": new Blob([plain], { type: "text/plain" }),
+        };
+        if (rich)
+          clipboardMap[MIME_RICH_DATA] = new Blob([rich], {
+            type: MIME_RICH_DATA,
+          });
 
-      if (richJSON) {
-        clipboardMap[MIME_RICH_DATA] = new Blob([richJSON], {
-          type: MIME_RICH_DATA,
-        });
+        try {
+          await navigator.clipboard.write([new ClipboardItem(clipboardMap)]);
+        } catch {
+          navigator.clipboard.writeText(plain);
+        }
       }
+    },
+    []
+  );
 
-      await navigator.clipboard.write([new ClipboardItem(clipboardMap)]);
-    } catch (err) {
-      navigator.clipboard.writeText(plainText);
-    }
+  const handleStandardCopy = (e?: ClipboardEvent) => {
+    const data = getTransferData();
+    if (data) writeClipboard(data.plain, null, e);
   };
-  useEventListener("copy", handleCopy);
 
-  const handleCut = async (e?: ClipboardEvent) => {
-    await handleCopy(e);
+  const handleRichCopy = () => {
+    const data = getTransferData();
+    if (data) writeClipboard(data.plain, data.rich);
+  };
+
+  const handleCut = (e?: ClipboardEvent) => {
+    handleStandardCopy(e);
     deleteSelection();
     if (textCursor) erasePoints([textCursor]);
   };
-  useEventListener("cut", handleCut);
 
   const performPaste = async (eventDataTransfer?: DataTransfer) => {
     try {
       if (eventDataTransfer) {
         const richData = eventDataTransfer.getData(MIME_RICH_DATA);
-        if (richData) {
-          const parsed = JSON.parse(richData);
-          pasteRichData(parsed.cells);
-          return;
-        }
+        if (richData) return pasteRichData(JSON.parse(richData).cells);
       }
-
       const items = await navigator.clipboard.read();
       for (const item of items) {
         if (item.types.includes(MIME_RICH_DATA)) {
           const blob = await item.getType(MIME_RICH_DATA);
-          const jsonText = await blob.text();
-          const parsed = JSON.parse(jsonText);
-          pasteRichData(parsed.cells);
-          return;
+          return pasteRichData(JSON.parse(await blob.text()).cells);
         }
       }
-
       const text = await navigator.clipboard.readText();
       if (text) writeTextString(text);
-    } catch (err) {
+    } catch {
+      // Fail silently
     }
   };
 
-  const handlePaste = (e: ClipboardEvent) => {
-    const activeEl = document.activeElement;
-    const activeTag = activeEl?.tagName.toLowerCase();
-
-    if (activeTag === "input") return;
-    if (activeTag === "textarea" && activeEl !== textareaRef.current) return;
-
+  useEventListener("copy", handleStandardCopy);
+  useEventListener("cut", handleCut);
+  useEventListener("paste", (e: ClipboardEvent) => {
+    const activeTag = document.activeElement?.tagName.toLowerCase();
+    if (
+      activeTag === "input" ||
+      (activeTag === "textarea" &&
+        document.activeElement !== textareaRef.current)
+    )
+      return;
     e.preventDefault();
-    e.stopPropagation();
-
     performPaste(e.clipboardData || undefined);
-  };
-  useEventListener("paste", handlePaste);
-
-  const handleMenuPaste = () => {
-    performPaste();
-  };
+  });
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
     if ((!textCursor && selections.length === 0) || !size)
       return { display: "none" };
-
-    let targetX = 0;
-    let targetY = 0;
-
-    if (textCursor) {
-      const pos = GridManager.gridToScreen(
-        textCursor.x,
-        textCursor.y,
-        store.offset.x,
-        store.offset.y,
-        store.zoom
-      );
-      targetX = pos.x;
-      targetY = pos.y;
-    } else if (selections.length > 0) {
-      const sel = selections[0];
-      const pos = GridManager.gridToScreen(
-        sel.start.x,
-        sel.start.y,
-        store.offset.x,
-        store.offset.y,
-        store.zoom
-      );
-      targetX = pos.x;
-      targetY = pos.y;
-    }
+    const pos = textCursor
+      ? GridManager.gridToScreen(
+          textCursor.x,
+          textCursor.y,
+          store.offset.x,
+          store.offset.y,
+          store.zoom
+        )
+      : GridManager.gridToScreen(
+          selections[0].start.x,
+          selections[0].start.y,
+          store.offset.x,
+          store.offset.y,
+          store.zoom
+        );
 
     return {
       position: "absolute",
-      left: `${targetX}px`,
-      top: `${targetY}px`,
+      left: `${pos.x}px`,
+      top: `${pos.y}px`,
       width: "1px",
       height: "1px",
       opacity: 0,
@@ -217,28 +205,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     };
   }, [textCursor, selections, store.offset, store.zoom, size]);
 
-  const handleCompositionStart = () => {
-    isComposing.current = true;
-  };
-  const handleCompositionEnd = (
-    e: React.CompositionEvent<HTMLTextAreaElement>
-  ) => {
-    isComposing.current = false;
-    const value = e.data;
-    if (value) {
-      writeTextString(value);
-      if (textareaRef.current) textareaRef.current.value = "";
-    }
-  };
-  const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
-    if (isComposing.current) return;
-    const textarea = e.currentTarget;
-    const value = textarea.value;
-    if (value) {
-      writeTextString(value);
-      textarea.value = "";
-    }
-  };
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
     if (isComposing.current) return;
@@ -247,6 +213,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     const isRedo =
       (isCtrlOrMeta(e) && e.shiftKey && e.key.toLowerCase() === "z") ||
       (isCtrlOrMeta(e) && e.key.toLowerCase() === "y");
+
     if (isUndo) {
       e.preventDefault();
       onUndo();
@@ -257,7 +224,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       onRedo();
       return;
     }
-
     if (
       (e.key === "Delete" || e.key === "Backspace") &&
       selections.length > 0
@@ -289,9 +255,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
   };
 
-  const canvasClassName =
-    "absolute inset-0 w-full h-full block pointer-events-none";
-
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -300,18 +263,36 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
           style={{ touchAction: "none" }}
           className="relative w-screen h-screen overflow-hidden bg-background touch-none select-none cursor-default"
         >
-          <canvas ref={bgCanvasRef} className={canvasClassName} />
-          <canvas ref={scratchCanvasRef} className={canvasClassName} />
-          <canvas ref={uiCanvasRef} className={canvasClassName} />
-
+          <canvas
+            ref={bgCanvasRef}
+            className="absolute inset-0 w-full h-full block pointer-events-none"
+          />
+          <canvas
+            ref={scratchCanvasRef}
+            className="absolute inset-0 w-full h-full block pointer-events-none"
+          />
+          <canvas
+            ref={uiCanvasRef}
+            className="absolute inset-0 w-full h-full block pointer-events-none"
+          />
           <Minimap containerSize={size} />
-
           <textarea
             ref={textareaRef}
             style={textareaStyle}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
-            onInput={handleInput}
+            onCompositionStart={() => {
+              isComposing.current = true;
+            }}
+            onCompositionEnd={(e) => {
+              isComposing.current = false;
+              if (e.data) writeTextString(e.data);
+              if (textareaRef.current) textareaRef.current.value = "";
+            }}
+            onInput={(e) => {
+              if (!isComposing.current && e.currentTarget.value) {
+                writeTextString(e.currentTarget.value);
+                e.currentTarget.value = "";
+              }
+            }}
             onKeyDown={handleKeyDown}
             autoCapitalize="off"
             autoComplete="off"
@@ -323,12 +304,19 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 
       <ContextMenuContent className="w-56">
         <ContextMenuItem
-          onClick={() => handleCopy()}
+          onClick={() => handleStandardCopy()}
           disabled={!textCursor && selections.length === 0}
         >
           <Copy className="mr-2 size-4" />
-          <span>Copy Zone</span>
+          <span>Copy as Text</span>
           <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={handleRichCopy}
+          disabled={!textCursor && selections.length === 0}
+        >
+          <Palette className="mr-2 size-4" />
+          <span>Copy with Color</span>
         </ContextMenuItem>
         <ContextMenuItem
           onClick={() => copySelectionAsPng(true)}
@@ -345,14 +333,14 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
           <span>Cut Zone</span>
           <ContextMenuShortcut>⌘X</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuItem onClick={handleMenuPaste}>
+        <ContextMenuItem onClick={() => performPaste()}>
           <Clipboard className="mr-2 size-4" />
           <span>Paste Lot</span>
           <ContextMenuShortcut>⌘V</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
-          onClick={() => deleteSelection()}
+          onClick={deleteSelection}
           className="text-destructive focus:text-destructive"
           disabled={selections.length === 0}
         >

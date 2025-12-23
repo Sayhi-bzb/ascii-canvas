@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Check,
   Palette,
+  PaintBucket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ToolType } from "@/types";
@@ -101,6 +102,12 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
         hasSub: true,
       },
       {
+        id: "fill",
+        label: "Fill Area",
+        icon: PaintBucket,
+        onClick: () => setTool("fill"),
+      },
+      {
         id: "eraser",
         label: "Eraser",
         icon: Eraser,
@@ -129,7 +136,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
   const activeIndex = useMemo(() => {
     const currentId = isShapeGroupActive
       ? "shape-group"
-      : ["select", "brush", "eraser"].includes(tool)
+      : ["select", "brush", "eraser", "fill"].includes(tool)
       ? tool
       : "brush";
     const idx = navItems.findIndex((item) => item.id === currentId);
@@ -1375,6 +1382,12 @@ import {
   ContextMenuShortcut,
 } from "@/components/ui/context-menu";
 import { Copy, Scissors, Trash2, Clipboard, Image } from "lucide-react";
+import {
+  exportSelectionToString,
+  exportSelectionToJSON,
+} from "../../utils/export";
+
+const MIME_RICH_DATA = "web application/x-ascii-metropolis";
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -1395,6 +1408,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const {
     textCursor,
     writeTextString,
+    pasteRichData,
     backspaceText,
     newlineText,
     indentText,
@@ -1404,8 +1418,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     deleteSelection,
     grid,
     erasePoints,
-    copySelectionToClipboard,
-    cutSelectionToClipboard,
     copySelectionAsPng,
   } = store;
 
@@ -1433,82 +1445,101 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
   }, [textCursor, selections.length]);
 
-  const handleCopy = (e?: ClipboardEvent) => {
+  const handleCopy = async (e?: ClipboardEvent) => {
+    if (selections.length === 0 && !textCursor) return;
+    e?.preventDefault();
+
+    let plainText = "";
+    let richJSON: string | null = null;
+
     if (selections.length > 0) {
-      e?.preventDefault();
-      copySelectionToClipboard();
-      return;
+      plainText = exportSelectionToString(grid, selections);
+      richJSON = exportSelectionToJSON(grid, selections);
+    } else if (textCursor) {
+      const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
+      plainText = cell?.char || " ";
+      richJSON = JSON.stringify({
+        type: "ascii-metropolis-zone",
+        version: 1,
+        cells: [
+          {
+            x: 0,
+            y: 0,
+            char: plainText,
+            color: cell?.color || store.brushColor,
+          },
+        ],
+      });
     }
-    if (textCursor) {
-      e?.preventDefault();
-      const key = GridManager.toKey(textCursor.x, textCursor.y);
-      const cell = grid.get(key);
-      const char = cell?.char || " ";
-      navigator.clipboard.writeText(char);
+
+    try {
+      const blobPlain = new Blob([plainText], { type: "text/plain" });
+      const clipboardMap: Record<string, Blob> = { "text/plain": blobPlain };
+
+      if (richJSON) {
+        clipboardMap[MIME_RICH_DATA] = new Blob([richJSON], {
+          type: MIME_RICH_DATA,
+        });
+      }
+
+      await navigator.clipboard.write([new ClipboardItem(clipboardMap)]);
+    } catch (err) {
+      navigator.clipboard.writeText(plainText);
     }
   };
   useEventListener("copy", handleCopy);
 
-  const handleCut = (e?: ClipboardEvent) => {
-    if (selections.length > 0) {
-      e?.preventDefault();
-      cutSelectionToClipboard();
-      return;
-    }
-    if (textCursor) {
-      e?.preventDefault();
-      const key = GridManager.toKey(textCursor.x, textCursor.y);
-      const cell = grid.get(key);
-      const char = cell?.char || " ";
-      navigator.clipboard.writeText(char).then(() => {
-        erasePoints([textCursor]);
-      });
-    }
+  const handleCut = async (e?: ClipboardEvent) => {
+    await handleCopy(e);
+    deleteSelection();
+    if (textCursor) erasePoints([textCursor]);
   };
   useEventListener("cut", handleCut);
 
-  const performPaste = (text: string) => {
-    let pasteStartPos = textCursor;
-    if (!pasteStartPos && selections.length > 0) {
-      const firstSelection = selections[0];
-      pasteStartPos = {
-        x: Math.min(firstSelection.start.x, firstSelection.end.x),
-        y: Math.min(firstSelection.start.y, firstSelection.end.y),
-      };
-    }
-    if (pasteStartPos) {
-      writeTextString(text, pasteStartPos);
-    } else {
-      const centerX = Math.floor(
-        (-store.offset.x + (size?.width || 0) / 2) / (10 * store.zoom)
-      );
-      const centerY = Math.floor(
-        (-store.offset.y + (size?.height || 0) / 2) / (20 * store.zoom)
-      );
-      writeTextString(text, { x: centerX, y: centerY });
+  const performPaste = async (eventDataTransfer?: DataTransfer) => {
+    try {
+      if (eventDataTransfer) {
+        const richData = eventDataTransfer.getData(MIME_RICH_DATA);
+        if (richData) {
+          const parsed = JSON.parse(richData);
+          pasteRichData(parsed.cells);
+          return;
+        }
+      }
+
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        if (item.types.includes(MIME_RICH_DATA)) {
+          const blob = await item.getType(MIME_RICH_DATA);
+          const jsonText = await blob.text();
+          const parsed = JSON.parse(jsonText);
+          pasteRichData(parsed.cells);
+          return;
+        }
+      }
+
+      const text = await navigator.clipboard.readText();
+      if (text) writeTextString(text);
+    } catch (err) {
     }
   };
 
   const handlePaste = (e: ClipboardEvent) => {
-    const activeTag = document.activeElement?.tagName.toLowerCase();
-    if (activeTag === "input" || activeTag === "textarea") {
-      return;
-    }
+    const activeEl = document.activeElement;
+    const activeTag = activeEl?.tagName.toLowerCase();
 
-    if (isComposing.current) return;
+    if (activeTag === "input") return;
+    if (activeTag === "textarea" && activeEl !== textareaRef.current) return;
+
     e.preventDefault();
-    const text = e.clipboardData?.getData("text");
-    if (text) performPaste(text);
+    e.stopPropagation();
+
+    performPaste(e.clipboardData || undefined);
   };
   useEventListener("paste", handlePaste);
 
-  const handleMenuPaste = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) performPaste(text);
-    } catch (err) {
-      console.error("Failed to read clipboard", err);
-    }
+  const handleMenuPaste = () => {
+    performPaste();
   };
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
@@ -1850,6 +1881,7 @@ export const useCanvasInteraction = (
     grid,
     updateScratchForShape,
     setHoveredGrid,
+    fillArea,
   } = store;
 
   const dragStartGrid = useRef<Point | null>(null);
@@ -1950,8 +1982,12 @@ export const useCanvasInteraction = (
           );
           const start = GridManager.snapToCharStart(raw, grid);
 
-          if (tool === "select") {
-            if (mouseEvent.shiftKey && anchorGrid.current) {
+          if (tool === "select" || tool === "fill") {
+            if (
+              tool === "select" &&
+              mouseEvent.shiftKey &&
+              anchorGrid.current
+            ) {
               clearSelections();
               setTextCursor(null);
               addSelection({
@@ -2002,7 +2038,7 @@ export const useCanvasInteraction = (
           );
           const currentGrid = GridManager.snapToCharStart(raw, grid);
 
-          if (tool === "select") {
+          if (tool === "select" || tool === "fill") {
             setDraggingSelection({
               start: dragStartGrid.current,
               end: currentGrid,
@@ -2030,7 +2066,10 @@ export const useCanvasInteraction = (
           return;
         }
         if ((event as MouseEvent).button === 0) {
-          if (tool === "select" && draggingSelection) {
+          if (tool === "fill" && draggingSelection) {
+            fillArea(draggingSelection);
+            setDraggingSelection(null);
+          } else if (tool === "select" && draggingSelection) {
             if (
               draggingSelection.start.x === draggingSelection.end.x &&
               draggingSelection.start.y === draggingSelection.end.y
@@ -2382,6 +2421,36 @@ export const exportSelectionToString = (
   if (selections.length === 0) return "";
   const { minX, maxX, minY, maxY } = getSelectionsBoundingBox(selections);
   return generateStringFromBounds(grid, minX, maxX, minY, maxY);
+};
+
+export const exportSelectionToJSON = (
+  grid: GridMap,
+  selections: SelectionArea[]
+) => {
+  if (selections.length === 0) return null;
+  const { minX, minY, maxX, maxY } = getSelectionsBoundingBox(selections);
+
+  const cells: { x: number; y: number; char: string; color: string }[] = [];
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const cell = grid.get(GridManager.toKey(x, y));
+      if (cell) {
+        cells.push({
+          x: x - minX,
+          y: y - minY,
+          char: cell.char,
+          color: cell.color,
+        });
+      }
+    }
+  }
+
+  return JSON.stringify({
+    type: "ascii-metropolis-zone",
+    version: 1,
+    cells,
+  });
 };
 
 export const copySelectionToPngClipboard = async (
@@ -3080,6 +3149,13 @@ import type {
   ToolType,
 } from "../types";
 
+export interface RichTextCell {
+  x: number;
+  y: number;
+  char: string;
+  color: string;
+}
+
 export interface DrawingSlice {
   scratchLayer: GridMap | null;
   setScratchLayer: (points: GridPoint[]) => void;
@@ -3100,6 +3176,7 @@ export interface TextSlice {
   textCursor: Point | null;
   setTextCursor: (pos: Point | null) => void;
   writeTextString: (str: string, startPos?: Point) => void;
+  pasteRichData: (cells: RichTextCell[], startPos?: Point) => void;
   moveTextCursor: (dx: number, dy: number) => void;
   backspaceText: () => void;
   newlineText: () => void;
@@ -3115,7 +3192,7 @@ export interface SelectionSlice {
   cutSelectionToClipboard: () => void;
   copySelectionAsPng: (withGrid: boolean) => Promise<void>;
   fillSelectionsWithChar: (char: string) => void;
-}
+  fillArea: (area: SelectionArea) => void;
 
 export type CanvasState = {
   offset: Point;
@@ -3317,6 +3394,7 @@ import {
 } from "../../utils/export";
 import { placeCharInYMap } from "../utils";
 import { toast } from "sonner";
+import type { GridCell } from "../../types";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -3384,15 +3462,39 @@ export const createSelectionSlice: StateCreator<
     const { selections, brushColor } = get();
     if (selections.length === 0) return;
 
+    const charWidth = GridManager.getCharWidth(char);
+
     transactWithHistory(() => {
       selections.forEach((area) => {
         const { minX, maxX, minY, maxY } = getSelectionBounds(area);
         for (let y = minY; y <= maxY; y++) {
-          for (let x = minX; x <= maxX; x++) {
+          for (let x = minX; x <= maxX; x += charWidth) {
+            if (x + charWidth - 1 > maxX) break;
             placeCharInYMap(yMainGrid, x, y, char, brushColor);
           }
         }
       });
+    });
+  },
+
+  fillArea: (area) => {
+    const { brushColor } = get();
+    const { minX, maxX, minY, maxY } = getSelectionBounds(area);
+
+    transactWithHistory(() => {
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const key = GridManager.toKey(x, y);
+          const existingCell = yMainGrid.get(key) as GridCell | undefined;
+
+          if (existingCell) {
+            yMainGrid.set(key, {
+              char: existingCell.char,
+              color: brushColor,
+            });
+          }
+        }
+      }
     });
   },
 });
@@ -3417,12 +3519,9 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
     const { selections, fillSelectionsWithChar, textCursor, brushColor } =
       get();
 
-    if (selections.length > 0) {
-      const fillChar = str.charAt(0);
-      if (fillChar) {
-        fillSelectionsWithChar(fillChar);
-        return;
-      }
+    if (selections.length > 0 && str.length === 1) {
+      fillSelectionsWithChar(str);
+      return;
     }
 
     const cursor = startPos || textCursor;
@@ -3444,6 +3543,33 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
       }
     });
     set({ textCursor: { x: currentX, y: currentY } });
+  },
+
+  pasteRichData: (cells, startPos) => {
+    const { textCursor, selections } = get();
+
+    let pos = startPos || textCursor;
+    if (!pos && selections.length > 0) {
+      const sel = selections[0];
+      pos = {
+        x: Math.min(sel.start.x, sel.end.x),
+        y: Math.min(sel.start.y, sel.end.y),
+      };
+    }
+    if (!pos) return;
+
+    const basePos = pos;
+    transactWithHistory(() => {
+      cells.forEach((cell) => {
+        placeCharInYMap(
+          yMainGrid,
+          basePos.x + cell.x,
+          basePos.y + cell.y,
+          cell.char,
+          cell.color
+        );
+      });
+    });
   },
 
   moveTextCursor: (dx, dy) => {
@@ -3551,6 +3677,7 @@ export type ToolType =
   | "select"
   | "brush"
   | "eraser"
+  | "fill"
   | "box"
   | "line"
   | "stepline"
