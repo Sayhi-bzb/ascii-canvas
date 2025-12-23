@@ -33,6 +33,7 @@ export const useCanvasInteraction = (
     grid,
     updateScratchForShape,
     setHoveredGrid,
+    fillArea,
   } = store;
 
   const dragStartGrid = useRef<Point | null>(null);
@@ -133,8 +134,12 @@ export const useCanvasInteraction = (
           );
           const start = GridManager.snapToCharStart(raw, grid);
 
-          if (tool === "select") {
-            if (mouseEvent.shiftKey && anchorGrid.current) {
+          if (tool === "select" || tool === "fill") {
+            if (
+              tool === "select" &&
+              mouseEvent.shiftKey &&
+              anchorGrid.current
+            ) {
               clearSelections();
               setTextCursor(null);
               addSelection({
@@ -185,7 +190,7 @@ export const useCanvasInteraction = (
           );
           const currentGrid = GridManager.snapToCharStart(raw, grid);
 
-          if (tool === "select") {
+          if (tool === "select" || tool === "fill") {
             setDraggingSelection({
               start: dragStartGrid.current,
               end: currentGrid,
@@ -213,7 +218,10 @@ export const useCanvasInteraction = (
           return;
         }
         if ((event as MouseEvent).button === 0) {
-          if (tool === "select" && draggingSelection) {
+          if (tool === "fill" && draggingSelection) {
+            fillArea(draggingSelection);
+            setDraggingSelection(null);
+          } else if (tool === "select" && draggingSelection) {
             if (
               draggingSelection.start.x === draggingSelection.end.x &&
               draggingSelection.start.y === draggingSelection.end.y

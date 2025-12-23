@@ -15,6 +15,12 @@ import {
   ContextMenuShortcut,
 } from "@/components/ui/context-menu";
 import { Copy, Scissors, Trash2, Clipboard, Image } from "lucide-react";
+import {
+  exportSelectionToString,
+  exportSelectionToJSON,
+} from "../../utils/export";
+
+const MIME_RICH_DATA = "web application/x-ascii-metropolis";
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -35,6 +41,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const {
     textCursor,
     writeTextString,
+    pasteRichData,
     backspaceText,
     newlineText,
     indentText,
@@ -44,8 +51,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     deleteSelection,
     grid,
     erasePoints,
-    copySelectionToClipboard,
-    cutSelectionToClipboard,
     copySelectionAsPng,
   } = store;
 
@@ -73,82 +78,101 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
   }, [textCursor, selections.length]);
 
-  const handleCopy = (e?: ClipboardEvent) => {
+  const handleCopy = async (e?: ClipboardEvent) => {
+    if (selections.length === 0 && !textCursor) return;
+    e?.preventDefault();
+
+    let plainText = "";
+    let richJSON: string | null = null;
+
     if (selections.length > 0) {
-      e?.preventDefault();
-      copySelectionToClipboard();
-      return;
+      plainText = exportSelectionToString(grid, selections);
+      richJSON = exportSelectionToJSON(grid, selections);
+    } else if (textCursor) {
+      const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
+      plainText = cell?.char || " ";
+      richJSON = JSON.stringify({
+        type: "ascii-metropolis-zone",
+        version: 1,
+        cells: [
+          {
+            x: 0,
+            y: 0,
+            char: plainText,
+            color: cell?.color || store.brushColor,
+          },
+        ],
+      });
     }
-    if (textCursor) {
-      e?.preventDefault();
-      const key = GridManager.toKey(textCursor.x, textCursor.y);
-      const cell = grid.get(key);
-      const char = cell?.char || " ";
-      navigator.clipboard.writeText(char);
+
+    try {
+      const blobPlain = new Blob([plainText], { type: "text/plain" });
+      const clipboardMap: Record<string, Blob> = { "text/plain": blobPlain };
+
+      if (richJSON) {
+        clipboardMap[MIME_RICH_DATA] = new Blob([richJSON], {
+          type: MIME_RICH_DATA,
+        });
+      }
+
+      await navigator.clipboard.write([new ClipboardItem(clipboardMap)]);
+    } catch (err) {
+      navigator.clipboard.writeText(plainText);
     }
   };
   useEventListener("copy", handleCopy);
 
-  const handleCut = (e?: ClipboardEvent) => {
-    if (selections.length > 0) {
-      e?.preventDefault();
-      cutSelectionToClipboard();
-      return;
-    }
-    if (textCursor) {
-      e?.preventDefault();
-      const key = GridManager.toKey(textCursor.x, textCursor.y);
-      const cell = grid.get(key);
-      const char = cell?.char || " ";
-      navigator.clipboard.writeText(char).then(() => {
-        erasePoints([textCursor]);
-      });
-    }
+  const handleCut = async (e?: ClipboardEvent) => {
+    await handleCopy(e);
+    deleteSelection();
+    if (textCursor) erasePoints([textCursor]);
   };
   useEventListener("cut", handleCut);
 
-  const performPaste = (text: string) => {
-    let pasteStartPos = textCursor;
-    if (!pasteStartPos && selections.length > 0) {
-      const firstSelection = selections[0];
-      pasteStartPos = {
-        x: Math.min(firstSelection.start.x, firstSelection.end.x),
-        y: Math.min(firstSelection.start.y, firstSelection.end.y),
-      };
-    }
-    if (pasteStartPos) {
-      writeTextString(text, pasteStartPos);
-    } else {
-      const centerX = Math.floor(
-        (-store.offset.x + (size?.width || 0) / 2) / (10 * store.zoom)
-      );
-      const centerY = Math.floor(
-        (-store.offset.y + (size?.height || 0) / 2) / (20 * store.zoom)
-      );
-      writeTextString(text, { x: centerX, y: centerY });
+  const performPaste = async (eventDataTransfer?: DataTransfer) => {
+    try {
+      if (eventDataTransfer) {
+        const richData = eventDataTransfer.getData(MIME_RICH_DATA);
+        if (richData) {
+          const parsed = JSON.parse(richData);
+          pasteRichData(parsed.cells);
+          return;
+        }
+      }
+
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        if (item.types.includes(MIME_RICH_DATA)) {
+          const blob = await item.getType(MIME_RICH_DATA);
+          const jsonText = await blob.text();
+          const parsed = JSON.parse(jsonText);
+          pasteRichData(parsed.cells);
+          return;
+        }
+      }
+
+      const text = await navigator.clipboard.readText();
+      if (text) writeTextString(text);
+    } catch (err) {
     }
   };
 
   const handlePaste = (e: ClipboardEvent) => {
-    const activeTag = document.activeElement?.tagName.toLowerCase();
-    if (activeTag === "input" || activeTag === "textarea") {
-      return;
-    }
+    const activeEl = document.activeElement;
+    const activeTag = activeEl?.tagName.toLowerCase();
 
-    if (isComposing.current) return;
+    if (activeTag === "input") return;
+    if (activeTag === "textarea" && activeEl !== textareaRef.current) return;
+
     e.preventDefault();
-    const text = e.clipboardData?.getData("text");
-    if (text) performPaste(text);
+    e.stopPropagation();
+
+    performPaste(e.clipboardData || undefined);
   };
   useEventListener("paste", handlePaste);
 
-  const handleMenuPaste = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) performPaste(text);
-    } catch (err) {
-      console.error("Failed to read clipboard", err);
-    }
+  const handleMenuPaste = () => {
+    performPaste();
   };
 
   const textareaStyle: React.CSSProperties = useMemo(() => {

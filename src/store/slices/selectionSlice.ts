@@ -9,6 +9,7 @@ import {
 } from "../../utils/export";
 import { placeCharInYMap } from "../utils";
 import { toast } from "sonner";
+import type { GridCell } from "../../types";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -76,15 +77,39 @@ export const createSelectionSlice: StateCreator<
     const { selections, brushColor } = get();
     if (selections.length === 0) return;
 
+    const charWidth = GridManager.getCharWidth(char);
+
     transactWithHistory(() => {
       selections.forEach((area) => {
         const { minX, maxX, minY, maxY } = getSelectionBounds(area);
         for (let y = minY; y <= maxY; y++) {
-          for (let x = minX; x <= maxX; x++) {
+          for (let x = minX; x <= maxX; x += charWidth) {
+            if (x + charWidth - 1 > maxX) break;
             placeCharInYMap(yMainGrid, x, y, char, brushColor);
           }
         }
       });
+    });
+  },
+
+  fillArea: (area) => {
+    const { brushColor } = get();
+    const { minX, maxX, minY, maxY } = getSelectionBounds(area);
+
+    transactWithHistory(() => {
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const key = GridManager.toKey(x, y);
+          const existingCell = yMainGrid.get(key) as GridCell | undefined;
+
+          if (existingCell) {
+            yMainGrid.set(key, {
+              char: existingCell.char,
+              color: brushColor,
+            });
+          }
+        }
+      }
     });
   },
 });

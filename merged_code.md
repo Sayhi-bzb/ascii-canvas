@@ -1,4 +1,1363 @@
-```src/components/AsciiCanvas/index.tsx
+//src/components/ToolBar/dock.tsx
+```
+"use client";
+
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import {
+  MousePointer2,
+  Square,
+  Minus,
+  Pencil,
+  Eraser,
+  Undo2,
+  LineSquiggle,
+  Circle as CircleIcon,
+  ChevronDown,
+  Check,
+  Palette,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { ToolType } from "@/types";
+import { useCanvasStore } from "@/store/canvasStore";
+import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { PALETTE } from "@/lib/constants";
+
+interface ToolbarProps {
+  tool: ToolType;
+  setTool: (tool: ToolType) => void;
+  onUndo: () => void;
+  onExport: () => void;
+}
+
+const MATERIAL_PRESETS = ["*", ".", "@", "▒"];
+const SHAPE_TOOLS: ToolType[] = ["box", "circle", "line", "stepline"];
+
+export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
+  const { brushChar, setBrushChar, brushColor, setBrushColor } =
+    useCanvasStore();
+  const [lastUsedShape, setLastUsedShape] = useState<ToolType>("box");
+  const [openSubMenuId, setOpenSubMenuId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const [customChar, setCustomChar] = useState(() =>
+    MATERIAL_PRESETS.includes(brushChar) ? "" : brushChar
+  );
+
+  const isShapeGroupActive = SHAPE_TOOLS.includes(tool);
+  const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const getToolMeta = useCallback((type: ToolType) => {
+    switch (type) {
+      case "box":
+        return { icon: Square, label: "Rectangle", shortcut: "R" };
+      case "circle":
+        return { icon: CircleIcon, label: "Circle", shortcut: "O" };
+      case "line":
+        return { icon: Minus, label: "Line", shortcut: "L" };
+      case "stepline":
+        return { icon: LineSquiggle, label: "Curve", shortcut: "S" };
+      default:
+        return { icon: Square, label: "Shape", shortcut: "" };
+    }
+  }, []);
+
+  const activeShapeMeta = useMemo(
+    () => getToolMeta(isShapeGroupActive ? tool : lastUsedShape),
+    [isShapeGroupActive, tool, lastUsedShape, getToolMeta]
+  );
+
+  const navItems = useMemo(
+    () => [
+      {
+        id: "select",
+        label: "Select",
+        icon: MousePointer2,
+        onClick: () => setTool("select"),
+      },
+      {
+        id: "brush",
+        label: `Brush (${brushChar})`,
+        icon: Pencil,
+        onClick: () => setTool("brush"),
+        hasSub: true,
+      },
+      {
+        id: "shape-group",
+        label: activeShapeMeta.label,
+        icon: activeShapeMeta.icon,
+        onClick: () => setTool(isShapeGroupActive ? tool : lastUsedShape),
+        hasSub: true,
+      },
+      {
+        id: "eraser",
+        label: "Eraser",
+        icon: Eraser,
+        onClick: () => setTool("eraser"),
+      },
+      { id: "undo", label: "Undo", icon: Undo2, onClick: onUndo },
+      {
+        id: "color",
+        label: "Color",
+        icon: Palette,
+        onClick: () => {},
+        hasSub: true,
+      },
+    ],
+    [
+      brushChar,
+      activeShapeMeta,
+      isShapeGroupActive,
+      tool,
+      lastUsedShape,
+      setTool,
+      onUndo,
+    ]
+  );
+
+  const activeIndex = useMemo(() => {
+    const currentId = isShapeGroupActive
+      ? "shape-group"
+      : ["select", "brush", "eraser"].includes(tool)
+      ? tool
+      : "brush";
+    const idx = navItems.findIndex((item) => item.id === currentId);
+    return idx !== -1 ? idx : 0;
+  }, [tool, isShapeGroupActive, navItems]);
+
+  useEffect(() => {
+    const updateIndicator = () => {
+      const activeEl = itemRefs.current[activeIndex];
+      const container = activeEl?.closest("nav");
+      if (activeEl && container) {
+        const rect = activeEl.getBoundingClientRect();
+        const contRect = container.getBoundingClientRect();
+        const width = 20;
+        const left = rect.left - contRect.left + (rect.width - width) / 2;
+        setIndicatorStyle({ width, left });
+      }
+    };
+    updateIndicator();
+    const timer = setTimeout(updateIndicator, 16);
+    window.addEventListener("resize", updateIndicator);
+    return () => {
+      window.removeEventListener("resize", updateIndicator);
+      clearTimeout(timer);
+    };
+  }, [activeIndex]);
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+        <nav className="relative flex items-center gap-1 p-1.5 rounded-2xl bg-background/80 backdrop-blur-md border border-primary/10 shadow-2xl pointer-events-auto">
+          {navItems.map((item, index) => {
+            const isActive = index === activeIndex;
+            const Icon = item.icon;
+            const isColorTab = item.id === "color";
+
+            return (
+              <div
+                key={item.id}
+                className={cn(
+                  "relative flex items-center rounded-lg transition-all",
+                  isActive
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      ref={(el) => {
+                        itemRefs.current[index] = el;
+                      }}
+                      onClick={item.onClick}
+                      className={cn(
+                        "flex items-center justify-center h-9 px-3 outline-none rounded-l-lg transition-colors",
+                        !item.hasSub && "rounded-lg",
+                        !isActive && "hover:bg-muted/50",
+                        isColorTab && "px-2"
+                      )}
+                    >
+                      {isColorTab ? (
+                        <div
+                          className="size-5 rounded-full border border-foreground/10 shadow-sm"
+                          style={{ backgroundColor: brushColor }}
+                        />
+                      ) : (
+                        <Icon className="size-5" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    {item.label}
+                  </TooltipContent>
+                </Tooltip>
+
+                {item.hasSub && (
+                  <Popover
+                    open={openSubMenuId === item.id}
+                    onOpenChange={(o) => setOpenSubMenuId(o ? item.id : null)}
+                  >
+                    <PopoverTrigger asChild>
+                      <button
+                        className={cn(
+                          "flex items-center justify-center h-9 px-1 border-l border-transparent hover:border-border/40 outline-none rounded-r-lg opacity-30 hover:opacity-100 transition-all",
+                          openSubMenuId === item.id && "bg-muted/50 opacity-100"
+                        )}
+                      >
+                        <ChevronDown className="size-3" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side="top"
+                      align={isColorTab ? "end" : "start"}
+                      sideOffset={12}
+                      className="w-auto p-1 flex flex-col gap-0.5 rounded-xl bg-popover/95 backdrop-blur-md border shadow-xl z-50 overflow-hidden min-w-[100px]"
+                    >
+                      {item.id === "brush" ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              setBrushChar(customChar);
+                              setTool("brush");
+                              inputRef.current?.focus();
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
+                              brushChar === customChar && customChar !== ""
+                                ? "bg-primary text-primary-foreground shadow-sm"
+                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            )}
+                          >
+                            <div className="size-3.5 flex items-center justify-center shrink-0">
+                              {brushChar === customChar &&
+                                customChar !== "" && (
+                                  <Check className="size-3.5 stroke-[3]" />
+                                )}
+                            </div>
+                            <div className="flex-1 px-1">
+                              <Input
+                                ref={inputRef}
+                                className="h-6 w-14 text-center p-0 font-mono text-base font-bold border-none shadow-none ring-0 focus-visible:ring-0 bg-muted/40 hover:bg-muted/60 rounded-sm text-inherit placeholder:text-muted-foreground/50"
+                                placeholder="Custom"
+                                maxLength={2}
+                                value={customChar}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setCustomChar(val);
+                                  setBrushChar(val);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          </button>
+                          {MATERIAL_PRESETS.map((char) => (
+                            <button
+                              key={char}
+                              onClick={() => {
+                                setBrushChar(char);
+                                setTool("brush");
+                              }}
+                              className={cn(
+                                "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
+                                brushChar === char
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                              )}
+                            >
+                              <div className="size-3.5 flex items-center justify-center shrink-0">
+                                {brushChar === char && (
+                                  <Check className="size-3.5 stroke-[3]" />
+                                )}
+                              </div>
+                              <span className="flex-1 font-mono font-bold text-lg text-center leading-none">
+                                {char}
+                              </span>
+                            </button>
+                          ))}
+                        </>
+                      ) : item.id === "color" ? (
+                        <div className="grid grid-cols-5 gap-1 p-1">
+                          {PALETTE.map((c) => (
+                            <button
+                              key={c}
+                              onClick={() => {
+                                setBrushColor(c);
+                                setOpenSubMenuId(null);
+                              }}
+                              className={cn(
+                                "size-6 rounded-md border border-foreground/10 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center",
+                                brushColor === c &&
+                                  "ring-2 ring-primary ring-offset-1 ring-offset-popover"
+                              )}
+                              style={{ backgroundColor: c }}
+                            >
+                              {brushColor === c && (
+                                <Check className="size-3 text-white mix-blend-difference" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        SHAPE_TOOLS.map((st) => {
+                          const meta = getToolMeta(st);
+                          const isSubActive = tool === st;
+                          return (
+                            <button
+                              key={st}
+                              onClick={() => {
+                                setTool(st);
+                                setLastUsedShape(st);
+                              }}
+                              className={cn(
+                                "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
+                                isSubActive
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                              )}
+                            >
+                              <div className="size-3.5 flex items-center justify-center shrink-0">
+                                {isSubActive && (
+                                  <Check className="size-3.5 stroke-[3]" />
+                                )}
+                              </div>
+                              <meta.icon className="size-4 shrink-0" />
+                              <span className="flex-1 text-left text-sm font-medium pr-4 whitespace-nowrap ml-1">
+                                {meta.label}
+                              </span>
+                              <span className="text-[10px] opacity-40 font-mono">
+                                {meta.shortcut}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+            );
+          })}
+
+          <div
+            className="absolute bottom-1 left-0 bg-primary rounded-full transition-all duration-300 ease-out pointer-events-none"
+            style={{
+              width: `${indicatorStyle.width}px`,
+              transform: `translateX(${indicatorStyle.left}px)`,
+              height: "2px",
+            }}
+          />
+        </nav>
+      </div>
+    </TooltipProvider>
+  );
+}
+```
+---
+//src/components/ToolBar/export-preview.tsx
+```
+"use client";
+
+import { useEffect, useRef } from "react";
+import { useCanvasStore } from "@/store/canvasStore";
+import { GridManager } from "@/utils/grid";
+import {
+  CELL_WIDTH,
+  CELL_HEIGHT,
+  FONT_SIZE,
+  BACKGROUND_COLOR,
+  GRID_COLOR,
+} from "@/lib/constants";
+
+export function ExportPreview() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { grid, exportShowGrid } = useCanvasStore();
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || grid.size === 0) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
+    const padding = 2;
+    const contentWidth = (maxX - minX + 1 + padding * 2) * CELL_WIDTH;
+    const contentHeight = (maxY - minY + 1 + padding * 2) * CELL_HEIGHT;
+
+    const dpr = window.devicePixelRatio || 1;
+    const displayWidth = canvas.clientWidth;
+    const displayHeight = canvas.clientHeight;
+    canvas.width = displayWidth * dpr;
+    canvas.height = displayHeight * dpr;
+    ctx.scale(dpr, dpr);
+
+    const scale = Math.min(
+      displayWidth / contentWidth,
+      displayHeight / contentHeight
+    );
+    const offsetX = (displayWidth - contentWidth * scale) / 2;
+    const offsetY = (displayHeight - contentHeight * scale) / 2;
+
+    ctx.fillStyle = BACKGROUND_COLOR;
+    ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    if (exportShowGrid) {
+      ctx.beginPath();
+      ctx.strokeStyle = GRID_COLOR;
+      ctx.lineWidth = 0.5;
+      const gw = maxX - minX + 1 + padding * 2;
+      const gh = maxY - minY + 1 + padding * 2;
+      for (let x = 0; x <= gw; x++) {
+        ctx.moveTo(x * CELL_WIDTH, 0);
+        ctx.lineTo(x * CELL_WIDTH, contentHeight);
+      }
+      for (let y = 0; y <= gh; y++) {
+        ctx.moveTo(0, y * CELL_HEIGHT);
+        ctx.lineTo(contentWidth, y * CELL_HEIGHT);
+      }
+      ctx.stroke();
+    }
+
+    ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+
+    GridManager.iterate(grid, (cell, x, y) => {
+      const drawX = (x - minX + padding) * CELL_WIDTH;
+      const drawY = (y - minY + padding) * CELL_HEIGHT;
+      const wide = GridManager.isWideChar(cell.char);
+      ctx.fillStyle = cell.color;
+      ctx.fillText(
+        cell.char,
+        drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
+        drawY + CELL_HEIGHT / 2
+      );
+    });
+    ctx.restore();
+  }, [grid, exportShowGrid]);
+
+  return <canvas ref={canvasRef} className="w-full h-full rounded-lg" />;
+}
+```
+---
+//src/components/ToolBar/sidebar-right.tsx
+```
+"use client";
+
+import { useEffect } from "react";
+import {
+  Library,
+  Trash2,
+  Github,
+  Eye,
+  EyeOff,
+  Target,
+  Download,
+  Copy,
+  ImageIcon,
+  CircleHelp,
+  Keyboard,
+  Mouse,
+  Move,
+  Type,
+  Maximize,
+  Info,
+} from "lucide-react";
+import { SidebarStandard, useSidebar } from "@/components/ui/sidebar";
+import { CharLibrary } from "./right-sidebar/char-library";
+import { SearchForm } from "./right-sidebar/search-form";
+import { useCanvasStore } from "@/store/canvasStore";
+import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
+import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import { exportToString, exportToPNG } from "@/utils/export";
+import { ExportPreview } from "./export-preview";
+import { ActionButton } from "@/components/ui/action-button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+export function SidebarRight() {
+  const {
+    grid,
+    clearCanvas,
+    showGrid,
+    setShowGrid,
+    exportShowGrid,
+    setExportShowGrid,
+    setOffset,
+    setZoom,
+  } = useCanvasStore();
+
+  const { fetchLibrary } = useLibraryStore();
+  const { state, isMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
+
+  useEffect(() => {
+    fetchLibrary();
+  }, [fetchLibrary]);
+
+  const handleResetView = () => {
+    setZoom(() => 1);
+    setOffset(() => ({ x: 0, y: 0 }));
+  };
+
+  return (
+    <SidebarStandard
+      variant="floating"
+      side="right"
+      title="Library"
+      className="pointer-events-auto"
+      icon={
+        <div className="flex items-center justify-center rounded-lg bg-accent p-1.5 shrink-0">
+          <Library className="size-4 text-accent-foreground" />
+        </div>
+      }
+      footer={
+        <div
+          className={cn(
+            "flex w-full flex-col gap-2",
+            isCollapsed && "items-center"
+          )}
+        >
+          <div
+            className={cn(
+              "flex items-center justify-between w-full px-1",
+              isCollapsed && "flex-col gap-2"
+            )}
+          >
+            <div
+              className={cn(
+                "flex items-center gap-1",
+                isCollapsed && "flex-col"
+              )}
+            >
+              <Dialog>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <Download className="size-4" />
+                        </Button>
+                      </DialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">
+                      Export Blueprint
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <DialogContent className="sm:max-w-xs gap-0 p-0 overflow-hidden border-none shadow-2xl">
+                  <div className="bg-muted/30 p-5 pb-3">
+                    <DialogHeader>
+                      <DialogTitle className="text-base">Export</DialogTitle>
+                      <DialogDescription className="text-[10px] uppercase tracking-widest">
+                        ASCII Metropolis
+                      </DialogDescription>
+                    </DialogHeader>
+                  </div>
+
+                  <div className="px-5 py-4 space-y-4">
+                    <div className="aspect-video w-full relative group">
+                      <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/5 rounded-xl blur opacity-25"></div>
+                      <div className="relative h-full border rounded-xl bg-background overflow-hidden shadow-inner p-3">
+                        <ExportPreview />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-3 py-2">
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <ActionButton
+                              variant="outline"
+                              size="md"
+                              icon={Copy}
+                              className="border-2 rounded-xl"
+                              onAction={() =>
+                                navigator.clipboard.writeText(
+                                  exportToString(grid)
+                                )
+                              }
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="text-xs">
+                            Copy Text
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <ActionButton
+                              variant="outline"
+                              size="md"
+                              icon={ImageIcon}
+                              className="border-2 rounded-xl"
+                              onAction={() => exportToPNG(grid, exportShowGrid)}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="text-xs">
+                            Save Image
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+
+                    <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 border border-border/50">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Print Grid on PNG
+                      </span>
+                      <Button
+                        variant={exportShowGrid ? "default" : "secondary"}
+                        size="sm"
+                        onClick={() => setExportShowGrid(!exportShowGrid)}
+                        className="h-6 px-2 rounded-md text-[10px] uppercase font-bold"
+                      >
+                        {exportShowGrid ? "ON" : "OFF"}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "size-8 transition-colors",
+                        showGrid ? "text-primary" : "text-muted-foreground"
+                      )}
+                      onClick={() => setShowGrid(!showGrid)}
+                    >
+                      {showGrid ? (
+                        <Eye className="size-4" />
+                      ) : (
+                        <EyeOff className="size-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    {showGrid ? "Hide Workspace Grid" : "Show Workspace Grid"}
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-muted-foreground"
+                      onClick={handleResetView}
+                    >
+                      <Target className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Reset View</TooltipContent>
+                </Tooltip>
+
+                <Dialog>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-primary"
+                        >
+                          <CircleHelp className="size-4" />
+                        </Button>
+                      </DialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">User Manual</TooltipContent>
+                  </Tooltip>
+                  <DialogContent className="sm:max-w-[500px] p-0 gap-0 overflow-hidden">
+                    <div className="bg-muted/30 p-5 pb-4 border-b">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Keyboard className="size-5 text-primary" />
+                          <span>Mayor's Handbook v2.0</span>
+                        </DialogTitle>
+                        <DialogDescription>
+                          Advanced protocols for your ASCII Metropolis.
+                        </DialogDescription>
+                      </DialogHeader>
+                    </div>
+                    <ScrollArea className="max-h-[65vh] overflow-y-auto">
+                      <div className="p-5 space-y-6">
+                        <section className="space-y-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
+                            <Move className="size-4" /> Navigation & Viewport
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center">
+                              <span>Pan View</span>
+                              <div className="flex gap-1 items-center">
+                                <kbd className="bg-background px-1.2 py-0.5 rounded border text-[9px] font-mono shadow-sm">
+                                  Space
+                                </kbd>
+                                <span className="text-muted-foreground text-[10px]">
+                                  +
+                                </span>
+                                <Mouse className="size-3" />
+                              </div>
+                            </div>
+                            <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center">
+                              <span>Zoom</span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-background px-1.2 py-0.5 rounded border text-[9px] font-mono shadow-sm">
+                                  Ctrl
+                                </kbd>
+                                <span className="text-muted-foreground text-[10px]">
+                                  +
+                                </span>
+                                <span className="font-mono text-[10px]">
+                                  Scroll
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section className="space-y-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-primary">
+                            <Maximize className="size-4" /> Rapid Zoning
+                            (Selection)
+                          </h4>
+                          <div className="bg-primary/5 border border-primary/20 p-3 rounded-lg text-xs space-y-3">
+                            <div className="flex justify-between items-start">
+                              <div className="space-y-1">
+                                <p className="font-bold text-foreground">
+                                  Anchor Surveying
+                                </p>
+                                <p className="text-muted-foreground">
+                                  Click a point, then{" "}
+                                  <kbd className="font-mono bg-muted px-1 rounded">
+                                    Shift + Click
+                                  </kbd>{" "}
+                                  another to instantly frame the lot.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-start border-t border-primary/10 pt-2">
+                              <div className="space-y-1">
+                                <p className="font-bold text-foreground">
+                                  Mass Pouring (Fill)
+                                </p>
+                                <p className="text-muted-foreground">
+                                  Select an area and{" "}
+                                  <span className="text-primary font-bold">
+                                    press any character
+                                  </span>{" "}
+                                  to fill the entire sector instantly.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section className="space-y-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
+                            <Type className="size-4" /> Construction & Typing
+                          </h4>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  Setback Inheritance
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  Auto-aligns newline with previous indentation
+                                </span>
+                              </div>
+                              <kbd className="bg-muted px-2 py-0.5 rounded border text-[10px] font-mono">
+                                Enter
+                              </kbd>
+                            </div>
+                            <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  Modular Paving
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  Instantly pavs 2 grids of vacant space
+                                </span>
+                              </div>
+                              <kbd className="bg-muted px-2 py-0.5 rounded border text-[10px] font-mono">
+                                Tab
+                              </kbd>
+                            </div>
+                            <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                              <span className="text-muted-foreground italic">
+                                Quick Undo
+                              </span>
+                              <div className="flex gap-1">
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Ctrl
+                                </kbd>
+                                <span className="text-muted-foreground">+</span>
+                                <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
+                                  Z
+                                </kbd>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        <div className="flex gap-2 p-3 rounded-md bg-accent/50 border border-border">
+                          <Info className="size-4 text-primary shrink-0" />
+                          <p className="text-[11px] leading-relaxed text-muted-foreground">
+                            <strong className="text-foreground">
+                              Pro Tip:
+                            </strong>{" "}
+                            Use the{" "}
+                            <span className="font-bold underline">
+                              Select tool
+                            </span>{" "}
+                            to place the cursor. Once a zoning box is active,
+                            typing acts as a fill command instead of cursor
+                            placement.
+                          </p>
+                        </div>
+                      </div>
+                    </ScrollArea>
+                  </DialogContent>
+                </Dialog>
+              </TooltipProvider>
+            </div>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground"
+                    onClick={() => window.open("https://github.com", "_blank")}
+                  >
+                    <Github className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">Source Code</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+
+          <AlertDialog>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size={isCollapsed ? "icon" : "default"}
+                      className={cn(
+                        "justify-start gap-2 text-destructive hover:bg-destructive/10 transition-colors",
+                        isCollapsed
+                          ? "size-8 justify-center"
+                          : "w-full h-8 px-2"
+                      )}
+                    >
+                      <Trash2 className="size-4" />
+                      {!isCollapsed && (
+                        <span className="font-medium text-xs">
+                          Clear Canvas
+                        </span>
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                </TooltipTrigger>
+                {isCollapsed && (
+                  <TooltipContent side="left">Clear Canvas</TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Issuing a Demolition Order?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will completely clear the current blueprint.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={clearCanvas}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      }
+    >
+      <div className="flex flex-col h-full">
+        {!isCollapsed && <SearchForm />}
+        <ScrollArea className="flex-1">
+          <CharLibrary />
+        </ScrollArea>
+      </div>
+    </SidebarStandard>
+  );
+}
+```
+---
+//src/components/ToolBar/right-sidebar/char-library.tsx
+```
+"use client";
+
+import {
+  ChevronRight,
+  Sparkles,
+  Languages,
+  SearchX,
+  Loader2,
+  Folder,
+  Terminal,
+  FolderOpen,
+} from "lucide-react";
+import { useCanvasStore } from "@/store/canvasStore";
+import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
+} from "@/components/ui/sidebar";
+
+const CharButton = ({
+  char,
+  isSelected,
+  onClick,
+}: {
+  char: string;
+  isSelected: boolean;
+  onClick: (c: string) => void;
+}) => (
+  <button
+    onClick={() => onClick(char)}
+    className={cn(
+      "size-7 flex items-center justify-center rounded-md transition-all font-mono text-sm border shrink-0",
+      isSelected
+        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+        : "bg-background hover:border-primary/50 hover:bg-accent text-foreground border-border"
+    )}
+  >
+    {char}
+  </button>
+);
+
+export function CharLibrary() {
+  const { brushChar, setBrushChar, setTool } = useCanvasStore();
+  const { data, isLoading, searchQuery, searchResults } = useLibraryStore();
+
+  const handleSelect = (char: string) => {
+    setBrushChar(char);
+    setTool("brush");
+    toast.success(`Picked: ${char}`, { duration: 600, position: "top-right" });
+  };
+
+  if (searchQuery.trim() !== "") {
+    return (
+      <SidebarGroup>
+        <SidebarGroupLabel className="px-4">
+          Results ({searchResults.length})
+        </SidebarGroupLabel>
+        <SidebarGroupContent>
+          <div className="flex flex-wrap gap-1 p-3">
+            {searchResults.map((char, idx) => (
+              <CharButton
+                key={`search-${idx}`}
+                char={char}
+                isSelected={brushChar === char}
+                onClick={handleSelect}
+              />
+            ))}
+            {searchResults.length === 0 && (
+              <div className="w-full flex flex-col items-center py-10 text-muted-foreground">
+                <SearchX className="size-8 mb-2 opacity-20" />
+                <p className="text-[10px]">No blueprints found</p>
+              </div>
+            )}
+          </div>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex items-center justify-center py-20 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin mr-2" />
+        <span className="text-[10px] font-medium tracking-widest uppercase">
+          Syncing...
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <SidebarMenu className="px-2 gap-1 pb-10">
+      <Collapsible defaultOpen className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton>
+              <Terminal className="size-4 text-cyan-500" />
+              <span className="font-bold text-xs uppercase tracking-tight">
+                Nerd Icons
+              </span>
+              <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+              {Object.entries(data.nerdfonts).map(([name, items]) => (
+                <Collapsible key={name} className="group/sub">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="h-7 text-[10px] opacity-70 hover:opacity-100">
+                        <Folder className="size-3 mr-1" /> {name}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
+                        {items.map((item, idx) => (
+                          <CharButton
+                            key={`${name}-${item.name}-${idx}`}
+                            char={item.char}
+                            isSelected={brushChar === item.char}
+                            onClick={handleSelect}
+                          />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+
+      <Collapsible defaultOpen className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton>
+              <Sparkles className="size-4 text-yellow-500" />
+              <span className="font-bold text-xs uppercase tracking-tight">
+                Curated Emoji
+              </span>
+              <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+              {Object.entries(data.emojis).map(([groupName, subgroups]) => (
+                <Collapsible key={groupName} className="group/sub">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="h-7 text-[10px] opacity-70 hover:opacity-100">
+                        <FolderOpen className="size-3 mr-1" /> {groupName}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+                        {Object.entries(subgroups).map(
+                          ([subgroupName, items]) => (
+                            <Collapsible
+                              key={subgroupName}
+                              className="group/sub2"
+                            >
+                              <SidebarMenuItem>
+                                <CollapsibleTrigger asChild>
+                                  <SidebarMenuButton className="h-6 text-[9px] opacity-60 hover:opacity-100">
+                                    <Folder className="size-2.5 mr-1" />{" "}
+                                    {subgroupName}
+                                  </SidebarMenuButton>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
+                                    {items.map((item, idx) => (
+                                      <CharButton
+                                        key={`${subgroupName}-${idx}`}
+                                        char={item.char}
+                                        isSelected={brushChar === item.char}
+                                        onClick={handleSelect}
+                                      />
+                                    ))}
+                                  </div>
+                                </CollapsibleContent>
+                              </SidebarMenuItem>
+                            </Collapsible>
+                          )
+                        )}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+
+      <Collapsible className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton>
+              <Languages className="size-4 text-indigo-500" />
+              <span className="font-bold text-xs uppercase tracking-tight">
+                Characters
+              </span>
+              <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub className="mr-0 pr-0 border-l ml-3">
+              {Object.entries(data.alphabets).map(([name, chars]) => (
+                <Collapsible key={name} className="group/sub">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className="h-7 text-[10px] opacity-70 hover:opacity-100">
+                        <Folder className="size-3 mr-1" /> {name}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1 py-2 pl-2 overflow-hidden">
+                        {chars.map((char, idx) => (
+                          <CharButton
+                            key={idx}
+                            char={char}
+                            isSelected={brushChar === char}
+                            onClick={handleSelect}
+                          />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    </SidebarMenu>
+  );
+}
+```
+---
+//src/components/ToolBar/right-sidebar/search-form.tsx
+```
+"use client";
+
+import * as React from "react";
+import { Search } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarInput,
+} from "@/components/ui/sidebar";
+import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
+
+export function SearchForm({ ...props }: React.ComponentProps<"form">) {
+  const { searchQuery, setSearchQuery } = useLibraryStore();
+
+  return (
+    <form {...props} onSubmit={(e) => e.preventDefault()}>
+      <SidebarGroup className="py-2 border-b">
+        <SidebarGroupContent className="relative">
+          <Label htmlFor="search" className="sr-only">
+            Search Blueprint
+          </Label>
+          <SidebarInput
+            id="search"
+            placeholder="Search characters (e.g. 'copy', 'arrow')..."
+            className="pl-8 bg-muted/50 focus-visible:bg-background transition-colors"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 opacity-50 select-none" />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute top-1/2 right-2.5 -translate-y-1/2 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ESC
+            </button>
+          )}
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </form>
+  );
+}
+```
+---
+//src/components/ToolBar/right-sidebar/useLibraryStore.ts
+```
+import { create } from "zustand";
+
+export interface LibraryData {
+  entities: Record<string, Record<string, string>>;
+  related: Record<string, string[]>;
+  alphabets: Record<string, string[]>;
+  nerdfonts: Record<string, { name: string; char: string }[]>;
+  emojis: Record<string, Record<string, { name: string; char: string }[]>>;
+}
+
+interface LibraryState {
+  data: LibraryData | null;
+  isLoading: boolean;
+  error: string | null;
+  searchQuery: string;
+  searchResults: string[];
+  fetchLibrary: () => Promise<void>;
+  setSearchQuery: (query: string) => void;
+}
+
+export const useLibraryStore = create<LibraryState>((set, get) => ({
+  data: null,
+  isLoading: false,
+  error: null,
+  searchQuery: "",
+  searchResults: [],
+
+  fetchLibrary: async () => {
+    if (get().data) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      const files = [
+        "entities",
+        "related",
+        "alphabets",
+        "nerdfonts_enriched",
+        "emojis_enriched",
+      ];
+      const [entities, related, alphabets, nerdfonts, emojis] =
+        await Promise.all(
+          files.map((f) => fetch(`/data/${f}.json`).then((res) => res.json()))
+        );
+
+      set({
+        data: { entities, related, alphabets, nerdfonts, emojis },
+        isLoading: false,
+      });
+    } catch (err) {
+      set({ error: "Failed to load logistics data", isLoading: false });
+      console.error("Library fetch error:", err);
+    }
+  },
+
+  setSearchQuery: (query: string) => {
+    const { data } = get();
+    if (!data || !query.trim()) {
+      set({ searchQuery: query, searchResults: [] });
+      return;
+    }
+
+    const lowerQuery = query.toLowerCase();
+    const results = new Set<string>();
+
+    Object.values(data.entities).forEach((category) => {
+      Object.entries(category).forEach(([name, char]) => {
+        if (name.toLowerCase().includes(lowerQuery)) results.add(char);
+      });
+    });
+
+    Object.values(data.nerdfonts).forEach((items) => {
+      items.forEach((item) => {
+        if (item.name.toLowerCase().includes(lowerQuery)) {
+          results.add(item.char);
+        }
+      });
+    });
+
+    Object.values(data.emojis).forEach((group) => {
+      Object.values(group).forEach((subgroup) => {
+        subgroup.forEach((item) => {
+          if (item.name.toLowerCase().includes(lowerQuery)) {
+            results.add(item.char);
+          }
+        });
+      });
+    });
+
+    if (query.length === 1 && data.related[query]) {
+      data.related[query].forEach((char) => results.add(char));
+    }
+
+    set({
+      searchQuery: query,
+      searchResults: Array.from(results).slice(0, 100),
+    });
+  },
+}));
+```
+---
+//src/components/AsciiCanvas/index.tsx
+```
 import { useRef, useMemo, useEffect } from "react";
 import { useSize, useEventListener } from "ahooks";
 import { useCanvasStore } from "../../store/canvasStore";
@@ -15,7 +1374,7 @@ import {
   ContextMenuTrigger,
   ContextMenuShortcut,
 } from "@/components/ui/context-menu";
-import { Copy, Scissors, Trash2, Clipboard } from "lucide-react";
+import { Copy, Scissors, Trash2, Clipboard, Image } from "lucide-react";
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -47,6 +1406,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     erasePoints,
     copySelectionToClipboard,
     cutSelectionToClipboard,
+    copySelectionAsPng,
   } = store;
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
@@ -307,6 +1667,13 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
           <ContextMenuShortcut>⌘C</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem
+          onClick={() => copySelectionAsPng(true)}
+          disabled={selections.length === 0}
+        >
+          <Image className="mr-2 size-4" />
+          <span>Snapshot (PNG)</span>
+        </ContextMenuItem>
+        <ContextMenuItem
           onClick={() => handleCut()}
           disabled={!textCursor && selections.length === 0}
         >
@@ -335,7 +1702,8 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 };
 ```
 ---
-```src/components/AsciiCanvas/Minimap.tsx
+//src/components/AsciiCanvas/Minimap.tsx
+```
 "use client";
 
 import { useRef, useEffect } from "react";
@@ -445,7 +1813,8 @@ export const Minimap = ({
 };
 ```
 ---
-```src/components/AsciiCanvas/hooks/useCanvasInteraction.ts
+//src/components/AsciiCanvas/hooks/useCanvasInteraction.ts
+```
 import { useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
 import { useCreation, useThrottleFn } from "ahooks";
@@ -722,7 +2091,8 @@ export const useCanvasInteraction = (
 };
 ```
 ---
-```src/components/AsciiCanvas/hooks/useCanvasRenderer.ts
+//src/components/AsciiCanvas/hooks/useCanvasRenderer.ts
+```
 import { useEffect } from "react";
 import {
   BACKGROUND_COLOR,
@@ -946,13 +2316,15 @@ export const useCanvasRenderer = (
 };
 ```
 ---
-```src/utils/event.ts
+//src/utils/event.ts
+```
 export const isCtrlOrMeta = (event: { ctrlKey: boolean; metaKey: boolean }) => {
   return event.ctrlKey || event.metaKey;
 };
 ```
 ---
-```src/utils/export.ts
+//src/utils/export.ts
+```
 import {
   EXPORT_PADDING,
   CELL_WIDTH,
@@ -1010,6 +2382,91 @@ export const exportSelectionToString = (
   if (selections.length === 0) return "";
   const { minX, maxX, minY, maxY } = getSelectionsBoundingBox(selections);
   return generateStringFromBounds(grid, minX, maxX, minY, maxY);
+};
+
+export const copySelectionToPngClipboard = async (
+  grid: GridMap,
+  selections: SelectionArea[],
+  showGrid: boolean = true
+) => {
+  if (selections.length === 0) return;
+
+  const { minX, maxX, minY, maxY } = getSelectionsBoundingBox(selections);
+  const padding = 1;
+
+  const cols = maxX - minX + 1 + padding * 2;
+  const rows = maxY - minY + 1 + padding * 2;
+
+  const width = cols * CELL_WIDTH;
+  const height = rows * CELL_HEIGHT;
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const dpr = 2;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillRect(0, 0, width, height);
+
+  if (showGrid) {
+    ctx.beginPath();
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.lineWidth = 1;
+
+    for (let i = 0; i <= cols; i++) {
+      const x = i * CELL_WIDTH;
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+    }
+
+    for (let i = 0; i <= rows; i++) {
+      const y = i * CELL_HEIGHT;
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
+    ctx.stroke();
+  }
+
+  ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+
+  for (let y = minY - padding; y <= maxY + padding; y++) {
+    for (let x = minX - padding; x <= maxX + padding; x++) {
+      const cell = grid.get(GridManager.toKey(x, y));
+      if (!cell) continue;
+
+      const drawX = (x - (minX - padding)) * CELL_WIDTH;
+      const drawY = (y - (minY - padding)) * CELL_HEIGHT;
+      const wide = GridManager.isWideChar(cell.char);
+
+      ctx.fillStyle = cell.color;
+      ctx.fillText(
+        cell.char,
+        drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
+        drawY + CELL_HEIGHT / 2
+      );
+    }
+  }
+
+  try {
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png", 1.0)
+    );
+
+    if (blob) {
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blob.type]: blob }),
+      ]);
+    }
+  } catch (err) {
+    console.error("Failed to copy image to clipboard", err);
+    throw err;
+  }
 };
 
 export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
@@ -1073,7 +2530,8 @@ export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
 };
 ```
 ---
-```src/utils/grid.ts
+//src/utils/grid.ts
+```
 import { CELL_WIDTH, CELL_HEIGHT } from "../lib/constants";
 import type { Point, GridMap } from "../types";
 
@@ -1201,7 +2659,8 @@ export const GridManager = {
 };
 ```
 ---
-```src/utils/selection.ts
+//src/utils/selection.ts
+```
 import type { SelectionArea } from "../types";
 
 export const getSelectionBounds = (area: SelectionArea) => {
@@ -1233,7 +2692,8 @@ export const getSelectionsBoundingBox = (selections: SelectionArea[]) => {
 };
 ```
 ---
-```src/utils/shapes.ts
+//src/utils/shapes.ts
+```
 import { BOX_CHARS } from "../lib/constants";
 import type { Point, GridPoint } from "../types";
 
@@ -1435,7 +2895,8 @@ export function getCirclePoints(center: Point, edge: Point): GridPoint[] {
 }
 ```
 ---
-```src/lib/constants.ts
+//src/lib/constants.ts
+```
 export const CELL_WIDTH = 10;
 export const CELL_HEIGHT = 20;
 
@@ -1479,7 +2940,8 @@ export const PALETTE = [
 ];
 ```
 ---
-```src/lib/utils.ts
+//src/lib/utils.ts
+```
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -1488,7 +2950,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 ```
 ---
-```src/lib/yjs-setup.ts
+//src/lib/yjs-setup.ts
+```
 import * as Y from "yjs";
 import type { GridCell } from "../types";
 
@@ -1518,7 +2981,8 @@ export const transactWithHistory = (
 };
 ```
 ---
-```src/store/canvasStore.ts
+//src/store/canvasStore.ts
+```
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { MIN_ZOOM, MAX_ZOOM, COLOR_PRIMARY_TEXT } from "../lib/constants";
@@ -1606,7 +3070,8 @@ export const useCanvasStore = create<CanvasState>()(
 );
 ```
 ---
-```src/store/interfaces.ts
+//src/store/interfaces.ts
+```
 import type {
   GridMap,
   GridPoint,
@@ -1648,6 +3113,7 @@ export interface SelectionSlice {
   deleteSelection: () => void;
   copySelectionToClipboard: () => void;
   cutSelectionToClipboard: () => void;
+  copySelectionAsPng: (withGrid: boolean) => Promise<void>;
   fillSelectionsWithChar: (char: string) => void;
 }
 
@@ -1675,7 +3141,8 @@ export type CanvasState = {
   SelectionSlice;
 ```
 ---
-```src/store/utils.ts
+//src/store/utils.ts
+```
 import * as Y from "yjs";
 import { GridManager } from "../utils/grid";
 import type { GridCell } from "../types";
@@ -1731,7 +3198,8 @@ export const placeCharInYMap = (
 };
 ```
 ---
-```src/store/slices/drawingSlice.ts
+//src/store/slices/drawingSlice.ts
+```
 import type { StateCreator } from "zustand";
 import type { CanvasState, DrawingSlice } from "../interfaces";
 import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
@@ -1829,20 +3297,26 @@ export const createDrawingSlice: StateCreator<
 });
 ```
 ---
-```src/store/slices/index.ts
+//src/store/slices/index.ts
+```
 export { createDrawingSlice } from "./drawingSlice";
 export { createTextSlice } from "./textSlice";
 export { createSelectionSlice } from "./selectionSlice";
 ```
 ---
-```src/store/slices/selectionSlice.ts
+//src/store/slices/selectionSlice.ts
+```
 import type { StateCreator } from "zustand";
 import type { CanvasState, SelectionSlice } from "../interfaces";
 import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
-import { exportSelectionToString } from "../../utils/export";
+import {
+  exportSelectionToString,
+  copySelectionToPngClipboard,
+} from "../../utils/export";
 import { placeCharInYMap } from "../utils";
+import { toast } from "sonner";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -1891,6 +3365,21 @@ export const createSelectionSlice: StateCreator<
       });
   },
 
+  copySelectionAsPng: async (withGrid) => {
+    const { grid, selections } = get();
+    if (selections.length === 0) return;
+    try {
+      await copySelectionToPngClipboard(grid, selections, withGrid);
+      toast.success("Snapshot Copied", {
+        description: "Image with grid lines is ready to paste.",
+      });
+    } catch (error) {
+      toast.error("Snapshot Failed", {
+        description: "Could not write image to clipboard.",
+      });
+    }
+  },
+
   fillSelectionsWithChar: (char) => {
     const { selections, brushColor } = get();
     if (selections.length === 0) return;
@@ -1909,7 +3398,8 @@ export const createSelectionSlice: StateCreator<
 });
 ```
 ---
-```src/store/slices/textSlice.ts
+//src/store/slices/textSlice.ts
+```
 import type { StateCreator } from "zustand";
 import type { CanvasState, TextSlice } from "../interfaces";
 import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
@@ -2033,7 +3523,8 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
 });
 ```
 ---
-```src/types/index.ts
+//src/types/index.ts
+```
 export interface Point {
   x: number;
   y: number;
@@ -2065,263 +3556,4 @@ export type ToolType =
   | "stepline"
   | "circle"
   | "text";
-```
----
-```src/App.tsx
-import { toast } from "sonner";
-import { useKeyPress, useLocalStorageState } from "ahooks";
-import { AsciiCanvas } from "./components/AsciiCanvas";
-import { useCanvasStore } from "./store/canvasStore";
-import { exportToString } from "./utils/export";
-import { AppLayout } from "./layout";
-import { Toolbar } from "./components/ToolBar/dock";
-import { undoManager } from "./lib/yjs-setup";
-import { isCtrlOrMeta } from "./utils/event";
-import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
-import { Suspense, lazy } from "react";
-
-const SidebarRight = lazy(() =>
-  import("./components/ToolBar/sidebar-right").then((module) => ({
-    default: module.SidebarRight,
-  }))
-);
-
-export default function App() {
-  const {
-    tool,
-    grid,
-    setTool,
-    fillSelectionsWithChar,
-    copySelectionToClipboard,
-    cutSelectionToClipboard,
-  } = useCanvasStore();
-
-  const [isRightPanelOpen, setIsRightPanelOpen] = useLocalStorageState<boolean>(
-    "ui-right-panel-status",
-    { defaultValue: true }
-  );
-
-  const handleUndo = () => {
-    undoManager.undo();
-    toast.dismiss();
-  };
-
-  const handleRedo = () => {
-    undoManager.redo();
-  };
-
-  useKeyPress(["meta.z", "ctrl.z"], (e) => {
-    e.preventDefault();
-    handleUndo();
-  });
-
-  useKeyPress(["meta.shift.z", "ctrl.shift.z", "meta.y", "ctrl.y"], (e) => {
-    e.preventDefault();
-    handleRedo();
-  });
-
-  useKeyPress(["meta.c", "ctrl.c"], (e) => {
-    e.preventDefault();
-    copySelectionToClipboard();
-  });
-
-  useKeyPress(["meta.x", "ctrl.x"], (e) => {
-    e.preventDefault();
-    cutSelectionToClipboard();
-  });
-
-  useKeyPress(
-    (event) => !isCtrlOrMeta(event) && !event.altKey && event.key.length === 1,
-    (event) => {
-      const { selections, textCursor } = useCanvasStore.getState();
-      if (selections.length > 0 && !textCursor) {
-        const activeTag = document.activeElement?.tagName.toLowerCase();
-        if (activeTag !== "input" && activeTag !== "textarea") {
-          event.preventDefault();
-          fillSelectionsWithChar(event.key);
-        }
-      }
-    },
-    {
-      events: ["keydown"],
-    }
-  );
-
-  const handleExport = () => {
-    const text = exportToString(grid);
-    if (!text) {
-      toast.warning("Canvas is empty!", {
-        description: "Draw something before exporting.",
-      });
-      return;
-    }
-    navigator.clipboard.writeText(text).then(() => {
-      toast.success("Copied to clipboard!", {
-        description: `${text.length} characters ready to paste.`,
-      });
-    });
-  };
-
-  return (
-    <SidebarProvider className="flex h-full w-full overflow-hidden">
-      <SidebarInset className="relative flex flex-1 flex-col overflow-hidden">
-        <AppLayout
-          canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
-        >
-          <Toolbar
-            tool={tool}
-            setTool={setTool}
-            onUndo={handleUndo}
-            onExport={handleExport}
-          />
-        </AppLayout>
-
-        <div className="absolute top-0 right-0 h-full pointer-events-none z-50">
-          <SidebarProvider
-            open={isRightPanelOpen}
-            onOpenChange={setIsRightPanelOpen}
-            className="h-full items-end"
-          >
-            <Suspense fallback={<div className="w-0" />}>
-              <SidebarRight />
-            </Suspense>
-          </SidebarProvider>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
-  );
-}
-```
----
-```README.md
-[English] | [简体中文](./README.zh-CN.md)
-
-# ASCII Canvas
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![React](https://img.shields.io/badge/Framework-React_18-61DAFB?logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![Collaboration](https://img.shields.io/badge/Sync-Yjs_CRDT-orange?logo=distributed-systems)](https://yjs.dev/)
-[![Deploy](https://img.shields.io/badge/Demo-Live_Preview-22c55e?logo=cloudflare-pages)](https://ascii-canvas.pages.dev/)
-
-> **"The native visual interface for the LLM era: An infinite, multi-byte ASCII canvas designed to be the shared whiteboard for Humans and AI."**
-
-<br />
-
-<p align="center">
-  <img src="public/Cover.png" alt="ASCII Canvas Cover" width="100%" style="border-radius: 8px; border: 1px solid #333; box-shadow: 0 8px 30px rgba(0,0,0,0.12);">
-</p>
-
-<p align="center">
-  <a href="https://ascii-canvas.pages.dev/">
-    <img src="https://img.shields.io/badge/✨_Try_Live_Demo-Click_Here-22c55e?style=for-the-badge&logo=rocket" height="40">
-  </a>
-</p>
-
----
-
-## 🛠 Core Features
-
-**ASCII Canvas** is a high-performance, collaborative ASCII art creation engine. Unlike traditional whiteboards that output pixels (opaque to LLMs), this engine renders structured, semantic Unicode grids.
-
-### 1. High-Performance Rendering
-
-- **Multi-layer Architecture**: Utilizes three distinct layers (Background, Scratch, and UI) to maintain 60FPS.
-- **Infinite Viewport**: Integrated screen-to-grid mapping for seamless panning and zooming.
-
-### 2. Intelligent Layout Engine
-
-- **Setback Inheritance**: Smart newline logic automatically detects and maintains indentation.
-- **Wide-Character Support**: Native support for **CJK characters**, **Nerd Fonts**, and **Emojis**.
-- **Modular Indentation**: Professional Tab system shifting cursor by 2 grid units.
-
-### 3. Distributed Collaboration
-
-- **Yjs CRDT Integration**: Real-time, low-latency collaborative editing.
-- **Robust Persistence**: High-granularity undo/redo management with local storage sync.
-
-### 4. Precision Editing Tools
-
-- **Anchor Zoning**: `Shift + Click` for rapid rectangular selection.
-- **Mass Fill**: Instantly fill active selections with any character.
-- **Context Hub**: Professional menu for Copy, Cut, Paste, and Demolish operations.
-
----
-
-## ✨ Showcase
-
-<div align="center">
-  <img src="public/Case/Case1.webp" width="48%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;" />
-  <img src="public/Case/Case2.webp" width="48%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;" />
-</div>
-<div align="center">
-  <img src="public/Case/Case3.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
-  <img src="public/Case/Case4.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
-  <img src="public/Case/Case5.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
-</div>
-
----
-
-## 🏗 Tech Stack
-
-- **Frontend**: React 18, TypeScript
-- **State Management**: Zustand (Slice Pattern)
-- **Synchronization**: Yjs / Y-IndexedDB
-- **Gestures**: @use-gesture/react
-- **UI Components**: Tailwind CSS, Shadcn UI, Radix UI
-
----
-
-## 🚀 Getting Started
-
-### Installation
-
-```bash
-git clone https://github.com/Sayhi-bzb/ascii-canvas.git
-cd ascii-canvas
-npm install
-```
-
-### Development
-
-```bash
-npm run dev
-```
-
-### Build
-
-```bash
-npm run build
-```
-
----
-
-## ⌨️ Shortcuts Reference
-
-| Action            | Shortcut        | Description                                       |
-| :---------------- | :-------------- | :------------------------------------------------ |
-| **Zoning**        | `Drag`          | Traditional rectangular area selection            |
-| **Anchor Zoning** | `Shift + Click` | Create selection between anchor and current point |
-| **Mass Fill**     | `Char Key`      | Fill active selection with the pressed character  |
-| **Smart Newline** | `Enter`         | New line with inherited indentation               |
-| **Pave Space**    | `Tab`           | Shift cursor right by 2 grid units                |
-| **Context Menu**  | `Right Click`   | Access Copy, Cut, Paste, and Delete commands      |
-
----
-
-## 🗺 Roadmap
-
-- [x] Multi-layer Canvas rendering engine.
-- [x] Real-time collaboration via Yjs.
-- [x] Intelligent Indentation & Tab system.
-- [x] Context Menu & Clipboard integration.
-- [ ] **NES (Next Edit Suggestion)**: Predictive character placement based on layout patterns.
-- [ ] **AI Chat Integration**: Natural language interface for generating canvas components.
-- [ ] ANSI Sequence & SVG Export support.
-
----
-
-## 📄 License
-
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 ```

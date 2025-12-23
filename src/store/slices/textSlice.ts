@@ -15,12 +15,9 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
     const { selections, fillSelectionsWithChar, textCursor, brushColor } =
       get();
 
-    if (selections.length > 0) {
-      const fillChar = str.charAt(0);
-      if (fillChar) {
-        fillSelectionsWithChar(fillChar);
-        return;
-      }
+    if (selections.length > 0 && str.length === 1) {
+      fillSelectionsWithChar(str);
+      return;
     }
 
     const cursor = startPos || textCursor;
@@ -42,6 +39,33 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
       }
     });
     set({ textCursor: { x: currentX, y: currentY } });
+  },
+
+  pasteRichData: (cells, startPos) => {
+    const { textCursor, selections } = get();
+
+    let pos = startPos || textCursor;
+    if (!pos && selections.length > 0) {
+      const sel = selections[0];
+      pos = {
+        x: Math.min(sel.start.x, sel.end.x),
+        y: Math.min(sel.start.y, sel.end.y),
+      };
+    }
+    if (!pos) return;
+
+    const basePos = pos;
+    transactWithHistory(() => {
+      cells.forEach((cell) => {
+        placeCharInYMap(
+          yMainGrid,
+          basePos.x + cell.x,
+          basePos.y + cell.y,
+          cell.char,
+          cell.color
+        );
+      });
+    });
   },
 
   moveTextCursor: (dx, dy) => {

@@ -57,6 +57,36 @@ export const exportSelectionToString = (
   return generateStringFromBounds(grid, minX, maxX, minY, maxY);
 };
 
+export const exportSelectionToJSON = (
+  grid: GridMap,
+  selections: SelectionArea[]
+) => {
+  if (selections.length === 0) return null;
+  const { minX, minY, maxX, maxY } = getSelectionsBoundingBox(selections);
+
+  const cells: { x: number; y: number; char: string; color: string }[] = [];
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const cell = grid.get(GridManager.toKey(x, y));
+      if (cell) {
+        cells.push({
+          x: x - minX,
+          y: y - minY,
+          char: cell.char,
+          color: cell.color,
+        });
+      }
+    }
+  }
+
+  return JSON.stringify({
+    type: "ascii-metropolis-zone",
+    version: 1,
+    cells,
+  });
+};
+
 export const copySelectionToPngClipboard = async (
   grid: GridMap,
   selections: SelectionArea[],

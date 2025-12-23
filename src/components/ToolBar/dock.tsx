@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Check,
   Palette,
+  PaintBucket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ToolType } from "@/types";
@@ -99,6 +100,12 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
         hasSub: true,
       },
       {
+        id: "fill",
+        label: "Fill Area",
+        icon: PaintBucket,
+        onClick: () => setTool("fill"),
+      },
+      {
         id: "eraser",
         label: "Eraser",
         icon: Eraser,
@@ -127,7 +134,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
   const activeIndex = useMemo(() => {
     const currentId = isShapeGroupActive
       ? "shape-group"
-      : ["select", "brush", "eraser"].includes(tool)
+      : ["select", "brush", "eraser", "fill"].includes(tool)
       ? tool
       : "brush";
     const idx = navItems.findIndex((item) => item.id === currentId);

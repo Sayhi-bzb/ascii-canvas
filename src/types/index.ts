@@ -24,6 +24,7 @@ export type ToolType =
   | "select"
   | "brush"
   | "eraser"
+  | "fill"
   | "box"
   | "line"
   | "stepline"

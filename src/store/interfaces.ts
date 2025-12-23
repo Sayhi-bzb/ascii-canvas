@@ -6,6 +6,13 @@ import type {
   ToolType,
 } from "../types";
 
+export interface RichTextCell {
+  x: number;
+  y: number;
+  char: string;
+  color: string;
+}
+
 export interface DrawingSlice {
   scratchLayer: GridMap | null;
   setScratchLayer: (points: GridPoint[]) => void;
@@ -26,6 +33,7 @@ export interface TextSlice {
   textCursor: Point | null;
   setTextCursor: (pos: Point | null) => void;
   writeTextString: (str: string, startPos?: Point) => void;
+  pasteRichData: (cells: RichTextCell[], startPos?: Point) => void;
   moveTextCursor: (dx: number, dy: number) => void;
   backspaceText: () => void;
   newlineText: () => void;
@@ -41,7 +49,7 @@ export interface SelectionSlice {
   cutSelectionToClipboard: () => void;
   copySelectionAsPng: (withGrid: boolean) => Promise<void>;
   fillSelectionsWithChar: (char: string) => void;
-}
+  fillArea: (area: SelectionArea) => void;
 
 export type CanvasState = {
   offset: Point;
