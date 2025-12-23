@@ -52,21 +52,15 @@
 
 ---
 
-## ✨ Showcase
+## Showcase
 
 <div align="center">
-  <img src="public/Case/Case1.webp" width="48%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;" />
-  <img src="public/Case/Case2.webp" width="48%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;" />
-</div>
-<div align="center">
-  <img src="public/Case/Case3.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
-  <img src="public/Case/Case4.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
-  <img src="public/Case/Case5.webp" width="32%" style="border-radius: 6px; border: 1px solid #333; margin: 3px;" />
+  <img src="public/Case/Case.webp" width="100%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;" />
 </div>
 
 ---
 
-## 🏗 Tech Stack
+## Tech Stack
 
 - **Frontend**: React 18, TypeScript
 - **State Management**: Zustand (Slice Pattern)
