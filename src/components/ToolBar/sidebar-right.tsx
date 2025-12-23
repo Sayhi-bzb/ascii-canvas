@@ -72,7 +72,6 @@ export function SidebarRight() {
   const { state, isMobile } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
 
-  // 城市建设：在侧边栏挂载时，从 public/data 抓取建材索引
   useEffect(() => {
     fetchLibrary();
   }, [fetchLibrary]);
@@ -272,7 +271,6 @@ export function SidebarRight() {
                     </div>
                     <ScrollArea className="max-h-[65vh] overflow-y-auto">
                       <div className="p-5 space-y-6">
-                        {/* 1. Navigation */}
                         <section className="space-y-3">
                           <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
                             <Move className="size-4" /> Navigation & Viewport
@@ -307,7 +305,6 @@ export function SidebarRight() {
                           </div>
                         </section>
 
-                        {/* 2. Zoning (The selection part - Major Update) */}
                         <section className="space-y-3">
                           <h4 className="text-sm font-semibold flex items-center gap-2 text-primary">
                             <Maximize className="size-4" /> Rapid Zoning
@@ -345,7 +342,6 @@ export function SidebarRight() {
                           </div>
                         </section>
 
-                        {/* 3. Typography (The Enter/Tab part - Major Update) */}
                         <section className="space-y-3">
                           <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
                             <Type className="size-4" /> Construction & Typing
@@ -394,7 +390,6 @@ export function SidebarRight() {
                           </div>
                         </section>
 
-                        {/* Pro Tips */}
                         <div className="flex gap-2 p-3 rounded-md bg-accent/50 border border-border">
                           <Info className="size-4 text-primary shrink-0" />
                           <p className="text-[11px] leading-relaxed text-muted-foreground">

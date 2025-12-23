@@ -60,7 +60,6 @@ export function CharLibrary() {
     toast.success(`Picked: ${char}`, { duration: 600, position: "top-right" });
   };
 
-  // 1. 搜索模式：快速通行证
   if (searchQuery.trim() !== "") {
     return (
       <SidebarGroup>
@@ -102,7 +101,6 @@ export function CharLibrary() {
 
   return (
     <SidebarMenu className="px-2 gap-1 pb-10">
-      {/* SECTION 1: NERD ICONS (极客街区) */}
       <Collapsible className="group/collapsible">
         <SidebarMenuItem>
           <CollapsibleTrigger asChild>
@@ -144,7 +142,6 @@ export function CharLibrary() {
         </SidebarMenuItem>
       </Collapsible>
 
-      {/* SECTION 2: EMOJI CURATED (样板间) */}
       <Collapsible defaultOpen className="group/collapsible">
         <SidebarMenuItem>
           <CollapsibleTrigger asChild>
@@ -186,7 +183,6 @@ export function CharLibrary() {
         </SidebarMenuItem>
       </Collapsible>
 
-      {/* SECTION 3: CULTURAL CHARACTERS (文化广场) */}
       <Collapsible className="group/collapsible">
         <SidebarMenuItem>
           <CollapsibleTrigger asChild>

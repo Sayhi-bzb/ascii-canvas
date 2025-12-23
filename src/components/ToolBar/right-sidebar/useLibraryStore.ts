@@ -26,12 +26,10 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   searchResults: [],
 
   fetchLibrary: async () => {
-    // 检查仓库是否已有物资，避免重复进货
     if (get().data) return;
 
     set({ isLoading: true, error: null });
     try {
-      // 统一物流链路，确保所有 JSON 资源同步到达
       const files = ["entities", "related", "alphabets", "lists", "nerdfonts"];
       const [entities, related, alphabets, lists, nerdfonts] =
         await Promise.all(
@@ -58,14 +56,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const lowerQuery = query.toLowerCase();
     const results = new Set<string>();
 
-    // 全城搜索分拣逻辑
     Object.values(data.entities).forEach((category) => {
       Object.entries(category).forEach(([name, char]) => {
         if (name.toLowerCase().includes(lowerQuery)) results.add(char);
       });
     });
 
-    // 字符关联联想
     if (query.length === 1 && data.related[query]) {
       data.related[query].forEach((char) => results.add(char));
     }
