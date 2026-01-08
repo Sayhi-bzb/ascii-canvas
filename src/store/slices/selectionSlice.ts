@@ -36,22 +36,43 @@ export const createSelectionSlice: StateCreator<
   },
 
   copySelectionToClipboard: () => {
-    const { grid, selections } = get();
-    if (selections.length === 0) return;
-    const text = exportSelectionToString(grid, selections);
+    const { grid, selections, textCursor } = get();
+    if (selections.length === 0 && !textCursor) return;
+
+    let text = "";
+    if (selections.length > 0) {
+      text = exportSelectionToString(grid, selections);
+    } else if (textCursor) {
+      const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
+      text = cell?.char || " ";
+    }
+
     navigator.clipboard.writeText(text).catch((err) => {
       console.error("Failed to copy text: ", err);
     });
   },
 
   cutSelectionToClipboard: () => {
-    const { grid, selections, deleteSelection } = get();
-    if (selections.length === 0) return;
-    const text = exportSelectionToString(grid, selections);
+    const { grid, selections, deleteSelection, textCursor, erasePoints } =
+      get();
+    if (selections.length === 0 && !textCursor) return;
+
+    let text = "";
+    if (selections.length > 0) {
+      text = exportSelectionToString(grid, selections);
+    } else if (textCursor) {
+      const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
+      text = cell?.char || " ";
+    }
+
     navigator.clipboard
       .writeText(text)
       .then(() => {
-        deleteSelection();
+        if (selections.length > 0) {
+          deleteSelection();
+        } else if (textCursor) {
+          erasePoints([textCursor]);
+        }
       })
       .catch((err) => {
         console.error("Failed to cut text: ", err);

@@ -1,11 +1,11 @@
-import { useRef, useMemo, useEffect, useCallback } from "react";
-import { useSize, useEventListener } from "ahooks";
-import { useCanvasStore } from "../../store/canvasStore";
-import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
-import { useCanvasRenderer } from "./hooks/useCanvasRenderer";
-import { GridManager } from "../../utils/grid";
-import { isCtrlOrMeta } from "../../utils/event";
-import { Minimap } from "./Minimap";
+import { useRef, useMemo, useEffect, useCallback } from 'react';
+import { useSize, useEventListener } from 'ahooks';
+import { useCanvasStore } from '../../store/canvasStore';
+import { useCanvasInteraction } from './hooks/useCanvasInteraction';
+import { useCanvasRenderer } from './hooks/useCanvasRenderer';
+import { GridManager } from '../../utils/grid';
+import { isCtrlOrMeta } from '../../utils/event';
+import { Minimap } from './Minimap';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -13,21 +13,11 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
   ContextMenuShortcut,
-} from "@/components/ui/context-menu";
-import {
-  Copy,
-  Scissors,
-  Trash2,
-  Clipboard,
-  Image,
-  Palette,
-} from "lucide-react";
-import {
-  exportSelectionToString,
-  exportSelectionToJSON,
-} from "../../utils/export";
+} from '@/components/ui/context-menu';
+import { Copy, Scissors, Trash2, Clipboard, Image, Palette } from 'lucide-react';
+import { exportSelectionToString, exportSelectionToJSON } from '../../utils/export';
 
-const MIME_RICH_DATA = "web application/x-ascii-metropolis";
+const MIME_RICH_DATA = 'web application/x-ascii-metropolis';
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -62,6 +52,17 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
 
+  const shouldIgnoreClipboardEvent = () => {
+    const activeElement = document.activeElement as HTMLElement | null;
+    if (!activeElement) return false;
+    const tagName = activeElement.tagName.toLowerCase();
+    if (tagName === 'input') return true;
+    if (tagName === 'textarea') {
+      return activeElement !== textareaRef.current;
+    }
+    return activeElement.isContentEditable;
+  };
+
   useCanvasRenderer(
     { bg: bgCanvasRef, scratch: scratchCanvasRef, ui: uiCanvasRef },
     size,
@@ -86,11 +87,11 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       };
     } else if (textCursor) {
       const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
-      const char = cell?.char || " ";
+      const char = cell?.char || ' ';
       return {
         plain: char,
         rich: JSON.stringify({
-          type: "ascii-metropolis-zone",
+          type: 'ascii-metropolis-zone',
           version: 1,
           cells: [{ x: 0, y: 0, char, color: cell?.color || store.brushColor }],
         }),
@@ -103,11 +104,11 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     async (plain: string, rich?: string | null, syncEvent?: ClipboardEvent) => {
       if (syncEvent?.clipboardData) {
         syncEvent.preventDefault();
-        syncEvent.clipboardData.setData("text/plain", plain);
+        syncEvent.clipboardData.setData('text/plain', plain);
         if (rich) syncEvent.clipboardData.setData(MIME_RICH_DATA, rich);
       } else {
         const clipboardMap: Record<string, Blob> = {
-          "text/plain": new Blob([plain], { type: "text/plain" }),
+          'text/plain': new Blob([plain], { type: 'text/plain' }),
         };
         if (rich)
           clipboardMap[MIME_RICH_DATA] = new Blob([rich], {
@@ -125,6 +126,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   );
 
   const handleStandardCopy = (e?: ClipboardEvent) => {
+    if (e && shouldIgnoreClipboardEvent()) return;
     const data = getTransferData();
     if (data) writeClipboard(data.plain, null, e);
   };
@@ -135,6 +137,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   };
 
   const handleCut = (e?: ClipboardEvent) => {
+    if (e && shouldIgnoreClipboardEvent()) return;
     handleStandardCopy(e);
     deleteSelection();
     if (textCursor) erasePoints([textCursor]);
@@ -160,23 +163,16 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
   };
 
-  useEventListener("copy", handleStandardCopy);
-  useEventListener("cut", handleCut);
-  useEventListener("paste", (e: ClipboardEvent) => {
-    const activeTag = document.activeElement?.tagName.toLowerCase();
-    if (
-      activeTag === "input" ||
-      (activeTag === "textarea" &&
-        document.activeElement !== textareaRef.current)
-    )
-      return;
+  useEventListener('copy', handleStandardCopy);
+  useEventListener('cut', handleCut);
+  useEventListener('paste', (e: ClipboardEvent) => {
+    if (shouldIgnoreClipboardEvent()) return;
     e.preventDefault();
     performPaste(e.clipboardData || undefined);
   });
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
-    if ((!textCursor && selections.length === 0) || !size)
-      return { display: "none" };
+    if ((!textCursor && selections.length === 0) || !size) return { display: 'none' };
     const pos = textCursor
       ? GridManager.gridToScreen(
           textCursor.x,
@@ -194,13 +190,13 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
         );
 
     return {
-      position: "absolute",
+      position: 'absolute',
       left: `${pos.x}px`,
       top: `${pos.y}px`,
-      width: "1px",
-      height: "1px",
+      width: '1px',
+      height: '1px',
       opacity: 0,
-      pointerEvents: "none",
+      pointerEvents: 'none',
       zIndex: -1,
     };
   }, [textCursor, selections, store.offset, store.zoom, size]);
@@ -208,11 +204,10 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
     if (isComposing.current) return;
-    const isUndo =
-      isCtrlOrMeta(e) && !e.shiftKey && e.key.toLowerCase() === "z";
+    const isUndo = isCtrlOrMeta(e) && !e.shiftKey && e.key.toLowerCase() === 'z';
     const isRedo =
-      (isCtrlOrMeta(e) && e.shiftKey && e.key.toLowerCase() === "z") ||
-      (isCtrlOrMeta(e) && e.key.toLowerCase() === "y");
+      (isCtrlOrMeta(e) && e.shiftKey && e.key.toLowerCase() === 'z') ||
+      (isCtrlOrMeta(e) && e.key.toLowerCase() === 'y');
 
     if (isUndo) {
       e.preventDefault();
@@ -224,32 +219,29 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       onRedo();
       return;
     }
-    if (
-      (e.key === "Delete" || e.key === "Backspace") &&
-      selections.length > 0
-    ) {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selections.length > 0) {
       e.preventDefault();
       deleteSelection();
       return;
     }
 
-    if (e.key === "Backspace") {
+    if (e.key === 'Backspace') {
       if (textCursor) {
         e.preventDefault();
         backspaceText();
       }
-    } else if (e.key === "Enter") {
+    } else if (e.key === 'Enter') {
       e.preventDefault();
       newlineText();
-    } else if (e.key === "Tab") {
+    } else if (e.key === 'Tab') {
       e.preventDefault();
       indentText();
-    } else if (e.key.startsWith("Arrow") && textCursor) {
+    } else if (e.key.startsWith('Arrow') && textCursor) {
       e.preventDefault();
-      const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
-      const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      const dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
+      const dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
       moveTextCursor(dx, dy);
-    } else if (e.key === "Escape") {
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       setTextCursor(null);
     }
@@ -260,7 +252,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       <ContextMenuTrigger asChild>
         <div
           ref={containerRef}
-          style={{ touchAction: "none" }}
+          style={{ touchAction: 'none' }}
           className="relative w-screen h-screen overflow-hidden bg-background touch-none select-none cursor-default"
         >
           <canvas
@@ -285,12 +277,12 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
             onCompositionEnd={(e) => {
               isComposing.current = false;
               if (e.data) writeTextString(e.data);
-              if (textareaRef.current) textareaRef.current.value = "";
+              if (textareaRef.current) textareaRef.current.value = '';
             }}
             onInput={(e) => {
               if (!isComposing.current && e.currentTarget.value) {
                 writeTextString(e.currentTarget.value);
-                e.currentTarget.value = "";
+                e.currentTarget.value = '';
               }
             }}
             onKeyDown={handleKeyDown}
@@ -311,10 +303,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
           <span>Copy as Text</span>
           <ContextMenuShortcut>⌘C</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuItem
-          onClick={handleRichCopy}
-          disabled={!textCursor && selections.length === 0}
-        >
+        <ContextMenuItem onClick={handleRichCopy} disabled={!textCursor && selections.length === 0}>
           <Palette className="mr-2 size-4" />
           <span>Copy with Color</span>
         </ContextMenuItem>

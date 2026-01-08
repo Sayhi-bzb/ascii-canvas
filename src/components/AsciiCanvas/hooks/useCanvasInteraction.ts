@@ -142,7 +142,8 @@ export const useCanvasInteraction = (
             ) {
               clearSelections();
               setTextCursor(null);
-              addSelection({
+              dragStartGrid.current = { ...anchorGrid.current };
+              setDraggingSelection({
                 start: { ...anchorGrid.current },
                 end: start,
               });
@@ -151,6 +152,8 @@ export const useCanvasInteraction = (
 
             if (!mouseEvent.shiftKey) {
               clearSelections();
+              anchorGrid.current = start;
+            } else if (tool === "select" && !anchorGrid.current) {
               anchorGrid.current = start;
             }
 
@@ -268,9 +271,16 @@ export const useCanvasInteraction = (
             }));
           }
         } else {
+          const wheelEvent = event as WheelEvent;
+          let deltaX = wheelEvent.deltaX;
+          let deltaY = wheelEvent.deltaY;
+          if (wheelEvent.shiftKey && deltaX === 0 && deltaY !== 0) {
+            deltaX = deltaY;
+            deltaY = 0;
+          }
           setOffset((p: Point) => ({
-            x: p.x - (event as WheelEvent).deltaX,
-            y: p.y - (event as WheelEvent).deltaY,
+            x: p.x - deltaX,
+            y: p.y - deltaY,
           }));
         }
       },

@@ -40,6 +40,17 @@ export default function App() {
     undoManager.redo();
   };
 
+  const shouldIgnoreClipboardShortcut = () => {
+    const activeElement = document.activeElement as HTMLElement | null;
+    if (!activeElement) return false;
+    const tagName = activeElement.tagName.toLowerCase();
+    return (
+      tagName === "input" ||
+      tagName === "textarea" ||
+      activeElement.isContentEditable
+    );
+  };
+
   useKeyPress(["meta.z", "ctrl.z"], (e) => {
     e.preventDefault();
     handleUndo();
@@ -51,11 +62,17 @@ export default function App() {
   });
 
   useKeyPress(["meta.c", "ctrl.c"], (e) => {
+    if (shouldIgnoreClipboardShortcut()) return;
+    const { selections, textCursor } = useCanvasStore.getState();
+    if (selections.length === 0 && !textCursor) return;
     e.preventDefault();
     copySelectionToClipboard();
   });
 
   useKeyPress(["meta.x", "ctrl.x"], (e) => {
+    if (shouldIgnoreClipboardShortcut()) return;
+    const { selections, textCursor } = useCanvasStore.getState();
+    if (selections.length === 0 && !textCursor) return;
     e.preventDefault();
     cutSelectionToClipboard();
   });

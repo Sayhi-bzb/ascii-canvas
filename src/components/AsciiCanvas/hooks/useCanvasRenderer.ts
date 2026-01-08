@@ -39,6 +39,25 @@ export const useCanvasRenderer = (
     tool,
   } = store;
 
+  const prepareCanvas = (
+    canvas: HTMLCanvasElement,
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    dpr: number
+  ) => {
+    const targetWidth = Math.floor(width * dpr);
+    const targetHeight = Math.floor(height * dpr);
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+    } else {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, targetWidth, targetHeight);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+
   const drawLayer = (
     ctx: CanvasRenderingContext2D,
     targetGrid: GridMap | null,
@@ -86,11 +105,10 @@ export const useCanvasRenderer = (
         zoom
       );
 
-      const bgCtx = layers.bg.current?.getContext("2d", { alpha: false });
-      if (bgCtx) {
-        layers.bg.current!.width = size.width * dpr;
-        layers.bg.current!.height = size.height * dpr;
-        bgCtx.scale(dpr, dpr);
+      const bgCanvas = layers.bg.current;
+      const bgCtx = bgCanvas?.getContext("2d", { alpha: false });
+      if (bgCanvas && bgCtx) {
+        prepareCanvas(bgCanvas, bgCtx, size.width, size.height, dpr);
         bgCtx.fillStyle = BACKGROUND_COLOR;
         bgCtx.fillRect(0, 0, size.width, size.height);
 
@@ -113,19 +131,17 @@ export const useCanvasRenderer = (
         drawLayer(bgCtx, grid, viewBounds, zoom, offset);
       }
 
-      const scratchCtx = layers.scratch.current?.getContext("2d");
-      if (scratchCtx) {
-        layers.scratch.current!.width = size.width * dpr;
-        layers.scratch.current!.height = size.height * dpr;
-        scratchCtx.scale(dpr, dpr);
+      const scratchCanvas = layers.scratch.current;
+      const scratchCtx = scratchCanvas?.getContext("2d");
+      if (scratchCanvas && scratchCtx) {
+        prepareCanvas(scratchCanvas, scratchCtx, size.width, size.height, dpr);
         drawLayer(scratchCtx, scratchLayer, viewBounds, zoom, offset);
       }
 
-      const uiCtx = layers.ui.current?.getContext("2d");
-      if (uiCtx) {
-        layers.ui.current!.width = size.width * dpr;
-        layers.ui.current!.height = size.height * dpr;
-        uiCtx.scale(dpr, dpr);
+      const uiCanvas = layers.ui.current;
+      const uiCtx = uiCanvas?.getContext("2d");
+      if (uiCanvas && uiCtx) {
+        prepareCanvas(uiCanvas, uiCtx, size.width, size.height, dpr);
 
         const drawSel = (area: SelectionArea) => {
           const { minX, minY, maxX, maxY } = getSelectionBounds(area);

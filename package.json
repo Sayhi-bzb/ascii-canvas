@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "knip": "knip",
-    "tree": "npx tree-node-cli src > structure.txt"
+    "tree": "npx tree-node-cli src > structure.txt",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,md}\"",
+    "check-format": "prettier --check \"src/**/*.{js,jsx,ts,tsx,json,md}\""
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
