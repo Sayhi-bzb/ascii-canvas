@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat \"D:\\docs\\ascii-canvas\\ascii-canvas\\public\\sitemap.xml\")",
+      "Bash(cat \"D:\\docs\\ascii-canvas\\ascii-canvas\\index.html\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
