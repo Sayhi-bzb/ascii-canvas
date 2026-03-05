@@ -30,6 +30,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
+      const base = import.meta.env.BASE_URL;
       const files = [
         "entities",
         "related",
@@ -39,7 +40,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       ];
       const [entities, related, alphabets, nerdfonts, emojis] =
         await Promise.all(
-          files.map((f) => fetch(`/data/${f}.json`).then((res) => res.json()))
+          files.map((f) =>
+            fetch(`${base}data/${f}.json`).then((res) => res.json())
+          )
         );
 
       set({
