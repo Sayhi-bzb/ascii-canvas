@@ -13,12 +13,18 @@ import {
   ContextMenuTrigger,
   ContextMenuShortcut,
 } from '@/components/ui/context-menu';
-import { Copy, Scissors, Trash2, Clipboard, Image, Palette } from 'lucide-react';
+import {
+  ACTION_META,
+  CANVAS_CONTEXT_MENU,
+  canRunAction,
+  getActionShortcutLabel,
+  runAction,
+} from '@/features/editor-actions';
 import {
   canRunManagedClipboardCommand,
   resolveHistoryShortcutCommand,
-  runEditorCommand,
 } from '../../store/actions/editorCommands';
+import { useShallow } from 'zustand/react/shallow';
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -34,7 +40,40 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const isComposing = useRef(false);
 
   const size = useSize(containerRef);
-  const store = useCanvasStore();
+  const interactionStore = useCanvasStore(
+    useShallow((state) => ({
+      tool: state.tool,
+      brushChar: state.brushChar,
+      setOffset: state.setOffset,
+      setZoom: state.setZoom,
+      addScratchPoints: state.addScratchPoints,
+      commitScratch: state.commitScratch,
+      setTextCursor: state.setTextCursor,
+      addSelection: state.addSelection,
+      clearSelections: state.clearSelections,
+      clearInteractionState: state.clearInteractionState,
+      erasePoints: state.erasePoints,
+      offset: state.offset,
+      zoom: state.zoom,
+      grid: state.grid,
+      updateScratchForShape: state.updateScratchForShape,
+      setHoveredGrid: state.setHoveredGrid,
+      fillArea: state.fillArea,
+    }))
+  );
+  const rendererStore = useCanvasStore(
+    useShallow((state) => ({
+      offset: state.offset,
+      zoom: state.zoom,
+      grid: state.grid,
+      scratchLayer: state.scratchLayer,
+      textCursor: state.textCursor,
+      selections: state.selections,
+      showGrid: state.showGrid,
+      hoveredGrid: state.hoveredGrid,
+      tool: state.tool,
+    }))
+  );
   const {
     textCursor,
     writeTextString,
@@ -44,17 +83,32 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     moveTextCursor,
     setTextCursor,
     selections,
-    deleteSelection,
-    copySelectionAsPng,
-    canCopyOrCut,
-  } = store;
+    offset,
+    zoom,
+  } = useCanvasStore(
+    useShallow((state) => ({
+      textCursor: state.textCursor,
+      writeTextString: state.writeTextString,
+      backspaceText: state.backspaceText,
+      newlineText: state.newlineText,
+      indentText: state.indentText,
+      moveTextCursor: state.moveTextCursor,
+      setTextCursor: state.setTextCursor,
+      selections: state.selections,
+      offset: state.offset,
+      zoom: state.zoom,
+    }))
+  );
 
-  const { draggingSelection } = useCanvasInteraction(store, containerRef);
+  const { draggingSelection } = useCanvasInteraction(
+    interactionStore,
+    containerRef
+  );
 
   useCanvasRenderer(
     { bg: bgCanvasRef, scratch: scratchCanvasRef, ui: uiCanvasRef },
     size,
-    store,
+    rendererStore,
     draggingSelection
   );
 
@@ -67,36 +121,27 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
   }, [textCursor, selections.length]);
 
-  const handleStandardCopy = (e?: ClipboardEvent) => {
-    runEditorCommand('copy', {
+  const runManagedAction = (
+    actionId: 'copy' | 'cut' | 'paste',
+    e?: ClipboardEvent
+  ) => {
+    runAction(actionId, {
       source: e ? 'clipboard-event' : 'context-menu',
       clipboardEvent: e,
       managedTextarea: textareaRef.current,
     });
   };
 
-  const handleRichCopy = () => {
-    runEditorCommand('copy-rich', { source: 'context-menu' });
-  };
-
-  const handleCut = (e?: ClipboardEvent) => {
-    runEditorCommand('cut', {
-      source: e ? 'clipboard-event' : 'context-menu',
-      clipboardEvent: e,
-      managedTextarea: textareaRef.current,
-    });
-  };
-
-  useEventListener('copy', handleStandardCopy);
-  useEventListener('cut', handleCut);
+  useEventListener('copy', (e: ClipboardEvent) => {
+    runManagedAction('copy', e);
+  });
+  useEventListener('cut', (e: ClipboardEvent) => {
+    runManagedAction('cut', e);
+  });
   useEventListener('paste', (e: ClipboardEvent) => {
     if (!canRunManagedClipboardCommand(textareaRef.current)) return;
     e.preventDefault();
-    runEditorCommand('paste', {
-      source: 'clipboard-event',
-      clipboardEvent: e,
-      managedTextarea: textareaRef.current,
-    });
+    runManagedAction('paste', e);
   });
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
@@ -105,16 +150,16 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       ? GridManager.gridToScreen(
           textCursor.x,
           textCursor.y,
-          store.offset.x,
-          store.offset.y,
-          store.zoom
+          offset.x,
+          offset.y,
+          zoom
         )
       : GridManager.gridToScreen(
           selections[0].start.x,
           selections[0].start.y,
-          store.offset.x,
-          store.offset.y,
-          store.zoom
+          offset.x,
+          offset.y,
+          zoom
         );
 
     return {
@@ -127,7 +172,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       pointerEvents: 'none',
       zIndex: -1,
     };
-  }, [textCursor, selections, store.offset, store.zoom, size]);
+  }, [textCursor, selections, offset, zoom, size]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
@@ -135,7 +180,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     const historyCommand = resolveHistoryShortcutCommand(e);
     if (historyCommand) {
       e.preventDefault();
-      runEditorCommand(historyCommand, {
+      runAction(historyCommand, {
         source: 'canvas-keydown',
         managedTextarea: textareaRef.current,
         onUndo,
@@ -145,7 +190,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selections.length > 0) {
       e.preventDefault();
-      deleteSelection();
+      runAction('delete-selection', { source: 'canvas-keydown' });
       return;
     }
 
@@ -159,7 +204,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       newlineText();
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      indentText();
+      indentText(); 
     } else if (e.key.startsWith('Arrow') && textCursor) {
       e.preventDefault();
       const dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
@@ -219,52 +264,36 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       </ContextMenuTrigger>
 
       <ContextMenuContent className="w-56">
-        <ContextMenuItem
-          onClick={() => handleStandardCopy()}
-          disabled={!canCopyOrCut()}
-        >
-          <Copy className="mr-2 size-4" />
-          <span>Copy as Text</span>
-          <ContextMenuShortcut>⌘C</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuItem onClick={handleRichCopy} disabled={!canCopyOrCut()}>
-          <Palette className="mr-2 size-4" />
-          <span>Copy with Color</span>
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => copySelectionAsPng(true)}
-          disabled={selections.length === 0}
-        >
-          <Image className="mr-2 size-4" />
-          <span>Snapshot (PNG)</span>
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => handleCut()}
-          disabled={!canCopyOrCut()}
-        >
-          <Scissors className="mr-2 size-4" />
-          <span>Cut Zone</span>
-          <ContextMenuShortcut>⌘X</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => {
-            runEditorCommand('paste', { source: 'context-menu' });
-          }}
-        >
-          <Clipboard className="mr-2 size-4" />
-          <span>Paste Lot</span>
-          <ContextMenuShortcut>⌘V</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onClick={deleteSelection}
-          variant="destructive"
-          disabled={selections.length === 0}
-        >
-          <Trash2 className="mr-2 size-4" />
-          <span>Demolish (Delete)</span>
-          <ContextMenuShortcut>⌫</ContextMenuShortcut>
-        </ContextMenuItem>
+        {CANVAS_CONTEXT_MENU.map((entry, index) => {
+          if (entry.type === 'separator') {
+            return <ContextMenuSeparator key={`sep-${index}`} />;
+          }
+
+          const meta = ACTION_META[entry.id];
+          const Icon = meta.icon;
+          const disabled = !canRunAction(entry.id, useCanvasStore.getState());
+          const shortcutLabel = getActionShortcutLabel(entry.id);
+
+          return (
+            <ContextMenuItem
+              key={entry.id}
+              onClick={() =>
+                runAction(entry.id, {
+                  source: 'context-menu',
+                  managedTextarea: textareaRef.current,
+                })
+              }
+              variant={meta.destructive ? 'destructive' : 'default'}
+              disabled={disabled}
+            >
+              {Icon && <Icon className="mr-2 size-4" />}
+              <span>{meta.label}</span>
+              {shortcutLabel && (
+                <ContextMenuShortcut>{shortcutLabel}</ContextMenuShortcut>
+              )}
+            </ContextMenuItem>
+          );
+        })}
       </ContextMenuContent>
     </ContextMenu>
   );

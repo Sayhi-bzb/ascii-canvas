@@ -9,6 +9,7 @@ export const MAX_ZOOM = 5;
 
 export const FONT_SIZE = 15;
 export const COLOR_PRIMARY_TEXT = "#000000";
+export const DEFAULT_BRUSH_CHAR = "#";
 export const COLOR_TEXT_CURSOR_BG = "rgba(0, 0, 0, 0.5)";
 export const COLOR_TEXT_CURSOR_FG = "#ffffff";
 export const COLOR_ORIGIN_MARKER = "red";
@@ -39,3 +40,5 @@ export const PALETTE = [
   "#ec4899", // Pink
   "#64748b", // Slate
 ];
+
+export const APP_SOURCE_URL = "https://github.com/Sayhi-bzb/ascii-canvas";

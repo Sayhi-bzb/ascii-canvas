@@ -77,11 +77,11 @@ export const createDrawingSlice: StateCreator<
   clearScratch: () => set({ scratchLayer: null }),
   clearCanvas: () => transactWithHistory(() => yMainGrid.clear()),
 
-  erasePoints: (points) => {
+  erasePoints: (points, shouldSaveHistory = true) => {
     transactWithHistory(() => {
       points.forEach((p) => {
         deleteCellAt(yMainGrid, p.x, p.y);
       });
-    });
+    }, shouldSaveHistory);
   },
 });

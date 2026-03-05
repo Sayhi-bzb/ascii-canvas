@@ -1,21 +1,17 @@
 import { useCanvasStore } from "../canvasStore";
-import { shouldIgnoreClipboardShortcut } from "../../utils/dom-focus";
 import { isRedoShortcut, isUndoShortcut, runRedo, runUndo } from "./shortcutActions";
+import type { ActionId, ActionSource } from "@/features/editor-actions/types";
+import {
+  canRunManagedClipboardCommand as canRunManagedClipboardCommandByFocus,
+  shouldIgnoreEditorCommandByFocus,
+} from "@/features/input-arbiter";
+import { getFirstGrapheme } from "@/utils/characters";
 
-type EditorCommand =
-  | "undo"
-  | "redo"
-  | "copy"
-  | "copy-rich"
-  | "cut"
-  | "paste"
-  | "fill-selection-char";
-
-type CommandSource =
-  | "global-hotkey"
-  | "canvas-keydown"
-  | "clipboard-event"
-  | "context-menu";
+type EditorCommand = Extract<
+  ActionId,
+  "undo" | "redo" | "copy" | "copy-rich" | "cut" | "paste" | "fill-selection-char"
+>;
+type CommandSource = ActionSource;
 
 type RunEditorCommandOptions = {
   source?: CommandSource;
@@ -30,14 +26,13 @@ const shouldIgnoreByFocus = (
   source: CommandSource,
   managedTextarea?: HTMLTextAreaElement | null
 ) => {
-  if (source === "context-menu" || source === "canvas-keydown") return false;
-  return shouldIgnoreClipboardShortcut(document.activeElement, managedTextarea);
+  return shouldIgnoreEditorCommandByFocus(source, managedTextarea);
 };
 
 export const canRunManagedClipboardCommand = (
   managedTextarea?: HTMLTextAreaElement | null
 ) => {
-  return !shouldIgnoreClipboardShortcut(document.activeElement, managedTextarea);
+  return canRunManagedClipboardCommandByFocus(managedTextarea);
 };
 
 export const resolveHistoryShortcutCommand = (
@@ -84,8 +79,8 @@ export const runEditorCommand = (
       });
       return true;
     case "fill-selection-char": {
-      const { fillChar } = options;
-      if (!fillChar || fillChar.length !== 1) return false;
+      const fillChar = options.fillChar ? getFirstGrapheme(options.fillChar) : "";
+      if (!fillChar) return false;
       const { selections, textCursor } = state;
       if (selections.length === 0 || textCursor) return false;
       const activeTag = document.activeElement?.tagName.toLowerCase();

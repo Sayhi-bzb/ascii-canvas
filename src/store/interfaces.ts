@@ -1,4 +1,5 @@
 import type {
+  GridCell,
   GridMap,
   GridPoint,
   Point,
@@ -20,7 +21,7 @@ export interface DrawingSlice {
   commitScratch: () => void;
   clearScratch: () => void;
   clearCanvas: () => void;
-  erasePoints: (points: Point[]) => void;
+  erasePoints: (points: Point[], shouldSaveHistory?: boolean) => void;
   updateScratchForShape: (
     tool: ToolType,
     start: Point,
@@ -55,6 +56,12 @@ export interface SelectionSlice {
   fillArea: (area: SelectionArea) => void;
 }
 
+export interface CanvasSession {
+  id: string;
+  name: string;
+  grid: [string, GridCell][];
+}
+
 export type CanvasState = {
   offset: Point;
   zoom: number;
@@ -65,6 +72,8 @@ export type CanvasState = {
   showGrid: boolean;
   exportShowGrid: boolean;
   hoveredGrid: Point | null;
+  canvasSessions: CanvasSession[];
+  activeCanvasId: string;
 
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
@@ -74,6 +83,10 @@ export type CanvasState = {
   setShowGrid: (show: boolean) => void;
   setExportShowGrid: (show: boolean) => void;
   setHoveredGrid: (pos: Point | null) => void;
+  createCanvasSession: () => void;
+  switchCanvasSession: (canvasId: string) => void;
+  removeCanvasSession: (canvasId: string) => void;
+  renameCanvasSession: (canvasId: string, nextName: string) => void;
 } & DrawingSlice &
   TextSlice &
   SelectionSlice;

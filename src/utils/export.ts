@@ -9,6 +9,7 @@ import {
 import type { GridMap, SelectionArea } from "../types";
 import { GridManager } from "./grid";
 import { getSelectionsBoundingBox } from "./selection";
+import { clipboard } from "@/services/effects";
 
 const generateStringFromBounds = (
   grid: GridMap,
@@ -162,9 +163,12 @@ export const copySelectionToPngClipboard = async (
     );
 
     if (blob) {
-      await navigator.clipboard.write([
+      const copied = await clipboard.writeItems([
         new ClipboardItem({ [blob.type]: blob }),
       ]);
+      if (!copied) {
+        throw new Error("Unable to write PNG to clipboard");
+      }
     }
   } catch (err) {
     console.error("Failed to copy image to clipboard", err);
@@ -173,7 +177,7 @@ export const copySelectionToPngClipboard = async (
 };
 
 export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
-  if (grid.size === 0) return;
+  if (grid.size === 0) return false;
 
   const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
   const padding = 2;
@@ -182,7 +186,7 @@ export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return false;
 
   const dpr = 2;
   canvas.width = width * dpr;
@@ -230,4 +234,5 @@ export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
   link.download = `ascii-city-${Date.now()}.png`;
   link.href = canvas.toDataURL("image/png");
   link.click();
+  return true;
 };

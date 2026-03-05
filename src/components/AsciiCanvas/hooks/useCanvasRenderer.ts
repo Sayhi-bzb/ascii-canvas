@@ -10,7 +10,7 @@ import {
   FONT_SIZE,
   GRID_COLOR,
 } from "../../../lib/constants";
-import { type CanvasState } from "../../../store/canvasStore";
+import type { CanvasState } from "../../../store/canvasStore";
 import { GridManager } from "../../../utils/grid";
 import type { SelectionArea, GridMap, Point } from "../../../types";
 import { getSelectionBounds } from "../../../utils/selection";
@@ -24,7 +24,18 @@ interface LayerRefs {
 export const useCanvasRenderer = (
   layers: LayerRefs,
   size: { width: number; height: number } | undefined,
-  store: CanvasState,
+  store: Pick<
+    CanvasState,
+    | "offset"
+    | "zoom"
+    | "grid"
+    | "scratchLayer"
+    | "textCursor"
+    | "selections"
+    | "showGrid"
+    | "hoveredGrid"
+    | "tool"
+  >,
   draggingSelection: SelectionArea | null
 ) => {
   const {

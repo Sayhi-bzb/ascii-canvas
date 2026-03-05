@@ -7,7 +7,7 @@ import {
   copySelectionToPngClipboard,
 } from "../../utils/export";
 import { placeCharInYMap } from "../utils";
-import { toast } from "sonner";
+import { feedback } from "@/services/effects";
 import type { GridCell } from "../../types";
 import { deleteRect } from "../gridOps";
 import {
@@ -96,11 +96,13 @@ export const createSelectionSlice: StateCreator<
     if (selections.length === 0) return;
     try {
       await copySelectionToPngClipboard(grid, selections, withGrid);
-      toast.success("Snapshot Copied", {
-        description: "Image with grid lines is ready to paste.",
+      feedback.success("Snapshot Copied", {
+        description: withGrid
+          ? "Image with grid lines is ready to paste."
+          : "Image without grid lines is ready to paste.",
       });
     } catch {
-      toast.error("Snapshot Failed", {
+      feedback.error("Snapshot Failed", {
         description: "Could not write image to clipboard.",
       });
     }

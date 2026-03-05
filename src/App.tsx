@@ -1,15 +1,16 @@
-import { toast } from "sonner";
 import { useKeyPress, useLocalStorageState } from "ahooks";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
-import { exportToString } from "./utils/export";
 import { AppLayout } from "./layout";
 import { Toolbar } from "./components/ToolBar/dock";
-import { isCtrlOrMeta } from "./utils/event";
 import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
 import { Suspense, lazy } from "react";
 import { runRedo, runUndo } from "./store/actions/shortcutActions";
-import { runEditorCommand } from "./store/actions/editorCommands";
+import { runAction } from "./features/editor-actions";
+import { resolveFillHotkeyChar } from "./features/input-arbiter";
+import { feedback } from "./services/effects";
+import { useShallow } from "zustand/react/shallow";
+import { SessionTabs } from "./components/SessionTabs";
 
 const SidebarRight = lazy(() =>
   import("./components/ToolBar/sidebar-right").then((module) => ({
@@ -18,7 +19,12 @@ const SidebarRight = lazy(() =>
 );
 
 export default function App() {
-  const { tool, grid, setTool } = useCanvasStore();
+  const { tool, setTool } = useCanvasStore(
+    useShallow((state) => ({
+      tool: state.tool,
+      setTool: state.setTool,
+    }))
+  );
 
   const [isRightPanelOpen, setIsRightPanelOpen] = useLocalStorageState<boolean>(
     "ui-right-panel-status",
@@ -27,7 +33,7 @@ export default function App() {
 
   const handleUndo = () => {
     runUndo();
-    toast.dismiss();
+    feedback.dismiss();
   };
 
   const handleRedo = () => {
@@ -38,12 +44,12 @@ export default function App() {
     command: "undo" | "redo" | "copy" | "cut",
     event: KeyboardEvent
   ) => {
-    const handled = runEditorCommand(command, {
+    const result = runAction(command, {
       source: "global-hotkey",
       onUndo: handleUndo,
       onRedo: handleRedo,
     });
-    if (handled) event.preventDefault();
+    if (result.succeeded) event.preventDefault();
   };
 
   useKeyPress(["meta.z", "ctrl.z"], (e) => {
@@ -63,37 +69,25 @@ export default function App() {
   });
 
   useKeyPress(
-    (event) => !isCtrlOrMeta(event) && !event.altKey && event.key.length === 1,
+    (event) => resolveFillHotkeyChar(event) !== null,
     (event) => {
-      const handled = runEditorCommand("fill-selection-char", {
+      const fillChar = resolveFillHotkeyChar(event);
+      if (!fillChar) return;
+      const result = runAction("fill-selection-char", {
         source: "global-hotkey",
-        fillChar: event.key,
+        fillChar,
       });
-      if (handled) event.preventDefault();
+      if (result.succeeded) event.preventDefault();
     },
     {
       events: ["keydown"],
     }
   );
 
-  const handleExport = () => {
-    const text = exportToString(grid);
-    if (!text) {
-      toast.warning("Canvas is empty!", {
-        description: "Draw something before exporting.",
-      });
-      return;
-    }
-    navigator.clipboard.writeText(text).then(() => {
-      toast.success("Copied to clipboard!", {
-        description: `${text.length} characters ready to paste.`,
-      });
-    });
-  };
-
   return (
     <SidebarProvider className="flex h-full w-full overflow-hidden">
       <SidebarInset className="relative flex flex-1 flex-col overflow-hidden">
+        <SessionTabs />
         <AppLayout
           canvas={<AsciiCanvas onUndo={handleUndo} onRedo={handleRedo} />}
         >
@@ -101,7 +95,6 @@ export default function App() {
             tool={tool}
             setTool={setTool}
             onUndo={handleUndo}
-            onExport={handleExport}
           />
         </AppLayout>
 

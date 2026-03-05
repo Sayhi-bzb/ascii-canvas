@@ -10,10 +10,16 @@ import {
   BACKGROUND_COLOR,
   GRID_COLOR,
 } from "@/lib/constants";
+import { useShallow } from "zustand/react/shallow";
 
 export function ExportPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { grid, exportShowGrid } = useCanvasStore();
+  const { grid, exportShowGrid } = useCanvasStore(
+    useShallow((state) => ({
+      grid: state.grid,
+      exportShowGrid: state.exportShowGrid,
+    }))
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;

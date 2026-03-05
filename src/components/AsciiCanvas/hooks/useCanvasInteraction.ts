@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
 import { useCreation, useThrottleFn } from "ahooks";
 import { GridManager } from "../../../utils/grid";
 import type { Point, SelectionArea, ToolType } from "../../../types";
-import { type CanvasState } from "../../../store/canvasStore";
+import type { CanvasState } from "../../../store/canvasStore";
 import { forceHistorySave } from "../../../lib/yjs-setup";
 import bresenham from "bresenham";
 import { isCtrlOrMeta } from "../../../utils/event";
@@ -13,8 +13,42 @@ const isShapeTool = (tool: ToolType): boolean => {
   return ["box", "circle", "line", "stepline"].includes(tool);
 };
 
+type InteractionMode =
+  | "idle"
+  | "panning"
+  | "selecting"
+  | "drawing"
+  | "shape-preview";
+
+const isSelectionTool = (tool: ToolType) => tool === "select" || tool === "fill";
+
+const isFromMinimap = (event: Event | undefined) => {
+  const target = event?.target;
+  if (!(target instanceof Element)) return false;
+  return !!target.closest('[data-minimap-root="true"]');
+};
+
 export const useCanvasInteraction = (
-  store: CanvasState,
+  store: Pick<
+    CanvasState,
+    | "tool"
+    | "brushChar"
+    | "setOffset"
+    | "setZoom"
+    | "addScratchPoints"
+    | "commitScratch"
+    | "setTextCursor"
+    | "addSelection"
+    | "clearSelections"
+    | "clearInteractionState"
+    | "erasePoints"
+    | "offset"
+    | "zoom"
+    | "grid"
+    | "updateScratchForShape"
+    | "setHoveredGrid"
+    | "fillArea"
+  >,
   containerRef: React.RefObject<HTMLDivElement | null>
 ) => {
   const {
@@ -43,9 +77,64 @@ export const useCanvasInteraction = (
   const anchorGrid = useRef<Point | null>(null);
 
   const isPanningRef = useRef(false);
+  const queuedOffsetRef = useRef<Point>({ x: 0, y: 0 });
+  const queuedOffsetRafRef = useRef<number | null>(null);
+  const interactionModeRef = useRef<InteractionMode>("idle");
   const lineAxisRef = useRef<"vertical" | "horizontal" | null>(null);
   const [draggingSelection, setDraggingSelection] =
     useState<SelectionArea | null>(null);
+
+  const resetDragState = () => {
+    dragStartGrid.current = null;
+    lastGrid.current = null;
+    lastPlacedGrid.current = null;
+    lineAxisRef.current = null;
+    interactionModeRef.current = "idle";
+  };
+
+  const shouldIgnoreMinimapGestureEvent = (event: Event | undefined) => {
+    if (!isFromMinimap(event)) return false;
+    return (
+      interactionModeRef.current === "idle" &&
+      dragStartGrid.current === null &&
+      !isPanningRef.current
+    );
+  };
+
+  const flushQueuedOffset = () => {
+    if (queuedOffsetRafRef.current !== null) {
+      window.cancelAnimationFrame(queuedOffsetRafRef.current);
+      queuedOffsetRafRef.current = null;
+    }
+    const { x, y } = queuedOffsetRef.current;
+    if (x === 0 && y === 0) return;
+    queuedOffsetRef.current = { x: 0, y: 0 };
+    setOffset((prev: Point) => ({ x: prev.x + x, y: prev.y + y }));
+  };
+
+  const queueOffsetDelta = (dx: number, dy: number) => {
+    if (dx === 0 && dy === 0) return;
+    queuedOffsetRef.current = {
+      x: queuedOffsetRef.current.x + dx,
+      y: queuedOffsetRef.current.y + dy,
+    };
+    if (queuedOffsetRafRef.current !== null) return;
+    queuedOffsetRafRef.current = window.requestAnimationFrame(() => {
+      queuedOffsetRafRef.current = null;
+      const { x, y } = queuedOffsetRef.current;
+      if (x === 0 && y === 0) return;
+      queuedOffsetRef.current = { x: 0, y: 0 };
+      setOffset((prev: Point) => ({ x: prev.x + x, y: prev.y + y }));
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (queuedOffsetRafRef.current !== null) {
+        window.cancelAnimationFrame(queuedOffsetRafRef.current);
+      }
+    };
+  }, []);
 
   const handleDrawing = useCreation(
     () => (currentGrid: Point) => {
@@ -88,7 +177,7 @@ export const useCanvasInteraction = (
           addScratchPoints(points.map((p) => ({ ...p, char: brushChar })));
         }
       } else if (tool === "eraser") {
-        erasePoints(points);
+        erasePoints(points, false);
       }
       lastGrid.current = currentGrid;
     },
@@ -102,7 +191,8 @@ export const useCanvasInteraction = (
 
   const bind = useGesture(
     {
-      onMove: ({ xy: [x, y] }) => {
+      onMove: ({ xy: [x, y], event }) => {
+        if (isFromMinimap(event)) return;
         if (tool !== "eraser") return;
         const rect = containerRef.current?.getBoundingClientRect();
         if (rect) {
@@ -117,9 +207,11 @@ export const useCanvasInteraction = (
         }
       },
       onDragStart: ({ xy: [x, y], event }) => {
+        if (isFromMinimap(event)) return;
         const mouseEvent = event as MouseEvent;
         if (mouseEvent.button === 1 || isCtrlOrMeta(mouseEvent)) {
           isPanningRef.current = true;
+          interactionModeRef.current = "panning";
           document.body.style.cursor = "grabbing";
           return;
         }
@@ -135,7 +227,8 @@ export const useCanvasInteraction = (
           );
           const start = GridManager.snapToCharStart(raw, grid);
 
-          if (tool === "select" || tool === "fill") {
+          if (isSelectionTool(tool)) {
+            interactionModeRef.current = "selecting";
             if (
               tool === "select" &&
               mouseEvent.shiftKey &&
@@ -170,14 +263,21 @@ export const useCanvasInteraction = (
           anchorGrid.current = start;
           lineAxisRef.current = null;
 
-          if (tool === "brush")
+          if (tool === "brush") {
+            interactionModeRef.current = "drawing";
             addScratchPoints([{ ...start, char: brushChar }]);
-          else if (tool === "eraser") erasePoints([start]);
+          } else if (tool === "eraser") {
+            interactionModeRef.current = "drawing";
+            erasePoints([start], false);
+          } else if (isShapeTool(tool)) {
+            interactionModeRef.current = "shape-preview";
+          }
         }
       },
-      onDrag: ({ xy: [x, y], delta: [dx, dy] }) => {
-        if (isPanningRef.current) {
-          setOffset((prev: Point) => ({ x: prev.x + dx, y: prev.y + dy }));
+      onDrag: ({ xy: [x, y], delta: [dx, dy], event }) => {
+        if (shouldIgnoreMinimapGestureEvent(event)) return;
+        if (interactionModeRef.current === "panning") {
+          queueOffsetDelta(dx, dy);
           return;
         }
 
@@ -192,65 +292,92 @@ export const useCanvasInteraction = (
           );
           const currentGrid = GridManager.snapToCharStart(raw, grid);
 
-          if (tool === "select" || tool === "fill") {
-            setDraggingSelection({
-              start: dragStartGrid.current,
-              end: currentGrid,
-            });
-          } else if (tool === "brush" || tool === "eraser") {
-            throttledDraw(currentGrid);
-          } else if (isShapeTool(tool)) {
-            if (tool === "line" && !lineAxisRef.current) {
-              const adx = Math.abs(currentGrid.x - dragStartGrid.current.x);
-              const ady = Math.abs(currentGrid.y - dragStartGrid.current.y);
-              if (adx > 0 || ady > 0)
-                lineAxisRef.current = ady > adx ? "vertical" : "horizontal";
-            }
-            updateScratchForShape(tool, dragStartGrid.current, currentGrid, {
-              axis: lineAxisRef.current,
-            });
+          switch (interactionModeRef.current) {
+            case "selecting":
+              setDraggingSelection({
+                start: dragStartGrid.current,
+                end: currentGrid,
+              });
+              break;
+            case "drawing":
+              if (tool === "brush" || tool === "eraser") {
+                throttledDraw(currentGrid);
+              }
+              break;
+            case "shape-preview":
+              if (isShapeTool(tool)) {
+                if (tool === "line" && !lineAxisRef.current) {
+                  const adx = Math.abs(currentGrid.x - dragStartGrid.current.x);
+                  const ady = Math.abs(currentGrid.y - dragStartGrid.current.y);
+                  if (adx > 0 || ady > 0)
+                    lineAxisRef.current = ady > adx ? "vertical" : "horizontal";
+                }
+                updateScratchForShape(tool, dragStartGrid.current, currentGrid, {
+                  axis: lineAxisRef.current,
+                });
+              }
+              break;
+            default:
+              break;
           }
           if (tool === "eraser") setHoveredGrid(currentGrid);
         }
       },
       onDragEnd: ({ event }) => {
-        if (isPanningRef.current) {
+        if (shouldIgnoreMinimapGestureEvent(event)) return;
+        if (interactionModeRef.current === "panning") {
+          flushQueuedOffset();
           isPanningRef.current = false;
+          interactionModeRef.current = "idle";
           document.body.style.cursor = "auto";
           return;
         }
         if ((event as MouseEvent).button === 0) {
-          if (tool === "fill" && draggingSelection) {
-            fillArea(draggingSelection);
-            setDraggingSelection(null);
-          } else if (tool === "select" && draggingSelection) {
-            if (
-              draggingSelection.start.x === draggingSelection.end.x &&
-              draggingSelection.start.y === draggingSelection.end.y
-            ) {
-              setTextCursor(draggingSelection.start);
-            } else {
-              addSelection(draggingSelection);
-            }
-            setDraggingSelection(null);
-          } else if (tool === "brush" || isShapeTool(tool)) {
-            commitScratch();
-          } else if (tool === "eraser") {
-            forceHistorySave();
+          switch (interactionModeRef.current) {
+            case "selecting":
+              if (draggingSelection) {
+                if (tool === "fill") {
+                  fillArea(draggingSelection);
+                } else if (tool === "select") {
+                  if (
+                    draggingSelection.start.x === draggingSelection.end.x &&
+                    draggingSelection.start.y === draggingSelection.end.y
+                  ) {
+                    setTextCursor(draggingSelection.start);
+                  } else {
+                    addSelection(draggingSelection);
+                  }
+                }
+                setDraggingSelection(null);
+              }
+              break;
+            case "drawing":
+              if (tool === "brush") {
+                commitScratch();
+              } else if (tool === "eraser") {
+                forceHistorySave();
+              }
+              break;
+            case "shape-preview":
+              if (isShapeTool(tool)) {
+                commitScratch();
+              }
+              break;
+            default:
+              break;
           }
-          dragStartGrid.current = null;
-          lastGrid.current = null;
-          lastPlacedGrid.current = null;
-          lineAxisRef.current = null;
+          resetDragState();
         }
         document.body.style.cursor = "auto";
       },
       onWheel: ({ xy: [clientX, clientY], delta: [, dy], event }) => {
+        if (isFromMinimap(event)) return;
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
 
         if (isCtrlOrMeta(event)) {
           event.preventDefault();
+          flushQueuedOffset();
           const mouseX = clientX - rect.left;
           const mouseY = clientY - rect.top;
           const zoomWeight = 0.002;
@@ -277,10 +404,7 @@ export const useCanvasInteraction = (
             deltaX = deltaY;
             deltaY = 0;
           }
-          setOffset((p: Point) => ({
-            x: p.x - deltaX,
-            y: p.y - deltaY,
-          }));
+          queueOffsetDelta(-deltaX, -deltaY);
         }
       },
     },

@@ -2,6 +2,7 @@ import { exportSelectionToJSON, exportSelectionToString } from "../../utils/expo
 import { GridManager } from "../../utils/grid";
 import type { GridMap, Point, SelectionArea } from "../../types";
 import type { RichTextCell } from "../interfaces";
+import { clipboard } from "@/services/effects";
 
 const MIME_RICH_DATA = "web application/x-ascii-metropolis";
 
@@ -74,16 +75,12 @@ export const writeClipboardPayload = async (
         }),
       };
 
-      try {
-        await navigator.clipboard.write([new ClipboardItem(clipboardMap)]);
-      } catch {
-        await navigator.clipboard.writeText(payload.plain);
-      }
-      return true;
+      const richCopied = await clipboard.writeItems([new ClipboardItem(clipboardMap)]);
+      if (richCopied) return true;
+      return clipboard.writeText(payload.plain);
     }
 
-    await navigator.clipboard.writeText(payload.plain);
-    return true;
+    return clipboard.writeText(payload.plain);
   } catch {
     return false;
   }
@@ -111,16 +108,14 @@ const readRichClipboardCells = async (
     if (parsed) return parsed;
   }
 
-  try {
-    const items = await navigator.clipboard.read();
+  const items = await clipboard.readItems();
+  if (items) {
     for (const item of items) {
       if (!item.types.includes(MIME_RICH_DATA)) continue;
       const blob = await item.getType(MIME_RICH_DATA);
       const parsed = parseRichClipboardText(await blob.text());
       if (parsed) return parsed;
     }
-  } catch {
-    // Ignore rich clipboard read failures and fall back to plain text.
   }
 
   return null;
@@ -135,12 +130,8 @@ export const readClipboardPayload = async (eventDataTransfer?: DataTransfer) => 
     if (text) return { richCells: null, plainText: text };
   }
 
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) return { richCells: null, plainText: text };
-  } catch {
-    // Ignore clipboard permission failures.
-  }
+  const text = await clipboard.readText();
+  if (text) return { richCells: null, plainText: text };
 
   return { richCells: null, plainText: null };
 };

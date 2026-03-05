@@ -20,7 +20,7 @@ interface ActionButtonProps
   label?: string;
   subLabel?: string;
   delay?: number;
-  onAction: () => void | Promise<void>;
+  onAction: () => boolean | Promise<boolean>;
   tone?: ButtonTone;
   size?: ActionButtonSize;
   shape?: ButtonShape;
@@ -53,9 +53,14 @@ export function ActionButton({
   const handlePress = async (e: React.MouseEvent<HTMLButtonElement>) => {
     if (isSuccess) return;
     if (props.onClick) props.onClick(e);
-    await onAction();
-    setIsSuccess(true);
-    setTimeout(() => setIsSuccess(false), delay);
+    try {
+      const succeeded = await onAction();
+      if (!succeeded) return;
+      setIsSuccess(true);
+      setTimeout(() => setIsSuccess(false), delay);
+    } catch {
+      // Caller owns error feedback; do not show false-success state.
+    }
   };
 
   return (

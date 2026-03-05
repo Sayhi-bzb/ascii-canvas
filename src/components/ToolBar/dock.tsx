@@ -2,23 +2,21 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
-  MousePointer2,
   Square,
   Minus,
-  Pencil,
-  Eraser,
-  Undo2,
   LineSquiggle,
   Circle as CircleIcon,
   ChevronDown,
-  Check,
-  Palette,
-  PaintBucket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ToolType } from "@/types";
 import { useCanvasStore } from "@/store/canvasStore";
-import { Input } from "@/components/ui/input";
+import {
+  TOOLBAR_ACTION_META,
+  TOOLBAR_ACTION_ORDER,
+  resolveActiveToolbarAction,
+  runToolbarAction,
+} from "@/features/toolbar-actions";
 import {
   Tooltip,
   TooltipContent,
@@ -30,18 +28,20 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { PALETTE } from "@/lib/constants";
 import { uiClass } from "@/styles/components";
+import {
+  BrushSubmenu,
+  ColorSubmenu,
+  ShapeSubmenu,
+} from "./dock/submenus";
+import { MATERIAL_PRESETS, SHAPE_TOOLS } from "./dock/constants";
+import { useShallow } from "zustand/react/shallow";
 
 interface ToolbarProps {
   tool: ToolType;
   setTool: (tool: ToolType) => void;
   onUndo: () => void;
-  onExport: () => void;
 }
-
-const MATERIAL_PRESETS = ["*", ".", "@", "▒"];
-const SHAPE_TOOLS: ToolType[] = ["box", "circle", "line", "stepline"];
 
 const submenuOptionClass = (active: boolean) =>
   cn(
@@ -52,10 +52,16 @@ const submenuOptionClass = (active: boolean) =>
   );
 
 export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
-  const { brushChar, setBrushChar, brushColor, setBrushColor } =
-    useCanvasStore();
+  const { brushChar, setBrushChar, brushColor, setBrushColor } = useCanvasStore(
+    useShallow((state) => ({
+      brushChar: state.brushChar,
+      setBrushChar: state.setBrushChar,
+      brushColor: state.brushColor,
+      setBrushColor: state.setBrushColor,
+    }))
+  );
   const [lastUsedShape, setLastUsedShape] = useState<ToolType>("box");
-  const [openSubMenuId, setOpenSubMenuId] = useState<string | null>(null);
+  const [openSubMenuId, setOpenSubMenuId] = useState<null | string>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [customChar, setCustomChar] = useState(() =>
@@ -86,66 +92,21 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
     [isShapeGroupActive, tool, lastUsedShape, getToolMeta]
   );
 
-  const navItems = useMemo(
-    () => [
-      {
-        id: "select",
-        label: "Select",
-        icon: MousePointer2,
-        onClick: () => setTool("select"),
-      },
-      {
-        id: "brush",
-        label: `Brush (${brushChar})`,
-        icon: Pencil,
-        onClick: () => setTool("brush"),
-        hasSub: true,
-      },
-      {
-        id: "shape-group",
-        label: activeShapeMeta.label,
-        icon: activeShapeMeta.icon,
-        onClick: () => setTool(isShapeGroupActive ? tool : lastUsedShape),
-        hasSub: true,
-      },
-      {
-        id: "fill",
-        label: "Fill Area",
-        icon: PaintBucket,
-        onClick: () => setTool("fill"),
-      },
-      {
-        id: "eraser",
-        label: "Eraser",
-        icon: Eraser,
-        onClick: () => setTool("eraser"),
-      },
-      { id: "undo", label: "Undo", icon: Undo2, onClick: onUndo },
-      {
-        id: "color",
-        label: "Color",
-        icon: Palette,
-        onClick: () => {},
-        hasSub: true,
-      },
-    ],
-    [
-      brushChar,
-      activeShapeMeta,
-      isShapeGroupActive,
-      tool,
-      lastUsedShape,
-      setTool,
-      onUndo,
-    ]
-  );
+  const navItems = useMemo(() => {
+    return TOOLBAR_ACTION_ORDER.map((id) => {
+      const meta = TOOLBAR_ACTION_META[id];
+      if (id === "brush") {
+        return { ...meta, label: `Brush (${brushChar})` };
+      }
+      if (id === "shape-group") {
+        return { ...meta, label: activeShapeMeta.label, icon: activeShapeMeta.icon };
+      }
+      return meta;
+    });
+  }, [brushChar, activeShapeMeta]);
 
   const activeIndex = useMemo(() => {
-    const currentId = isShapeGroupActive
-      ? "shape-group"
-      : ["select", "brush", "eraser", "fill"].includes(tool)
-      ? tool
-      : "brush";
+    const currentId = resolveActiveToolbarAction(tool, isShapeGroupActive);
     const idx = navItems.findIndex((item) => item.id === currentId);
     return idx !== -1 ? idx : 0;
   }, [tool, isShapeGroupActive, navItems]);
@@ -196,7 +157,15 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                       ref={(el) => {
                         itemRefs.current[index] = el;
                       }}
-                      onClick={item.onClick}
+                      onClick={() =>
+                        runToolbarAction(item.id, {
+                          tool,
+                          isShapeGroupActive,
+                          lastUsedShape,
+                          setTool,
+                          onUndo,
+                        })
+                      }
                       className={cn(
                         "flex items-center justify-center h-9 px-3 outline-none rounded-l-lg transition-colors",
                         !item.hasSub && "rounded-lg",
@@ -241,106 +210,29 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                       className={uiClass.submenuPanel}
                     >
                       {item.id === "brush" ? (
-                        <>
-                          <button
-                            onClick={() => {
-                              setBrushChar(customChar);
-                              setTool("brush");
-                              inputRef.current?.focus();
-                            }}
-                            className={submenuOptionClass(
-                              brushChar === customChar && customChar !== ""
-                            )}
-                          >
-                            <div className="size-3.5 flex items-center justify-center shrink-0">
-                              {brushChar === customChar &&
-                                customChar !== "" && (
-                                  <Check className="size-3.5 stroke-[3]" />
-                                )}
-                            </div>
-                            <div className="flex-1 px-1">
-                              <Input
-                                ref={inputRef}
-                                className="h-6 w-14 text-center p-0 font-mono text-base font-bold border-none shadow-none ring-0 focus-visible:ring-0 bg-muted/40 hover:bg-muted/60 rounded-sm text-inherit placeholder:text-muted-foreground/50"
-                                placeholder="Custom"
-                                maxLength={2}
-                                value={customChar}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setCustomChar(val);
-                                  setBrushChar(val);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </div>
-                          </button>
-                          {MATERIAL_PRESETS.map((char) => (
-                            <button
-                              key={char}
-                              onClick={() => {
-                                setBrushChar(char);
-                                setTool("brush");
-                              }}
-                              className={submenuOptionClass(brushChar === char)}
-                            >
-                              <div className="size-3.5 flex items-center justify-center shrink-0">
-                                {brushChar === char && (
-                                  <Check className="size-3.5 stroke-[3]" />
-                                )}
-                              </div>
-                              <span className="flex-1 font-mono font-bold text-lg text-center leading-none">
-                                {char}
-                              </span>
-                            </button>
-                          ))}
-                        </>
+                        <BrushSubmenu
+                          brushChar={brushChar}
+                          customChar={customChar}
+                          setCustomChar={setCustomChar}
+                          setBrushChar={setBrushChar}
+                          setTool={setTool}
+                          inputRef={inputRef}
+                          submenuOptionClass={submenuOptionClass}
+                        />
                       ) : item.id === "color" ? (
-                        <div className="grid grid-cols-5 gap-1 p-1">
-                          {PALETTE.map((c) => (
-                            <button
-                              key={c}
-                              onClick={() => {
-                                setBrushColor(c);
-                                setOpenSubMenuId(null);
-                              }}
-                              className={cn(
-                                "size-6 rounded-md border border-foreground/10 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center",
-                                brushColor === c &&
-                                  "ring-2 ring-primary ring-offset-1 ring-offset-popover"
-                              )}
-                              style={{ backgroundColor: c }}
-                            >
-                              {brushColor === c && (
-                                <Check className="size-3 text-white mix-blend-difference" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
+                        <ColorSubmenu
+                          brushColor={brushColor}
+                          setBrushColor={setBrushColor}
+                          onPicked={() => setOpenSubMenuId(null)}
+                        />
                       ) : (
-                        SHAPE_TOOLS.map((st) => {
-                          const meta = getToolMeta(st);
-                          const isSubActive = tool === st;
-                          return (
-                            <button
-                              key={st}
-                              onClick={() => {
-                                setTool(st);
-                                setLastUsedShape(st);
-                              }}
-                              className={submenuOptionClass(isSubActive)}
-                            >
-                              <div className="size-3.5 flex items-center justify-center shrink-0">
-                                {isSubActive && (
-                                  <Check className="size-3.5 stroke-[3]" />
-                                )}
-                              </div>
-                              <meta.icon className="size-4 shrink-0" />
-                              <span className="flex-1 text-left text-sm font-medium pr-4 whitespace-nowrap ml-1">
-                                {meta.label}
-                              </span>
-                            </button>
-                          );
-                        })
+                        <ShapeSubmenu
+                          tool={tool}
+                          setTool={setTool}
+                          setLastUsedShape={setLastUsedShape}
+                          getToolMeta={getToolMeta}
+                          submenuOptionClass={submenuOptionClass}
+                        />
                       )}
                     </PopoverContent>
                   </Popover>

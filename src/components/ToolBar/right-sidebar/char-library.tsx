@@ -14,7 +14,7 @@ import { useCanvasStore } from "@/store/canvasStore";
 import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
 import { cn } from "@/lib/utils";
 import { rx } from "@/styles/recipes";
-import { toast } from "sonner";
+import { feedback } from "@/services/effects";
 import {
   Collapsible,
   CollapsibleContent,
@@ -29,6 +29,7 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
+import { useShallow } from "zustand/react/shallow";
 
 const CharButton = ({
   char,
@@ -58,13 +59,19 @@ const CharButton = ({
 );
 
 export function CharLibrary() {
-  const { brushChar, setBrushChar, setTool } = useCanvasStore();
+  const { brushChar, setBrushChar, setTool } = useCanvasStore(
+    useShallow((state) => ({
+      brushChar: state.brushChar,
+      setBrushChar: state.setBrushChar,
+      setTool: state.setTool,
+    }))
+  );
   const { data, isLoading, searchQuery, searchResults } = useLibraryStore();
 
   const handleSelect = (char: string) => {
     setBrushChar(char);
     setTool("brush");
-    toast.success(`Picked: ${char}`, { duration: 600, position: "top-right" });
+    feedback.success(`Picked: ${char}`, { duration: 600, position: "top-right" });
   };
 
   if (searchQuery.trim() !== "") {
