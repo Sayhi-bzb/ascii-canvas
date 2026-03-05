@@ -27,6 +27,7 @@ export const useCanvasInteraction = (
     setTextCursor,
     addSelection,
     clearSelections,
+    clearInteractionState,
     erasePoints,
     offset,
     zoom,
@@ -140,8 +141,7 @@ export const useCanvasInteraction = (
               mouseEvent.shiftKey &&
               anchorGrid.current
             ) {
-              clearSelections();
-              setTextCursor(null);
+              clearInteractionState();
               dragStartGrid.current = { ...anchorGrid.current };
               setDraggingSelection({
                 start: { ...anchorGrid.current },
@@ -163,8 +163,7 @@ export const useCanvasInteraction = (
             return;
           }
 
-          clearSelections();
-          setTextCursor(null);
+          clearInteractionState();
           dragStartGrid.current = start;
           lastGrid.current = start;
           lastPlacedGrid.current = start;

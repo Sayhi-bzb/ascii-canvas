@@ -31,6 +31,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { PALETTE } from "@/lib/constants";
+import { uiClass } from "@/styles/components";
 
 interface ToolbarProps {
   tool: ToolType;
@@ -41,6 +42,14 @@ interface ToolbarProps {
 
 const MATERIAL_PRESETS = ["*", ".", "@", "▒"];
 const SHAPE_TOOLS: ToolType[] = ["box", "circle", "line", "stepline"];
+
+const submenuOptionClass = (active: boolean) =>
+  cn(
+    "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
+    active
+      ? "bg-primary text-primary-foreground shadow-sm"
+      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+  );
 
 export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
   const { brushChar, setBrushChar, brushColor, setBrushColor } =
@@ -60,15 +69,15 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
   const getToolMeta = useCallback((type: ToolType) => {
     switch (type) {
       case "box":
-        return { icon: Square, label: "Rectangle", shortcut: "R" };
+        return { icon: Square, label: "Rectangle" };
       case "circle":
-        return { icon: CircleIcon, label: "Circle", shortcut: "O" };
+        return { icon: CircleIcon, label: "Circle" };
       case "line":
-        return { icon: Minus, label: "Line", shortcut: "L" };
+        return { icon: Minus, label: "Line" };
       case "stepline":
-        return { icon: LineSquiggle, label: "Curve", shortcut: "S" };
+        return { icon: LineSquiggle, label: "Curve" };
       default:
-        return { icon: Square, label: "Shape", shortcut: "" };
+        return { icon: Square, label: "Shape" };
     }
   }, []);
 
@@ -165,7 +174,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
   return (
     <TooltipProvider delayDuration={200}>
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-        <nav className="relative flex items-center gap-1 p-1.5 rounded-2xl bg-background/80 backdrop-blur-md border border-primary/10 shadow-2xl pointer-events-auto">
+        <nav className={uiClass.toolbarShell}>
           {navItems.map((item, index) => {
             const isActive = index === activeIndex;
             const Icon = item.icon;
@@ -229,7 +238,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                       side="top"
                       align={isColorTab ? "end" : "start"}
                       sideOffset={12}
-                      className="w-auto p-1 flex flex-col gap-0.5 rounded-xl bg-popover/95 backdrop-blur-md border shadow-xl z-50 overflow-hidden min-w-[100px]"
+                      className={uiClass.submenuPanel}
                     >
                       {item.id === "brush" ? (
                         <>
@@ -239,11 +248,8 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                               setTool("brush");
                               inputRef.current?.focus();
                             }}
-                            className={cn(
-                              "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
+                            className={submenuOptionClass(
                               brushChar === customChar && customChar !== ""
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                             )}
                           >
                             <div className="size-3.5 flex items-center justify-center shrink-0">
@@ -275,12 +281,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                                 setBrushChar(char);
                                 setTool("brush");
                               }}
-                              className={cn(
-                                "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
-                                brushChar === char
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                              )}
+                              className={submenuOptionClass(brushChar === char)}
                             >
                               <div className="size-3.5 flex items-center justify-center shrink-0">
                                 {brushChar === char && (
@@ -326,12 +327,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                                 setTool(st);
                                 setLastUsedShape(st);
                               }}
-                              className={cn(
-                                "w-full flex items-center gap-2 h-9 px-2 rounded-md transition-all outline-none shrink-0",
-                                isSubActive
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                              )}
+                              className={submenuOptionClass(isSubActive)}
                             >
                               <div className="size-3.5 flex items-center justify-center shrink-0">
                                 {isSubActive && (
@@ -341,9 +337,6 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                               <meta.icon className="size-4 shrink-0" />
                               <span className="flex-1 text-left text-sm font-medium pr-4 whitespace-nowrap ml-1">
                                 {meta.label}
-                              </span>
-                              <span className="text-[10px] opacity-40 font-mono">
-                                {meta.shortcut}
                               </span>
                             </button>
                           );

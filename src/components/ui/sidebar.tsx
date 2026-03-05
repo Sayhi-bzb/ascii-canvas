@@ -1,13 +1,15 @@
+/* eslint-disable react-refresh/only-export-components */
 "use client";
 
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
-import { cva, type VariantProps } from "class-variance-authority";
 import { PanelLeftIcon } from "lucide-react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { rx } from "@/styles/recipes";
+import type { ItemTone, Size } from "@/styles/tokens";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -247,8 +249,9 @@ function SidebarTrigger({
     <Button
       data-sidebar="trigger"
       data-slot="sidebar-trigger"
-      variant="ghost"
-      size="icon"
+      tone="subtle"
+      shape="square"
+      size="md"
       className={cn("size-7", className)}
       onClick={(event) => {
         onClick?.(event);
@@ -452,30 +455,50 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
   );
 }
 
-const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
-  {
-    variants: {
-      variant: {
-        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        outline:
-          "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
-      },
-      size: {
-        default: "h-8 text-sm",
-        sm: "h-7 text-xs",
-        lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
-      },
-    },
-    defaultVariants: { variant: "default", size: "default" },
-  }
-);
+type SidebarMenuButtonVariant = "default" | "outline";
+type SidebarMenuButtonSize = "default" | "sm" | "lg";
+
+const normalizeMenuSize = (size: SidebarMenuButtonSize): Size => {
+  if (size === "default") return "md";
+  return size;
+};
+
+const resolveMenuTone = (
+  variant: SidebarMenuButtonVariant,
+  tone?: ItemTone
+): ItemTone => {
+  if (tone) return tone;
+  return variant === "outline" ? "neutral" : "subtle";
+};
+
+const sidebarMenuButtonClasses = ({
+  variant,
+  tone,
+  size,
+  isActive,
+}: {
+  variant: SidebarMenuButtonVariant;
+  tone?: ItemTone;
+  size: SidebarMenuButtonSize;
+  isActive: boolean;
+}) =>
+  cn(
+    "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left outline-hidden transition-[width,height,padding] disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+    rx.item({
+      active: isActive,
+      tone: resolveMenuTone(variant, tone),
+      size: normalizeMenuSize(size),
+      outlined: variant === "outline",
+    }),
+    size === "lg" && "group-data-[collapsible=icon]:p-0!"
+  );
 
 function SidebarMenuButton({
   asChild = false,
   isActive = false,
   variant = "default",
   size = "default",
+  tone,
   tooltip,
   className,
   ...props
@@ -483,16 +506,28 @@ function SidebarMenuButton({
   asChild?: boolean;
   isActive?: boolean;
   tooltip?: string | React.ComponentProps<typeof TooltipContent>;
-} & VariantProps<typeof sidebarMenuButtonVariants>) {
+  tone?: ItemTone;
+  variant?: SidebarMenuButtonVariant;
+  size?: SidebarMenuButtonSize;
+}) {
   const Comp = asChild ? Slot : "button";
   const { isMobile, state } = useSidebar();
+  const normalizedSize = normalizeMenuSize(size);
   const button = (
     <Comp
       data-slot="sidebar-menu-button"
       data-sidebar="menu-button"
-      data-size={size}
+      data-size={normalizedSize}
       data-active={isActive}
-      className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      className={cn(
+        sidebarMenuButtonClasses({
+          variant,
+          tone,
+          size,
+          isActive,
+        }),
+        className
+      )}
       {...props}
     />
   );
@@ -529,7 +564,7 @@ function SidebarMenuAction({
         "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground peer-hover/menu-button:text-sidebar-accent-foreground absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "after:absolute after:-inset-2 md:after:hidden",
         "peer-data-[size=sm]/menu-button:top-1",
-        "peer-data-[size=default]/menu-button:top-1.5",
+        "peer-data-[size=md]/menu-button:top-1.5",
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
@@ -553,7 +588,7 @@ function SidebarMenuBadge({
         "text-sidebar-foreground pointer-events-none absolute right-1 flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-xs font-medium tabular-nums select-none",
         "peer-hover/menu-button:text-sidebar-accent-foreground peer-data-[active=true]/menu-button:text-sidebar-accent-foreground",
         "peer-data-[size=sm]/menu-button:top-1",
-        "peer-data-[size=default]/menu-button:top-1.5",
+        "peer-data-[size=md]/menu-button:top-1.5",
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
         className

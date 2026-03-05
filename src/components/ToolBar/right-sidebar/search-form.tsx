@@ -9,6 +9,8 @@ import {
   SidebarInput,
 } from "@/components/ui/sidebar";
 import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
+import { rx } from "@/styles/recipes";
+import { cn } from "@/lib/utils";
 
 export function SearchForm({ ...props }: React.ComponentProps<"form">) {
   const { searchQuery, setSearchQuery } = useLibraryStore();
@@ -23,7 +25,10 @@ export function SearchForm({ ...props }: React.ComponentProps<"form">) {
           <SidebarInput
             id="search"
             placeholder="Search characters (e.g. 'copy', 'arrow')..."
-            className="pl-8 bg-muted/50 focus-visible:bg-background transition-colors"
+            className={cn(
+              rx.field({ density: "default" }),
+              "pl-8 bg-muted/50 focus-visible:bg-background transition-colors shadow-none"
+            )}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />

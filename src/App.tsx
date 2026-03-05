@@ -5,10 +5,11 @@ import { useCanvasStore } from "./store/canvasStore";
 import { exportToString } from "./utils/export";
 import { AppLayout } from "./layout";
 import { Toolbar } from "./components/ToolBar/dock";
-import { undoManager } from "./lib/yjs-setup";
 import { isCtrlOrMeta } from "./utils/event";
 import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
 import { Suspense, lazy } from "react";
+import { shouldIgnoreClipboardShortcut } from "./utils/dom-focus";
+import { runRedo, runUndo } from "./store/actions/shortcutActions";
 
 const SidebarRight = lazy(() =>
   import("./components/ToolBar/sidebar-right").then((module) => ({
@@ -22,8 +23,9 @@ export default function App() {
     grid,
     setTool,
     fillSelectionsWithChar,
-    copySelectionToClipboard,
-    cutSelectionToClipboard,
+    copySelection,
+    cutSelection,
+    canCopyOrCut,
   } = useCanvasStore();
 
   const [isRightPanelOpen, setIsRightPanelOpen] = useLocalStorageState<boolean>(
@@ -32,49 +34,38 @@ export default function App() {
   );
 
   const handleUndo = () => {
-    undoManager.undo();
+    runUndo();
     toast.dismiss();
   };
 
   const handleRedo = () => {
-    undoManager.redo();
-  };
-
-  const shouldIgnoreClipboardShortcut = () => {
-    const activeElement = document.activeElement as HTMLElement | null;
-    if (!activeElement) return false;
-    const tagName = activeElement.tagName.toLowerCase();
-    return (
-      tagName === "input" ||
-      tagName === "textarea" ||
-      activeElement.isContentEditable
-    );
+    runRedo();
   };
 
   useKeyPress(["meta.z", "ctrl.z"], (e) => {
+    if (shouldIgnoreClipboardShortcut(document.activeElement)) return;
     e.preventDefault();
     handleUndo();
   });
 
   useKeyPress(["meta.shift.z", "ctrl.shift.z", "meta.y", "ctrl.y"], (e) => {
+    if (shouldIgnoreClipboardShortcut(document.activeElement)) return;
     e.preventDefault();
     handleRedo();
   });
 
   useKeyPress(["meta.c", "ctrl.c"], (e) => {
-    if (shouldIgnoreClipboardShortcut()) return;
-    const { selections, textCursor } = useCanvasStore.getState();
-    if (selections.length === 0 && !textCursor) return;
+    if (shouldIgnoreClipboardShortcut(document.activeElement)) return;
+    if (!canCopyOrCut()) return;
     e.preventDefault();
-    copySelectionToClipboard();
+    void copySelection();
   });
 
   useKeyPress(["meta.x", "ctrl.x"], (e) => {
-    if (shouldIgnoreClipboardShortcut()) return;
-    const { selections, textCursor } = useCanvasStore.getState();
-    if (selections.length === 0 && !textCursor) return;
+    if (shouldIgnoreClipboardShortcut(document.activeElement)) return;
+    if (!canCopyOrCut()) return;
     e.preventDefault();
-    cutSelectionToClipboard();
+    void cutSelection();
   });
 
   useKeyPress(

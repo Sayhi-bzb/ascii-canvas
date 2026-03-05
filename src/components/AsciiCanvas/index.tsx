@@ -1,10 +1,9 @@
-import { useRef, useMemo, useEffect, useCallback } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useSize, useEventListener } from 'ahooks';
 import { useCanvasStore } from '../../store/canvasStore';
 import { useCanvasInteraction } from './hooks/useCanvasInteraction';
 import { useCanvasRenderer } from './hooks/useCanvasRenderer';
 import { GridManager } from '../../utils/grid';
-import { isCtrlOrMeta } from '../../utils/event';
 import { Minimap } from './Minimap';
 import {
   ContextMenu,
@@ -15,9 +14,8 @@ import {
   ContextMenuShortcut,
 } from '@/components/ui/context-menu';
 import { Copy, Scissors, Trash2, Clipboard, Image, Palette } from 'lucide-react';
-import { exportSelectionToString, exportSelectionToJSON } from '../../utils/export';
-
-const MIME_RICH_DATA = 'web application/x-ascii-metropolis';
+import { shouldIgnoreClipboardShortcut } from '../../utils/dom-focus';
+import { isRedoShortcut, isUndoShortcut } from '../../store/actions/shortcutActions';
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -37,7 +35,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const {
     textCursor,
     writeTextString,
-    pasteRichData,
+    pasteFromClipboard,
     backspaceText,
     newlineText,
     indentText,
@@ -45,23 +43,16 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     setTextCursor,
     selections,
     deleteSelection,
-    grid,
-    erasePoints,
     copySelectionAsPng,
+    copySelection,
+    cutSelection,
+    canCopyOrCut,
   } = store;
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
 
-  const shouldIgnoreClipboardEvent = () => {
-    const activeElement = document.activeElement as HTMLElement | null;
-    if (!activeElement) return false;
-    const tagName = activeElement.tagName.toLowerCase();
-    if (tagName === 'input') return true;
-    if (tagName === 'textarea') {
-      return activeElement !== textareaRef.current;
-    }
-    return activeElement.isContentEditable;
-  };
+  const shouldIgnoreClipboardEvent = () =>
+    shouldIgnoreClipboardShortcut(document.activeElement, textareaRef.current);
 
   useCanvasRenderer(
     { bg: bgCanvasRef, scratch: scratchCanvasRef, ui: uiCanvasRef },
@@ -79,88 +70,18 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     }
   }, [textCursor, selections.length]);
 
-  const getTransferData = useCallback(() => {
-    if (selections.length > 0) {
-      return {
-        plain: exportSelectionToString(grid, selections),
-        rich: exportSelectionToJSON(grid, selections),
-      };
-    } else if (textCursor) {
-      const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
-      const char = cell?.char || ' ';
-      return {
-        plain: char,
-        rich: JSON.stringify({
-          type: 'ascii-metropolis-zone',
-          version: 1,
-          cells: [{ x: 0, y: 0, char, color: cell?.color || store.brushColor }],
-        }),
-      };
-    }
-    return null;
-  }, [grid, selections, textCursor, store.brushColor]);
-
-  const writeClipboard = useCallback(
-    async (plain: string, rich?: string | null, syncEvent?: ClipboardEvent) => {
-      if (syncEvent?.clipboardData) {
-        syncEvent.preventDefault();
-        syncEvent.clipboardData.setData('text/plain', plain);
-        if (rich) syncEvent.clipboardData.setData(MIME_RICH_DATA, rich);
-      } else {
-        const clipboardMap: Record<string, Blob> = {
-          'text/plain': new Blob([plain], { type: 'text/plain' }),
-        };
-        if (rich)
-          clipboardMap[MIME_RICH_DATA] = new Blob([rich], {
-            type: MIME_RICH_DATA,
-          });
-
-        try {
-          await navigator.clipboard.write([new ClipboardItem(clipboardMap)]);
-        } catch {
-          navigator.clipboard.writeText(plain);
-        }
-      }
-    },
-    []
-  );
-
   const handleStandardCopy = (e?: ClipboardEvent) => {
     if (e && shouldIgnoreClipboardEvent()) return;
-    const data = getTransferData();
-    if (data) writeClipboard(data.plain, null, e);
+    void copySelection({ event: e });
   };
 
   const handleRichCopy = () => {
-    const data = getTransferData();
-    if (data) writeClipboard(data.plain, data.rich);
+    void copySelection({ rich: true });
   };
 
   const handleCut = (e?: ClipboardEvent) => {
     if (e && shouldIgnoreClipboardEvent()) return;
-    handleStandardCopy(e);
-    deleteSelection();
-    if (textCursor) erasePoints([textCursor]);
-  };
-
-  const performPaste = async (eventDataTransfer?: DataTransfer) => {
-    try {
-      if (eventDataTransfer) {
-        const richData = eventDataTransfer.getData(MIME_RICH_DATA);
-        if (richData) return pasteRichData(JSON.parse(richData).cells);
-      }
-      const items = await navigator.clipboard.read();
-      for (const item of items) {
-        if (item.types.includes(MIME_RICH_DATA)) {
-          const blob = await item.getType(MIME_RICH_DATA);
-          return pasteRichData(JSON.parse(await blob.text()).cells);
-        }
-      }
-      const text = await navigator.clipboard.readText();
-      if (text) writeTextString(text);
-    } catch {
-      // Fail silently
-    }
+    void cutSelection({ event: e });
   };
 
   useEventListener('copy', handleStandardCopy);
@@ -168,7 +89,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   useEventListener('paste', (e: ClipboardEvent) => {
     if (shouldIgnoreClipboardEvent()) return;
     e.preventDefault();
-    performPaste(e.clipboardData || undefined);
+    void pasteFromClipboard({ eventDataTransfer: e.clipboardData || undefined });
   });
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
@@ -204,10 +125,8 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
     if (isComposing.current) return;
-    const isUndo = isCtrlOrMeta(e) && !e.shiftKey && e.key.toLowerCase() === 'z';
-    const isRedo =
-      (isCtrlOrMeta(e) && e.shiftKey && e.key.toLowerCase() === 'z') ||
-      (isCtrlOrMeta(e) && e.key.toLowerCase() === 'y');
+    const isUndo = isUndoShortcut(e);
+    const isRedo = isRedoShortcut(e);
 
     if (isUndo) {
       e.preventDefault();
@@ -297,13 +216,13 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       <ContextMenuContent className="w-56">
         <ContextMenuItem
           onClick={() => handleStandardCopy()}
-          disabled={!textCursor && selections.length === 0}
+          disabled={!canCopyOrCut()}
         >
           <Copy className="mr-2 size-4" />
           <span>Copy as Text</span>
           <ContextMenuShortcut>⌘C</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuItem onClick={handleRichCopy} disabled={!textCursor && selections.length === 0}>
+        <ContextMenuItem onClick={handleRichCopy} disabled={!canCopyOrCut()}>
           <Palette className="mr-2 size-4" />
           <span>Copy with Color</span>
         </ContextMenuItem>
@@ -316,13 +235,13 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
         </ContextMenuItem>
         <ContextMenuItem
           onClick={() => handleCut()}
-          disabled={!textCursor && selections.length === 0}
+          disabled={!canCopyOrCut()}
         >
           <Scissors className="mr-2 size-4" />
           <span>Cut Zone</span>
           <ContextMenuShortcut>⌘X</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => performPaste()}>
+        <ContextMenuItem onClick={() => void pasteFromClipboard()}>
           <Clipboard className="mr-2 size-4" />
           <span>Paste Lot</span>
           <ContextMenuShortcut>⌘V</ContextMenuShortcut>
@@ -330,7 +249,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
         <ContextMenuSeparator />
         <ContextMenuItem
           onClick={deleteSelection}
-          className="text-destructive focus:text-destructive"
+          variant="destructive"
           disabled={selections.length === 0}
         >
           <Trash2 className="mr-2 size-4" />

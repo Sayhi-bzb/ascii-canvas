@@ -28,5 +28,4 @@ export type ToolType =
   | "box"
   | "line"
   | "stepline"
-  | "circle"
-  | "text";
+  | "circle";

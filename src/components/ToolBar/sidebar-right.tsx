@@ -117,8 +117,9 @@ export function SidebarRight() {
                     <TooltipTrigger asChild>
                       <DialogTrigger asChild>
                         <Button
-                          variant="ghost"
-                          size="icon"
+                          tone="subtle"
+                          shape="square"
+                          size="md"
                           className="size-8 text-muted-foreground hover:text-primary transition-colors"
                         >
                           <Download className="size-4" />
@@ -154,7 +155,7 @@ export function SidebarRight() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <ActionButton
-                              variant="outline"
+                              tone="neutral"
                               size="md"
                               icon={Copy}
                               className="border-2 rounded-xl"
@@ -173,7 +174,7 @@ export function SidebarRight() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <ActionButton
-                              variant="outline"
+                              tone="neutral"
                               size="md"
                               icon={ImageIcon}
                               className="border-2 rounded-xl"
@@ -192,7 +193,7 @@ export function SidebarRight() {
                         Print Grid on PNG
                       </span>
                       <Button
-                        variant={exportShowGrid ? "default" : "secondary"}
+                        tone={exportShowGrid ? "primary" : "neutral"}
                         size="sm"
                         onClick={() => setExportShowGrid(!exportShowGrid)}
                         className="h-6 px-2 rounded-md text-[10px] uppercase font-bold"
@@ -208,8 +209,9 @@ export function SidebarRight() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="ghost"
-                      size="icon"
+                      tone="subtle"
+                      shape="square"
+                      size="md"
                       className={cn(
                         "size-8 transition-colors",
                         showGrid ? "text-primary" : "text-muted-foreground"
@@ -231,8 +233,9 @@ export function SidebarRight() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="ghost"
-                      size="icon"
+                      tone="subtle"
+                      shape="square"
+                      size="md"
                       className="size-8 text-muted-foreground"
                       onClick={handleResetView}
                     >
@@ -247,8 +250,9 @@ export function SidebarRight() {
                     <TooltipTrigger asChild>
                       <DialogTrigger asChild>
                         <Button
-                          variant="ghost"
-                          size="icon"
+                          tone="subtle"
+                          shape="square"
+                          size="md"
                           className="size-8 text-muted-foreground hover:text-primary"
                         >
                           <CircleHelp className="size-4" />
@@ -416,8 +420,9 @@ export function SidebarRight() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
-                    size="icon"
+                    tone="subtle"
+                    shape="square"
+                    size="md"
                     className="size-8 text-muted-foreground"
                     onClick={() => window.open("https://github.com", "_blank")}
                   >
@@ -435,8 +440,9 @@ export function SidebarRight() {
                 <TooltipTrigger asChild>
                   <AlertDialogTrigger asChild>
                     <Button
-                      variant="ghost"
-                      size={isCollapsed ? "icon" : "default"}
+                      tone="subtle"
+                      shape={isCollapsed ? "square" : "auto"}
+                      size={isCollapsed ? "md" : "sm"}
                       className={cn(
                         "justify-start gap-2 text-destructive hover:bg-destructive/10 transition-colors",
                         isCollapsed

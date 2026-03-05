@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "knip": "knip",
+    "check-style-api": "node scripts/check-style-api.mjs",
     "tree": "npx tree-node-cli src > structure.txt",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,md}\"",
     "check-format": "prettier --check \"src/**/*.{js,jsx,ts,tsx,json,md}\""

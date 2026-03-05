@@ -44,9 +44,12 @@ export interface SelectionSlice {
   selections: SelectionArea[];
   addSelection: (area: SelectionArea) => void;
   clearSelections: () => void;
+  clearInteractionState: () => void;
+  canCopyOrCut: () => boolean;
   deleteSelection: () => void;
-  copySelectionToClipboard: () => void;
-  cutSelectionToClipboard: () => void;
+  copySelection: (options?: { rich?: boolean; event?: ClipboardEvent }) => Promise<void>;
+  cutSelection: (options?: { event?: ClipboardEvent }) => Promise<void>;
+  pasteFromClipboard: (options?: { eventDataTransfer?: DataTransfer }) => Promise<void>;
   copySelectionAsPng: (withGrid: boolean) => Promise<void>;
   fillSelectionsWithChar: (char: string) => void;
   fillArea: (area: SelectionArea) => void;

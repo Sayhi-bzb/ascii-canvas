@@ -4,12 +4,17 @@ import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
 import {
-  exportSelectionToString,
   copySelectionToPngClipboard,
 } from "../../utils/export";
 import { placeCharInYMap } from "../utils";
 import { toast } from "sonner";
 import type { GridCell } from "../../types";
+import {
+  buildClipboardPayload,
+  hasClipboardSource,
+  readClipboardPayload,
+  writeClipboardPayload,
+} from "../actions/clipboardActions";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -20,6 +25,11 @@ export const createSelectionSlice: StateCreator<
   selections: [],
   addSelection: (area) => set((s) => ({ selections: [...s.selections, area] })),
   clearSelections: () => set({ selections: [] }),
+  clearInteractionState: () => set({ selections: [], textCursor: null }),
+  canCopyOrCut: () => {
+    const { selections, textCursor } = get();
+    return hasClipboardSource(selections, textCursor);
+  },
 
   deleteSelection: () => {
     const { selections } = get();
@@ -35,48 +45,53 @@ export const createSelectionSlice: StateCreator<
     });
   },
 
-  copySelectionToClipboard: () => {
-    const { grid, selections, textCursor } = get();
-    if (selections.length === 0 && !textCursor) return;
-
-    let text = "";
-    if (selections.length > 0) {
-      text = exportSelectionToString(grid, selections);
-    } else if (textCursor) {
-      const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
-      text = cell?.char || " ";
-    }
-
-    navigator.clipboard.writeText(text).catch((err) => {
-      console.error("Failed to copy text: ", err);
+  copySelection: async (options) => {
+    const { grid, selections, textCursor, brushColor } = get();
+    const payload = buildClipboardPayload(grid, selections, textCursor, brushColor);
+    if (!payload) return;
+    await writeClipboardPayload(payload, {
+      event: options?.event,
+      withRich: !!options?.rich,
     });
   },
 
-  cutSelectionToClipboard: () => {
-    const { grid, selections, deleteSelection, textCursor, erasePoints } =
-      get();
-    if (selections.length === 0 && !textCursor) return;
+  cutSelection: async (options) => {
+    const {
+      grid,
+      selections,
+      textCursor,
+      brushColor,
+      deleteSelection,
+      erasePoints,
+    } = get();
+    const payload = buildClipboardPayload(grid, selections, textCursor, brushColor);
+    if (!payload) return;
 
-    let text = "";
+    const copied = await writeClipboardPayload(payload, {
+      event: options?.event,
+      withRich: false,
+    });
+    if (!copied) return;
+
     if (selections.length > 0) {
-      text = exportSelectionToString(grid, selections);
+      deleteSelection();
     } else if (textCursor) {
-      const cell = grid.get(GridManager.toKey(textCursor.x, textCursor.y));
-      text = cell?.char || " ";
+      erasePoints([textCursor]);
+    }
+  },
+
+  pasteFromClipboard: async (options) => {
+    const { pasteRichData, writeTextString } = get();
+    const payload = await readClipboardPayload(options?.eventDataTransfer);
+
+    if (payload.richCells) {
+      pasteRichData(payload.richCells);
+      return;
     }
 
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        if (selections.length > 0) {
-          deleteSelection();
-        } else if (textCursor) {
-          erasePoints([textCursor]);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to cut text: ", err);
-      });
+    if (payload.plainText) {
+      writeTextString(payload.plainText);
+    }
   },
 
   copySelectionAsPng: async (withGrid) => {

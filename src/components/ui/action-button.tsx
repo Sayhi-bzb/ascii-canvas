@@ -4,48 +4,28 @@ import { AnimatePresence, motion } from "motion/react";
 import type { HTMLMotionProps } from "motion/react";
 import { CheckIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import {
+  buttonVariants,
+  type ButtonShape,
+  type ButtonSize,
+  type ButtonTone,
+  type LegacyButtonVariant,
+} from "@/components/ui/button";
 
-const buttonVariants = cva(
-  "inline-flex items-center justify-center cursor-pointer rounded-md transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-  {
-    variants: {
-      variant: {
-        default:
-          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-        muted: "bg-muted text-muted-foreground",
-        destructive:
-          "bg-destructive text-white shadow-xs hover:bg-destructive/90",
-        outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
-        secondary:
-          "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-      },
-      size: {
-        default: "size-8 rounded-lg [&_svg]:size-4",
-        sm: "size-6 [&_svg]:size-3",
-        md: "size-10 rounded-lg [&_svg]:size-4.5",
-        lg: "size-12 rounded-xl [&_svg]:size-6",
-        full: "w-full h-20 flex-col gap-2 rounded-xl",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
-);
+type ActionButtonSize = ButtonSize | "full";
 
 interface ActionButtonProps
-  extends HTMLMotionProps<"button">,
-    VariantProps<typeof buttonVariants> {
+  extends HTMLMotionProps<"button"> {
   icon: LucideIcon;
   label?: string;
   subLabel?: string;
   delay?: number;
   onAction: () => void | Promise<void>;
+  tone?: ButtonTone;
+  variant?: LegacyButtonVariant;
+  size?: ActionButtonSize;
+  shape?: ButtonShape;
 }
 
 export function ActionButton({
@@ -53,14 +33,25 @@ export function ActionButton({
   label,
   subLabel,
   className,
-  size,
+  size = "md",
+  tone,
   variant,
+  shape = "square",
   delay = 2000,
   onAction,
   ...props
 }: ActionButtonProps) {
   const [isSuccess, setIsSuccess] = React.useState(false);
   const CurrentIcon = isSuccess ? CheckIcon : Icon;
+  const resolvedSize: ButtonSize = size === "full" ? "lg" : size;
+  const iconClassName =
+    size === "full"
+      ? "size-5"
+      : resolvedSize === "lg"
+      ? "size-5"
+      : resolvedSize === "md"
+      ? "size-4"
+      : "size-3.5";
 
   const handlePress = async (e: React.MouseEvent<HTMLButtonElement>) => {
     if (isSuccess) return;
@@ -74,7 +65,16 @@ export function ActionButton({
     <motion.button
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
-      className={cn(buttonVariants({ variant, size }), className)}
+      className={cn(
+        buttonVariants({
+          tone,
+          variant,
+          size: resolvedSize,
+          shape,
+        }),
+        size === "full" && "w-full h-20 flex-col gap-2 rounded-xl",
+        className
+      )}
       {...props}
       onClick={handlePress}
     >
@@ -87,17 +87,7 @@ export function ActionButton({
           transition={{ duration: 0.15 }}
           className="flex flex-col items-center justify-center"
         >
-          <CurrentIcon
-            className={cn(
-              size === "full"
-                ? "size-5"
-                : size === "lg"
-                ? "size-6"
-                : size === "md"
-                ? "size-4"
-                : "size-3.5"
-            )}
-          />
+          <CurrentIcon className={iconClassName} />
           {size === "full" && label && (
             <div className="flex flex-col items-center">
               <span className="text-sm font-bold">{label}</span>

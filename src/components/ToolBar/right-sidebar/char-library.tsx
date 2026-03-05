@@ -13,6 +13,7 @@ import {
 import { useCanvasStore } from "@/store/canvasStore";
 import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
 import { cn } from "@/lib/utils";
+import { rx } from "@/styles/recipes";
 import { toast } from "sonner";
 import {
   Collapsible,
@@ -41,10 +42,15 @@ const CharButton = ({
   <button
     onClick={() => onClick(char)}
     className={cn(
-      "size-7 flex items-center justify-center rounded-md transition-all font-mono text-sm border shrink-0",
+      rx.control({
+        tone: isSelected ? "primary" : "subtle",
+        size: "sm",
+        shape: "square",
+      }),
+      "font-mono text-sm border shrink-0",
       isSelected
-        ? "bg-primary text-primary-foreground border-primary shadow-sm"
-        : "bg-background hover:border-primary/50 hover:bg-accent text-foreground border-border"
+        ? "border-primary shadow-sm"
+        : "bg-background border-border hover:border-primary/50 text-foreground"
     )}
   >
     {char}
