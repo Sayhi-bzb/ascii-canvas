@@ -1,6 +1,6 @@
 import * as Y from "yjs";
-import { GridManager } from "../utils/grid";
 import type { GridCell } from "../types";
+import { writeCell } from "./gridOps";
 
 export const placeCharInMap = (
   targetMap: {
@@ -13,20 +13,7 @@ export const placeCharInMap = (
   char: string,
   color: string
 ) => {
-  if (!char) return;
-
-  const leftKey = GridManager.toKey(x - 1, y);
-  const leftCell = targetMap.get(leftKey);
-  if (leftCell && GridManager.isWideChar(leftCell.char)) {
-    targetMap.delete(leftKey);
-  }
-
-  targetMap.set(GridManager.toKey(x, y), { char, color });
-
-  if (GridManager.isWideChar(char)) {
-    const rightKey = GridManager.toKey(x + 1, y);
-    targetMap.delete(rightKey);
-  }
+  writeCell(targetMap, x, y, char, color);
 };
 
 export const placeCharInYMap = (
@@ -36,18 +23,5 @@ export const placeCharInYMap = (
   char: string,
   color: string
 ) => {
-  if (!char) return;
-
-  const leftKey = GridManager.toKey(x - 1, y);
-  const leftCell = targetGrid.get(leftKey);
-  if (leftCell && GridManager.isWideChar(leftCell.char)) {
-    targetGrid.delete(leftKey);
-  }
-
-  targetGrid.set(GridManager.toKey(x, y), { char, color });
-
-  if (GridManager.isWideChar(char)) {
-    const rightKey = GridManager.toKey(x + 1, y);
-    targetGrid.delete(rightKey);
-  }
+  writeCell(targetGrid, x, y, char, color);
 };

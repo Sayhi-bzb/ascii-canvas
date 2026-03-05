@@ -3,7 +3,7 @@ import { GridManager } from "../../utils/grid";
 import type { GridMap, Point, SelectionArea } from "../../types";
 import type { RichTextCell } from "../interfaces";
 
-export const MIME_RICH_DATA = "web application/x-ascii-metropolis";
+const MIME_RICH_DATA = "web application/x-ascii-metropolis";
 
 interface ClipboardPayload {
   plain: string;

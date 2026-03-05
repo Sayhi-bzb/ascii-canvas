@@ -10,7 +10,6 @@ import {
   type ButtonShape,
   type ButtonSize,
   type ButtonTone,
-  type LegacyButtonVariant,
 } from "@/components/ui/button";
 
 type ActionButtonSize = ButtonSize | "full";
@@ -23,7 +22,6 @@ interface ActionButtonProps
   delay?: number;
   onAction: () => void | Promise<void>;
   tone?: ButtonTone;
-  variant?: LegacyButtonVariant;
   size?: ActionButtonSize;
   shape?: ButtonShape;
 }
@@ -35,7 +33,6 @@ export function ActionButton({
   className,
   size = "md",
   tone,
-  variant,
   shape = "square",
   delay = 2000,
   onAction,
@@ -68,7 +65,6 @@ export function ActionButton({
       className={cn(
         buttonVariants({
           tone,
-          variant,
           size: resolvedSize,
           shape,
         }),

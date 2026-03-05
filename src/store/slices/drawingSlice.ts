@@ -2,8 +2,9 @@ import type { StateCreator } from "zustand";
 import type { CanvasState, DrawingSlice } from "../interfaces";
 import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
-import type { GridPoint, GridCell } from "../../types";
+import type { GridPoint } from "../../types";
 import { placeCharInMap, placeCharInYMap } from "../utils";
+import { deleteCellAt } from "../gridOps";
 import {
   getBoxPoints,
   getCirclePoints,
@@ -79,16 +80,7 @@ export const createDrawingSlice: StateCreator<
   erasePoints: (points) => {
     transactWithHistory(() => {
       points.forEach((p) => {
-        const key = GridManager.toKey(p.x, p.y);
-        const cell = yMainGrid.get(key) as GridCell | undefined;
-        if (!cell) {
-          const leftKey = GridManager.toKey(p.x - 1, p.y);
-          const leftCell = yMainGrid.get(leftKey) as GridCell | undefined;
-          if (leftCell && GridManager.isWideChar(leftCell.char)) {
-            yMainGrid.delete(leftKey);
-          }
-        }
-        yMainGrid.delete(key);
+        deleteCellAt(yMainGrid, p.x, p.y);
       });
     });
   },

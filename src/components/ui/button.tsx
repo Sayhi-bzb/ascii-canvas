@@ -10,67 +10,28 @@ export type ButtonTone = Tone
 export type ButtonSize = Size
 export type ButtonShape = Shape
 
-export type LegacyButtonVariant =
-  | "default"
-  | "destructive"
-  | "outline"
-  | "secondary"
-  | "ghost"
-  | "link"
-
-export type LegacyButtonSize =
-  | "default"
-  | "sm"
-  | "lg"
-  | "icon"
-  | "icon-sm"
-  | "icon-lg"
-
 type ButtonVariantInput = {
   className?: string
   tone?: ButtonTone
-  size?: ButtonSize | LegacyButtonSize
+  size?: ButtonSize
   shape?: ButtonShape
-  variant?: LegacyButtonVariant
   outlined?: boolean
-}
-
-const variantToneMap: Record<LegacyButtonVariant, ButtonTone> = {
-  default: "primary",
-  destructive: "danger",
-  outline: "neutral",
-  secondary: "neutral",
-  ghost: "subtle",
-  link: "link",
-}
-
-const normalizeSize = (
-  size: ButtonSize | LegacyButtonSize | undefined
-): { size: ButtonSize; shape: ButtonShape | undefined } => {
-  if (!size || size === "default") return { size: "md", shape: undefined }
-  if (size === "sm" || size === "md" || size === "lg") {
-    return { size, shape: undefined }
-  }
-  if (size === "icon-sm") return { size: "sm", shape: "square" }
-  if (size === "icon-lg") return { size: "lg", shape: "square" }
-  return { size: "md", shape: "square" }
 }
 
 const resolveButtonStyle = ({
   tone,
   size,
   shape,
-  variant,
   outlined,
 }: Omit<ButtonVariantInput, "className">) => {
-  const normalized = normalizeSize(size)
-  const resolvedTone = tone ?? variantToneMap[variant ?? "default"]
-  const resolvedShape = shape ?? normalized.shape ?? "auto"
-  const resolvedOutlined = outlined ?? variant === "outline"
+  const resolvedTone = tone ?? "primary"
+  const resolvedSize = size ?? "md"
+  const resolvedShape = shape ?? "auto"
+  const resolvedOutlined = outlined ?? false
 
   return {
     tone: resolvedTone,
-    size: normalized.size,
+    size: resolvedSize,
     shape: resolvedShape,
     outlined: resolvedOutlined,
   }
@@ -93,23 +54,21 @@ type ButtonProps = React.ComponentProps<"button"> & {
   asChild?: boolean
   tone?: ButtonTone
   shape?: ButtonShape
-  size?: ButtonSize | LegacyButtonSize
-  variant?: LegacyButtonVariant
+  size?: ButtonSize
   outlined?: boolean
 }
 
 function Button({
   className,
   tone,
-  variant,
-  size = "default",
+  size = "md",
   shape,
   outlined,
   asChild = false,
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot : "button"
-  const resolved = resolveButtonStyle({ tone, variant, size, shape, outlined })
+  const resolved = resolveButtonStyle({ tone, size, shape, outlined })
 
   return (
     <Comp
@@ -117,7 +76,7 @@ function Button({
       data-tone={resolved.tone}
       data-size={resolved.size}
       data-shape={resolved.shape}
-      className={buttonVariants({ tone, variant, size, shape, outlined, className })}
+      className={buttonVariants({ tone, size, shape, outlined, className })}
       {...props}
     />
   )

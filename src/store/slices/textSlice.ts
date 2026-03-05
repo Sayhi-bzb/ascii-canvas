@@ -3,6 +3,10 @@ import type { CanvasState, TextSlice } from "../interfaces";
 import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
 import { placeCharInYMap } from "../utils";
+import {
+  deleteCellAt,
+  resolveBackspaceAnchor,
+} from "../gridOps";
 
 export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   set,
@@ -94,17 +98,8 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
     if (!textCursor) return;
     transactWithHistory(() => {
       const { x, y } = textCursor;
-      let deletePos = { x: x - 1, y };
-      const cellAtMinus1 = grid.get(GridManager.toKey(x - 1, y));
-      const cellAtMinus2 = grid.get(GridManager.toKey(x - 2, y));
-      if (
-        !cellAtMinus1 &&
-        cellAtMinus2 &&
-        GridManager.isWideChar(cellAtMinus2.char)
-      ) {
-        deletePos = { x: x - 2, y };
-      }
-      yMainGrid.delete(GridManager.toKey(deletePos.x, deletePos.y));
+      const deletePos = resolveBackspaceAnchor(grid, x, y);
+      deleteCellAt(yMainGrid, deletePos.x, deletePos.y);
       set({ textCursor: deletePos });
     });
   },

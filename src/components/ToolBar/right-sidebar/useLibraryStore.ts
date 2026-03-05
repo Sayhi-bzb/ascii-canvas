@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export interface LibraryData {
+interface LibraryData {
   entities: Record<string, Record<string, string>>;
   related: Record<string, string[]>;
   alphabets: Record<string, string[]>;

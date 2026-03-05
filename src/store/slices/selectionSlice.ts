@@ -9,6 +9,7 @@ import {
 import { placeCharInYMap } from "../utils";
 import { toast } from "sonner";
 import type { GridCell } from "../../types";
+import { deleteRect } from "../gridOps";
 import {
   buildClipboardPayload,
   hasClipboardSource,
@@ -36,11 +37,7 @@ export const createSelectionSlice: StateCreator<
     transactWithHistory(() => {
       selections.forEach((area) => {
         const { minX, maxX, minY, maxY } = getSelectionBounds(area);
-        for (let y = minY; y <= maxY; y++) {
-          for (let x = minX; x <= maxX; x++) {
-            yMainGrid.delete(GridManager.toKey(x, y));
-          }
-        }
+        deleteRect(yMainGrid, minX, minY, maxX, maxY);
       });
     });
   },

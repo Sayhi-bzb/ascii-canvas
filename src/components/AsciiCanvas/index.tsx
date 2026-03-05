@@ -14,8 +14,11 @@ import {
   ContextMenuShortcut,
 } from '@/components/ui/context-menu';
 import { Copy, Scissors, Trash2, Clipboard, Image, Palette } from 'lucide-react';
-import { shouldIgnoreClipboardShortcut } from '../../utils/dom-focus';
-import { isRedoShortcut, isUndoShortcut } from '../../store/actions/shortcutActions';
+import {
+  canRunManagedClipboardCommand,
+  resolveHistoryShortcutCommand,
+  runEditorCommand,
+} from '../../store/actions/editorCommands';
 
 interface AsciiCanvasProps {
   onUndo: () => void;
@@ -35,7 +38,6 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const {
     textCursor,
     writeTextString,
-    pasteFromClipboard,
     backspaceText,
     newlineText,
     indentText,
@@ -44,15 +46,10 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     selections,
     deleteSelection,
     copySelectionAsPng,
-    copySelection,
-    cutSelection,
     canCopyOrCut,
   } = store;
 
   const { draggingSelection } = useCanvasInteraction(store, containerRef);
-
-  const shouldIgnoreClipboardEvent = () =>
-    shouldIgnoreClipboardShortcut(document.activeElement, textareaRef.current);
 
   useCanvasRenderer(
     { bg: bgCanvasRef, scratch: scratchCanvasRef, ui: uiCanvasRef },
@@ -71,25 +68,35 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   }, [textCursor, selections.length]);
 
   const handleStandardCopy = (e?: ClipboardEvent) => {
-    if (e && shouldIgnoreClipboardEvent()) return;
-    void copySelection({ event: e });
+    runEditorCommand('copy', {
+      source: e ? 'clipboard-event' : 'context-menu',
+      clipboardEvent: e,
+      managedTextarea: textareaRef.current,
+    });
   };
 
   const handleRichCopy = () => {
-    void copySelection({ rich: true });
+    runEditorCommand('copy-rich', { source: 'context-menu' });
   };
 
   const handleCut = (e?: ClipboardEvent) => {
-    if (e && shouldIgnoreClipboardEvent()) return;
-    void cutSelection({ event: e });
+    runEditorCommand('cut', {
+      source: e ? 'clipboard-event' : 'context-menu',
+      clipboardEvent: e,
+      managedTextarea: textareaRef.current,
+    });
   };
 
   useEventListener('copy', handleStandardCopy);
   useEventListener('cut', handleCut);
   useEventListener('paste', (e: ClipboardEvent) => {
-    if (shouldIgnoreClipboardEvent()) return;
+    if (!canRunManagedClipboardCommand(textareaRef.current)) return;
     e.preventDefault();
-    void pasteFromClipboard({ eventDataTransfer: e.clipboardData || undefined });
+    runEditorCommand('paste', {
+      source: 'clipboard-event',
+      clipboardEvent: e,
+      managedTextarea: textareaRef.current,
+    });
   });
 
   const textareaStyle: React.CSSProperties = useMemo(() => {
@@ -125,17 +132,15 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
     if (isComposing.current) return;
-    const isUndo = isUndoShortcut(e);
-    const isRedo = isRedoShortcut(e);
-
-    if (isUndo) {
+    const historyCommand = resolveHistoryShortcutCommand(e);
+    if (historyCommand) {
       e.preventDefault();
-      onUndo();
-      return;
-    }
-    if (isRedo) {
-      e.preventDefault();
-      onRedo();
+      runEditorCommand(historyCommand, {
+        source: 'canvas-keydown',
+        managedTextarea: textareaRef.current,
+        onUndo,
+        onRedo,
+      });
       return;
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selections.length > 0) {
@@ -241,7 +246,11 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
           <span>Cut Zone</span>
           <ContextMenuShortcut>⌘X</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => void pasteFromClipboard()}>
+        <ContextMenuItem
+          onClick={() => {
+            runEditorCommand('paste', { source: 'context-menu' });
+          }}
+        >
           <Clipboard className="mr-2 size-4" />
           <span>Paste Lot</span>
           <ContextMenuShortcut>⌘V</ContextMenuShortcut>
