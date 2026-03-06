@@ -40,10 +40,7 @@ export default function App() {
     runRedo();
   };
 
-  const runGlobalCommand = (
-    command: "undo" | "redo" | "copy" | "cut",
-    event: KeyboardEvent
-  ) => {
+  const runGlobalCommand = (command: "undo" | "redo", event: KeyboardEvent) => {
     const result = runAction(command, {
       source: "global-hotkey",
       onUndo: handleUndo,
@@ -58,14 +55,6 @@ export default function App() {
 
   useKeyPress(["meta.shift.z", "ctrl.shift.z", "meta.y", "ctrl.y"], (e) => {
     runGlobalCommand("redo", e);
-  });
-
-  useKeyPress(["meta.c", "ctrl.c"], (e) => {
-    runGlobalCommand("copy", e);
-  });
-
-  useKeyPress(["meta.x", "ctrl.x"], (e) => {
-    runGlobalCommand("cut", e);
   });
 
   useKeyPress(

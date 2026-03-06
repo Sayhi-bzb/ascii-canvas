@@ -21,7 +21,6 @@ import {
   runAction,
 } from '@/features/editor-actions';
 import {
-  canRunManagedClipboardCommand,
   resolveHistoryShortcutCommand,
 } from '../../store/actions/editorCommands';
 import { useShallow } from 'zustand/react/shallow';
@@ -43,11 +42,13 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   const interactionStore = useCanvasStore(
     useShallow((state) => ({
       tool: state.tool,
+      canvasMode: state.canvasMode,
       brushChar: state.brushChar,
       setOffset: state.setOffset,
       setZoom: state.setZoom,
       addScratchPoints: state.addScratchPoints,
       commitScratch: state.commitScratch,
+      commitStructuredShape: state.commitStructuredShape,
       setTextCursor: state.setTextCursor,
       addSelection: state.addSelection,
       clearSelections: state.clearSelections,
@@ -125,7 +126,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     actionId: 'copy' | 'cut' | 'paste',
     e?: ClipboardEvent
   ) => {
-    runAction(actionId, {
+    return runAction(actionId, {
       source: e ? 'clipboard-event' : 'context-menu',
       clipboardEvent: e,
       managedTextarea: textareaRef.current,
@@ -133,15 +134,20 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
   };
 
   useEventListener('copy', (e: ClipboardEvent) => {
-    runManagedAction('copy', e);
+    const result = runManagedAction('copy', e);
+    if (result.succeeded) e.preventDefault();
   });
   useEventListener('cut', (e: ClipboardEvent) => {
-    runManagedAction('cut', e);
+    const result = runManagedAction('cut', e);
+    if (result.succeeded || document.activeElement === textareaRef.current) {
+      e.preventDefault();
+    }
   });
   useEventListener('paste', (e: ClipboardEvent) => {
-    if (!canRunManagedClipboardCommand(textareaRef.current)) return;
-    e.preventDefault();
-    runManagedAction('paste', e);
+    const result = runManagedAction('paste', e);
+    if (result.succeeded || document.activeElement === textareaRef.current) {
+      e.preventDefault();
+    }
   });
 
   const textareaStyle: React.CSSProperties = useMemo(() => {

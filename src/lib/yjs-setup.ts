@@ -1,11 +1,13 @@
 import * as Y from "yjs";
 import type { GridCell } from "../types";
+import type { StructuredNode } from "../types";
 
 const yDoc = new Y.Doc();
 
 export const yMainGrid = yDoc.getMap<GridCell>("main-grid");
+export const yStructuredScene = yDoc.getMap<StructuredNode>("structured-scene");
 
-export const undoManager = new Y.UndoManager([yMainGrid], {
+export const undoManager = new Y.UndoManager([yMainGrid, yStructuredScene], {
   captureTimeout: 500,
   trackedOrigins: new Set([null]),
 });

@@ -17,6 +17,7 @@ import {
   resolveActiveToolbarAction,
   runToolbarAction,
 } from "@/features/toolbar-actions";
+import type { ToolbarActionId } from "@/features/toolbar-actions/types";
 import {
   Tooltip,
   TooltipContent,
@@ -52,12 +53,13 @@ const submenuOptionClass = (active: boolean) =>
   );
 
 export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
-  const { brushChar, setBrushChar, brushColor, setBrushColor } = useCanvasStore(
+  const { brushChar, setBrushChar, brushColor, setBrushColor, canvasMode } = useCanvasStore(
     useShallow((state) => ({
       brushChar: state.brushChar,
       setBrushChar: state.setBrushChar,
       brushColor: state.brushColor,
       setBrushColor: state.setBrushColor,
+      canvasMode: state.canvasMode,
     }))
   );
   const [lastUsedShape, setLastUsedShape] = useState<ToolType>("box");
@@ -92,8 +94,18 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
     [isShapeGroupActive, tool, lastUsedShape, getToolMeta]
   );
 
+  const visibleActionOrder = useMemo<ToolbarActionId[]>(() => {
+    if (canvasMode !== "structured") return TOOLBAR_ACTION_ORDER;
+    return ["select", "shape-group", "undo", "color"];
+  }, [canvasMode]);
+
+  const structuredShapeTools = useMemo<ToolType[]>(() => {
+    if (canvasMode !== "structured") return SHAPE_TOOLS;
+    return ["box", "line"];
+  }, [canvasMode]);
+
   const navItems = useMemo(() => {
-    return TOOLBAR_ACTION_ORDER.map((id) => {
+    return visibleActionOrder.map((id) => {
       const meta = TOOLBAR_ACTION_META[id];
       if (id === "brush") {
         return { ...meta, label: `Brush (${brushChar})` };
@@ -103,7 +115,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
       }
       return meta;
     });
-  }, [brushChar, activeShapeMeta]);
+  }, [visibleActionOrder, brushChar, activeShapeMeta]);
 
   const activeIndex = useMemo(() => {
     const currentId = resolveActiveToolbarAction(tool, isShapeGroupActive);
@@ -228,6 +240,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                       ) : (
                         <ShapeSubmenu
                           tool={tool}
+                          shapeTools={structuredShapeTools}
                           setTool={setTool}
                           setLastUsedShape={setLastUsedShape}
                           getToolMeta={getToolMeta}

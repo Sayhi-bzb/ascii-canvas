@@ -63,6 +63,9 @@ export const runEditorCommand = (
       return true;
     case "copy":
     case "copy-rich":
+      if (state.canvasMode === "structured" && command === "copy-rich") {
+        return false;
+      }
       if (!state.canCopyOrCut()) return false;
       void state.copySelection({
         event: options.clipboardEvent,
@@ -70,15 +73,26 @@ export const runEditorCommand = (
       });
       return true;
     case "cut":
+      if (state.canvasMode === "structured") {
+        void state.cutSelection({ event: options.clipboardEvent });
+        return false;
+      }
       if (!state.canCopyOrCut()) return false;
       void state.cutSelection({ event: options.clipboardEvent });
       return true;
     case "paste":
+      if (state.canvasMode === "structured") {
+        void state.pasteFromClipboard({
+          eventDataTransfer: options.clipboardEvent?.clipboardData || undefined,
+        });
+        return false;
+      }
       void state.pasteFromClipboard({
         eventDataTransfer: options.clipboardEvent?.clipboardData || undefined,
       });
       return true;
     case "fill-selection-char": {
+      if (state.canvasMode === "structured") return false;
       const fillChar = options.fillChar ? getFirstGrapheme(options.fillChar) : "";
       if (!fillChar) return false;
       const { selections, textCursor } = state;

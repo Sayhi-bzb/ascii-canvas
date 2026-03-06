@@ -6,10 +6,11 @@ import {
   BACKGROUND_COLOR,
   GRID_COLOR,
 } from "../lib/constants";
-import type { GridMap, SelectionArea } from "../types";
+import type { GridMap, SelectionArea, StructuredNode } from "../types";
 import { GridManager } from "./grid";
 import { getSelectionsBoundingBox } from "./selection";
 import { clipboard } from "@/services/effects";
+import { buildStructuredTree, getStructuredNodeBounds } from "@/utils/structured";
 
 const generateStringFromBounds = (
   grid: GridMap,
@@ -235,4 +236,99 @@ export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
   link.href = canvas.toDataURL("image/png");
   link.click();
   return true;
+};
+
+const escapeAttr = (value: string) => {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+};
+
+const formatBounds = (node: StructuredNode) => {
+  const bounds = getStructuredNodeBounds(node);
+  return `${bounds.x},${bounds.y},${bounds.width},${bounds.height}`;
+};
+
+const emitTag = (
+  lines: string[],
+  tag: string,
+  attrs: Array<[string, string]>,
+  indent: string,
+  selfClose: boolean
+) => {
+  lines.push(`${indent}<${tag}`);
+  attrs.forEach(([name, value]) => {
+    lines.push(`${indent}  ${name}="${value}"`);
+  });
+  lines.push(`${indent}${selfClose ? "/>" : ">"}`);
+};
+
+export const exportStructuredF12Text = (scene: StructuredNode[]) => {
+  const { roots, childrenById } = buildStructuredTree(scene);
+  const lines: string[] = [];
+
+  const emitNode = (node: StructuredNode, depth: number) => {
+    const indent = "  ".repeat(depth);
+    const commonAttrs: Array<[string, string]> = [
+      ["id", escapeAttr(node.id)],
+      ["bounds", formatBounds(node)],
+      ["style", `color:${escapeAttr(node.style.color)}`],
+    ];
+
+    if (node.type === "box") {
+      const boxAttrs =
+        node.name && node.name.trim()
+          ? [...commonAttrs, ["name", escapeAttr(node.name)] as [string, string]]
+          : commonAttrs;
+      emitTag(lines, "box", boxAttrs, indent, false);
+      const children = childrenById.get(node.id) || [];
+      children.forEach((child) => emitNode(child, depth + 1));
+      lines.push(`${indent}</box>`);
+      return;
+    }
+
+    if (node.type === "line") {
+      emitTag(
+        lines,
+        "line",
+        [
+          ...commonAttrs,
+          ["from", `${node.start.x},${node.start.y}`],
+          ["to", `${node.end.x},${node.end.y}`],
+          ["axis", node.axis],
+        ],
+        indent,
+        true
+      );
+      return;
+    }
+
+    emitTag(
+      lines,
+      "text",
+      [
+        ...commonAttrs,
+        ["at", `${node.position.x},${node.position.y}`],
+        ["text", escapeAttr(node.text)],
+      ],
+      indent,
+      true
+    );
+  };
+
+  emitTag(
+    lines,
+    "canvas",
+    [
+      ["mode", "structured"],
+      ["nodes", String(scene.length)],
+    ],
+    "",
+    false
+  );
+  roots.forEach((node) => emitNode(node, 1));
+  lines.push("</canvas>");
+  return lines.join("\n");
 };

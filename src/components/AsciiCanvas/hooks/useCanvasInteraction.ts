@@ -9,7 +9,8 @@ import bresenham from "bresenham";
 import { isCtrlOrMeta } from "../../../utils/event";
 import { MIN_ZOOM, MAX_ZOOM } from "../../../lib/constants";
 
-const isShapeTool = (tool: ToolType): boolean => {
+const isShapeTool = (tool: ToolType, canvasMode: CanvasState["canvasMode"]): boolean => {
+  if (canvasMode === "structured") return tool === "box" || tool === "line";
   return ["box", "circle", "line", "stepline"].includes(tool);
 };
 
@@ -20,7 +21,13 @@ type InteractionMode =
   | "drawing"
   | "shape-preview";
 
-const isSelectionTool = (tool: ToolType) => tool === "select" || tool === "fill";
+const isSelectionTool = (
+  tool: ToolType,
+  canvasMode: CanvasState["canvasMode"]
+) => {
+  if (canvasMode === "structured") return tool === "select";
+  return tool === "select" || tool === "fill";
+};
 
 const isFromMinimap = (event: Event | undefined) => {
   const target = event?.target;
@@ -35,8 +42,10 @@ export const useCanvasInteraction = (
     | "brushChar"
     | "setOffset"
     | "setZoom"
+    | "canvasMode"
     | "addScratchPoints"
     | "commitScratch"
+    | "commitStructuredShape"
     | "setTextCursor"
     | "addSelection"
     | "clearSelections"
@@ -56,8 +65,10 @@ export const useCanvasInteraction = (
     brushChar,
     setOffset,
     setZoom,
+    canvasMode,
     addScratchPoints,
     commitScratch,
+    commitStructuredShape,
     setTextCursor,
     addSelection,
     clearSelections,
@@ -70,6 +81,19 @@ export const useCanvasInteraction = (
     setHoveredGrid,
     fillArea,
   } = store;
+
+  const resolveGridPointFromScreen = (clientX: number, clientY: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const raw = GridManager.screenToGrid(
+      clientX - rect.left,
+      clientY - rect.top,
+      offset.x,
+      offset.y,
+      zoom
+    );
+    return GridManager.snapToCharStart(raw, grid);
+  };
 
   const dragStartGrid = useRef<Point | null>(null);
   const lastGrid = useRef<Point | null>(null);
@@ -193,6 +217,7 @@ export const useCanvasInteraction = (
     {
       onMove: ({ xy: [x, y], event }) => {
         if (isFromMinimap(event)) return;
+        if (canvasMode === "structured") return;
         if (tool !== "eraser") return;
         const rect = containerRef.current?.getBoundingClientRect();
         if (rect) {
@@ -227,7 +252,7 @@ export const useCanvasInteraction = (
           );
           const start = GridManager.snapToCharStart(raw, grid);
 
-          if (isSelectionTool(tool)) {
+          if (isSelectionTool(tool, canvasMode)) {
             interactionModeRef.current = "selecting";
             if (
               tool === "select" &&
@@ -256,6 +281,14 @@ export const useCanvasInteraction = (
             return;
           }
 
+          if (
+            canvasMode === "structured" &&
+            tool !== "box" &&
+            tool !== "line"
+          ) {
+            return;
+          }
+
           clearInteractionState();
           dragStartGrid.current = start;
           lastGrid.current = start;
@@ -263,13 +296,13 @@ export const useCanvasInteraction = (
           anchorGrid.current = start;
           lineAxisRef.current = null;
 
-          if (tool === "brush") {
+          if (tool === "brush" && canvasMode === "freeform") {
             interactionModeRef.current = "drawing";
             addScratchPoints([{ ...start, char: brushChar }]);
-          } else if (tool === "eraser") {
+          } else if (tool === "eraser" && canvasMode === "freeform") {
             interactionModeRef.current = "drawing";
             erasePoints([start], false);
-          } else if (isShapeTool(tool)) {
+          } else if (isShapeTool(tool, canvasMode)) {
             interactionModeRef.current = "shape-preview";
           }
         }
@@ -305,7 +338,7 @@ export const useCanvasInteraction = (
               }
               break;
             case "shape-preview":
-              if (isShapeTool(tool)) {
+              if (isShapeTool(tool, canvasMode)) {
                 if (tool === "line" && !lineAxisRef.current) {
                   const adx = Math.abs(currentGrid.x - dragStartGrid.current.x);
                   const ady = Math.abs(currentGrid.y - dragStartGrid.current.y);
@@ -323,7 +356,7 @@ export const useCanvasInteraction = (
           if (tool === "eraser") setHoveredGrid(currentGrid);
         }
       },
-      onDragEnd: ({ event }) => {
+      onDragEnd: ({ event, xy: [x, y] }) => {
         if (shouldIgnoreMinimapGestureEvent(event)) return;
         if (interactionModeRef.current === "panning") {
           flushQueuedOffset();
@@ -359,8 +392,16 @@ export const useCanvasInteraction = (
               }
               break;
             case "shape-preview":
-              if (isShapeTool(tool)) {
-                commitScratch();
+              if (isShapeTool(tool, canvasMode) && dragStartGrid.current) {
+                if (canvasMode === "structured" && (tool === "box" || tool === "line")) {
+                  const endGrid =
+                    resolveGridPointFromScreen(x, y) || dragStartGrid.current;
+                  commitStructuredShape(tool, dragStartGrid.current, endGrid, {
+                    axis: lineAxisRef.current,
+                  });
+                } else {
+                  commitScratch();
+                }
               }
               break;
             default:

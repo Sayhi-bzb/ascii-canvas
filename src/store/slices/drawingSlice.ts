@@ -2,7 +2,7 @@ import type { StateCreator } from "zustand";
 import type { CanvasState, DrawingSlice } from "../interfaces";
 import { transactWithHistory, yMainGrid } from "../../lib/yjs-setup";
 import { GridManager } from "../../utils/grid";
-import type { GridPoint } from "../../types";
+import type { GridPoint, StructuredNode } from "../../types";
 import { placeCharInMap, placeCharInYMap } from "../utils";
 import { deleteCellAt } from "../gridOps";
 import {
@@ -11,6 +11,7 @@ import {
   getLShapeLinePoints,
   getStepLinePoints,
 } from "../../utils/shapes";
+import { createStructuredNodeId } from "@/utils/structured";
 
 export const createDrawingSlice: StateCreator<
   CanvasState,
@@ -64,7 +65,11 @@ export const createDrawingSlice: StateCreator<
   },
 
   commitScratch: () => {
-    const { scratchLayer } = get();
+    const { scratchLayer, canvasMode } = get();
+    if (canvasMode === "structured") {
+      set({ scratchLayer: null });
+      return;
+    }
     if (!scratchLayer || scratchLayer.size === 0) return;
     transactWithHistory(() => {
       GridManager.iterate(scratchLayer, (cell, x, y) => {
@@ -75,13 +80,58 @@ export const createDrawingSlice: StateCreator<
   },
 
   clearScratch: () => set({ scratchLayer: null }),
-  clearCanvas: () => transactWithHistory(() => yMainGrid.clear()),
+  clearCanvas: () => {
+    const { canvasMode, applyStructuredScene } = get();
+    if (canvasMode === "structured") {
+      applyStructuredScene([], true);
+      set({ scratchLayer: null, selections: [], textCursor: null });
+      return;
+    }
+    transactWithHistory(() => yMainGrid.clear());
+    set({ scratchLayer: null, selections: [], textCursor: null });
+  },
 
   erasePoints: (points, shouldSaveHistory = true) => {
+    if (get().canvasMode === "structured") return;
     transactWithHistory(() => {
       points.forEach((p) => {
         deleteCellAt(yMainGrid, p.x, p.y);
       });
     }, shouldSaveHistory);
+  },
+
+  commitStructuredShape: (tool, start, end, options) => {
+    const state = get();
+    if (state.canvasMode !== "structured") return;
+    if (tool !== "box" && tool !== "line") return;
+
+    const axis =
+      options?.axis ??
+      (Math.abs(end.y - start.y) > Math.abs(end.x - start.x)
+        ? "vertical"
+        : "horizontal");
+
+    const node: StructuredNode =
+      tool === "box"
+        ? {
+            id: createStructuredNodeId(),
+            type: "box",
+            order: state.getNextStructuredOrder(),
+            start: { ...start },
+            end: { ...end },
+            style: { color: state.brushColor },
+          }
+        : {
+            id: createStructuredNodeId(),
+            type: "line",
+            order: state.getNextStructuredOrder(),
+            start: { ...start },
+            end: { ...end },
+            axis,
+            style: { color: state.brushColor },
+          };
+
+    state.applyStructuredScene([...state.structuredScene, node], true);
+    set({ scratchLayer: null });
   },
 });

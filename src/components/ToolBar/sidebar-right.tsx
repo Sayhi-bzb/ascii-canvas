@@ -20,6 +20,8 @@ import { useShallow } from "zustand/react/shallow";
 export function SidebarRight() {
   const {
     grid,
+    canvasMode,
+    structuredScene,
     clearCanvas,
     showGrid,
     setShowGrid,
@@ -30,6 +32,8 @@ export function SidebarRight() {
   } = useCanvasStore(
     useShallow((state) => ({
       grid: state.grid,
+      canvasMode: state.canvasMode,
+      structuredScene: state.structuredScene,
       clearCanvas: state.clearCanvas,
       showGrid: state.showGrid,
       setShowGrid: state.setShowGrid,
@@ -70,6 +74,8 @@ export function SidebarRight() {
             <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
               <ExportDialog
                 grid={grid}
+                canvasMode={canvasMode}
+                structuredScene={structuredScene}
                 exportShowGrid={exportShowGrid}
                 setExportShowGrid={setExportShowGrid}
               />

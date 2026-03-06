@@ -5,9 +5,10 @@ import { GridManager } from "../../utils/grid";
 import { getSelectionBounds } from "../../utils/selection";
 import {
   copySelectionToPngClipboard,
+  exportStructuredF12Text,
 } from "../../utils/export";
 import { placeCharInYMap } from "../utils";
-import { feedback } from "@/services/effects";
+import { clipboard, feedback } from "@/services/effects";
 import type { GridCell } from "../../types";
 import { deleteRect } from "../gridOps";
 import {
@@ -16,6 +17,7 @@ import {
   readClipboardPayload,
   writeClipboardPayload,
 } from "../actions/clipboardActions";
+import { getStructuredNodeBounds, intersectsBounds, withPointWithinBounds } from "@/utils/structured";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -28,12 +30,42 @@ export const createSelectionSlice: StateCreator<
   clearSelections: () => set({ selections: [] }),
   clearInteractionState: () => set({ selections: [], textCursor: null }),
   canCopyOrCut: () => {
-    const { selections, textCursor } = get();
+    const { selections, textCursor, canvasMode, structuredScene } = get();
+    if (canvasMode === "structured") return structuredScene.length > 0;
     return hasClipboardSource(selections, textCursor);
   },
 
   deleteSelection: () => {
-    const { selections } = get();
+    const { selections, canvasMode, structuredScene, applyStructuredScene, textCursor } = get();
+    if (canvasMode === "structured") {
+      if (structuredScene.length === 0) return;
+      const bounds = selections.map((area) => {
+        const { minX, maxX, minY, maxY } = getSelectionBounds(area);
+        return {
+          x: minX,
+          y: minY,
+          width: maxX - minX + 1,
+          height: maxY - minY + 1,
+        };
+      });
+      const nextScene = structuredScene.filter((node) => {
+        const nodeBounds = getStructuredNodeBounds(node);
+        if (
+          textCursor &&
+          withPointWithinBounds(textCursor, nodeBounds, true)
+        ) {
+          return false;
+        }
+        return !bounds.some((selectionBounds) =>
+          intersectsBounds(nodeBounds, selectionBounds)
+        );
+      });
+      if (nextScene.length !== structuredScene.length) {
+        applyStructuredScene(nextScene, true);
+      }
+      return;
+    }
+
     transactWithHistory(() => {
       selections.forEach((area) => {
         const { minX, maxX, minY, maxY } = getSelectionBounds(area);
@@ -43,7 +75,25 @@ export const createSelectionSlice: StateCreator<
   },
 
   copySelection: async (options) => {
-    const { grid, selections, textCursor, brushColor } = get();
+    const {
+      grid,
+      selections,
+      textCursor,
+      brushColor,
+      canvasMode,
+      structuredScene,
+    } = get();
+    if (canvasMode === "structured") {
+      const copied = await clipboard.writeText(
+        exportStructuredF12Text(structuredScene)
+      );
+      if (!copied) {
+        feedback.error("Copy failed", {
+          description: "Could not write structured export to clipboard.",
+        });
+      }
+      return;
+    }
     const payload = buildClipboardPayload(grid, selections, textCursor, brushColor);
     if (!payload) return;
     await writeClipboardPayload(payload, {
@@ -60,7 +110,14 @@ export const createSelectionSlice: StateCreator<
       brushColor,
       deleteSelection,
       erasePoints,
+      canvasMode,
     } = get();
+    if (canvasMode === "structured") {
+      feedback.warning("Cut disabled in structured mode", {
+        description: "Use delete on selected nodes instead.",
+      });
+      return;
+    }
     const payload = buildClipboardPayload(grid, selections, textCursor, brushColor);
     if (!payload) return;
 
@@ -78,7 +135,13 @@ export const createSelectionSlice: StateCreator<
   },
 
   pasteFromClipboard: async (options) => {
-    const { pasteRichData, writeTextString } = get();
+    const { pasteRichData, writeTextString, canvasMode } = get();
+    if (canvasMode === "structured") {
+      feedback.warning("Paste disabled in structured mode", {
+        description: "Structured mode only accepts node-based editing.",
+      });
+      return;
+    }
     const payload = await readClipboardPayload(options?.eventDataTransfer);
 
     if (payload.richCells) {
@@ -109,7 +172,8 @@ export const createSelectionSlice: StateCreator<
   },
 
   fillSelectionsWithChar: (char) => {
-    const { selections, brushColor } = get();
+    const { selections, brushColor, canvasMode } = get();
+    if (canvasMode === "structured") return;
     if (selections.length === 0) return;
 
     const charWidth = GridManager.getCharWidth(char);
@@ -128,7 +192,8 @@ export const createSelectionSlice: StateCreator<
   },
 
   fillArea: (area) => {
-    const { brushColor } = get();
+    const { brushColor, canvasMode } = get();
+    if (canvasMode === "structured") return;
     const { minX, maxX, minY, maxY } = getSelectionBounds(area);
 
     transactWithHistory(() => {

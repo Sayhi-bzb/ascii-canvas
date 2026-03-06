@@ -7,6 +7,68 @@ import {
   deleteCellAt,
   resolveBackspaceAnchor,
 } from "../gridOps";
+import type { StructuredBoxNode, StructuredTextNode } from "@/types";
+import {
+  createStructuredNodeId,
+  getTextColumnWidth,
+  trimTextToColumns,
+  withPointWithinBounds,
+  getStructuredNodeBounds,
+} from "@/utils/structured";
+
+const graphemes = (text: string) => Array.from(text);
+
+const toCharIndexByColumn = (text: string, columnOffset: number) => {
+  if (columnOffset <= 0) return 0;
+  let width = 0;
+  const chars = graphemes(text);
+  for (let i = 0; i < chars.length; i++) {
+    const charWidth = GridManager.getCharWidth(chars[i]);
+    if (width + charWidth > columnOffset) return i;
+    width += charWidth;
+  }
+  return chars.length;
+};
+
+const findTextNodeAtCursor = (
+  scene: CanvasState["structuredScene"],
+  cursor: CanvasState["textCursor"]
+) => {
+  if (!cursor) return null;
+  const candidates = scene.filter((node): node is StructuredTextNode => {
+    if (node.type !== "text") return false;
+    const bounds = getStructuredNodeBounds(node);
+    return withPointWithinBounds(cursor, bounds, true);
+  });
+  if (candidates.length === 0) return null;
+  return [...candidates].sort((a, b) => b.order - a.order)[0];
+};
+
+const clamp = (value: number, min: number, max: number) => {
+  return Math.max(min, Math.min(max, value));
+};
+
+const findBoxNameTargetAtCursor = (
+  scene: CanvasState["structuredScene"],
+  cursor: CanvasState["textCursor"]
+) => {
+  if (!cursor) return null;
+  const candidates = scene
+    .filter((node): node is StructuredBoxNode => node.type === "box")
+    .map((node) => ({ node, bounds: getStructuredNodeBounds(node) }))
+    .filter(({ bounds }) => {
+      const left = bounds.x + 1;
+      const right = bounds.x + bounds.width - 2;
+      if (left > right) return false;
+      return cursor.y === bounds.y && cursor.x >= left && cursor.x <= right;
+    });
+
+  if (candidates.length === 0) return null;
+  return candidates.sort((a, b) => {
+    if (a.node.order !== b.node.order) return b.node.order - a.node.order;
+    return a.bounds.width - b.bounds.width;
+  })[0];
+};
 
 export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   set,
@@ -16,8 +78,91 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   setTextCursor: (pos) => set({ textCursor: pos, selections: [] }),
 
   writeTextString: (str, startPos) => {
-    const { selections, fillSelectionsWithChar, textCursor, brushColor } =
-      get();
+    const {
+      selections,
+      fillSelectionsWithChar,
+      textCursor,
+      brushColor,
+      canvasMode,
+      structuredScene,
+      applyStructuredScene,
+      getNextStructuredOrder,
+    } = get();
+
+    if (canvasMode === "structured") {
+      const normalized = str.replace(/[\r\n]+/g, "");
+      if (!normalized) return;
+      const cursor = startPos || textCursor;
+      if (!cursor) return;
+
+      const boxNameTarget = findBoxNameTargetAtCursor(structuredScene, cursor);
+      if (boxNameTarget) {
+        const { node, bounds } = boxNameTarget;
+        const labelCapacity = Math.max(0, bounds.width - 2);
+        if (labelCapacity <= 0) return;
+        const currentName = node.name || "";
+        const labelStartX = bounds.x + 1;
+        const cursorColumn = clamp(cursor.x - labelStartX, 0, labelCapacity);
+        const insertAt = toCharIndexByColumn(currentName, cursorColumn);
+        const chars = graphemes(currentName);
+        chars.splice(insertAt, 0, ...graphemes(normalized));
+        const nextName = trimTextToColumns(chars.join(""), labelCapacity);
+        const nextScene = structuredScene.map((sceneNode) =>
+          sceneNode.id === node.id
+            ? { ...node, name: nextName || undefined }
+            : sceneNode
+        );
+        applyStructuredScene(nextScene, true);
+        set({
+          textCursor: {
+            x:
+              labelStartX +
+              clamp(cursorColumn + getTextColumnWidth(normalized), 0, labelCapacity),
+            y: bounds.y,
+          },
+        });
+        return;
+      }
+
+      const existingNode = findTextNodeAtCursor(structuredScene, cursor);
+      if (!existingNode) {
+        const nextNode: StructuredTextNode = {
+          id: createStructuredNodeId(),
+          type: "text",
+          order: getNextStructuredOrder(),
+          position: { ...cursor },
+          text: normalized,
+          style: { color: brushColor },
+        };
+        applyStructuredScene([...structuredScene, nextNode], true);
+        set({
+          textCursor: {
+            x: cursor.x + getTextColumnWidth(normalized),
+            y: cursor.y,
+          },
+        });
+        return;
+      }
+
+      const columnOffset = Math.max(0, cursor.x - existingNode.position.x);
+      const insertAt = toCharIndexByColumn(existingNode.text, columnOffset);
+      const chars = graphemes(existingNode.text);
+      chars.splice(insertAt, 0, ...graphemes(normalized));
+      const nextText = chars.join("");
+      const nextScene = structuredScene.map((node) =>
+        node.id === existingNode.id
+          ? { ...existingNode, text: nextText, style: { color: brushColor } }
+          : node
+      );
+      applyStructuredScene(nextScene, true);
+      set({
+        textCursor: {
+          x: cursor.x + getTextColumnWidth(normalized),
+          y: cursor.y,
+        },
+      });
+      return;
+    }
 
     if (selections.length > 0 && str.length === 1) {
       fillSelectionsWithChar(str);
@@ -46,7 +191,8 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   },
 
   pasteRichData: (cells, startPos) => {
-    const { textCursor, selections } = get();
+    const { textCursor, selections, canvasMode } = get();
+    if (canvasMode === "structured") return;
 
     let pos = startPos || textCursor;
     if (!pos && selections.length > 0) {
@@ -94,8 +240,77 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   },
 
   backspaceText: () => {
-    const { textCursor, grid } = get();
+    const { textCursor, grid, canvasMode, structuredScene, applyStructuredScene } = get();
     if (!textCursor) return;
+
+    if (canvasMode === "structured") {
+      const boxNameTarget = findBoxNameTargetAtCursor(structuredScene, textCursor);
+      if (boxNameTarget) {
+        const { node, bounds } = boxNameTarget;
+        const labelCapacity = Math.max(0, bounds.width - 2);
+        const currentName = trimTextToColumns(node.name || "", labelCapacity);
+        if (!currentName) return;
+        const labelStartX = bounds.x + 1;
+        const cursorColumn = clamp(textCursor.x - labelStartX, 0, labelCapacity);
+        const deleteAt = toCharIndexByColumn(currentName, cursorColumn) - 1;
+        if (deleteAt < 0) return;
+
+        const chars = graphemes(currentName);
+        const removed = chars[deleteAt];
+        chars.splice(deleteAt, 1);
+        const nextName = chars.join("");
+        applyStructuredScene(
+          structuredScene.map((sceneNode) =>
+            sceneNode.id === node.id
+              ? { ...node, name: nextName || undefined }
+              : sceneNode
+          ),
+          true
+        );
+        set({
+          textCursor: {
+            x: Math.max(labelStartX, textCursor.x - GridManager.getCharWidth(removed)),
+            y: bounds.y,
+          },
+        });
+        return;
+      }
+
+      const existingNode = findTextNodeAtCursor(structuredScene, textCursor);
+      if (!existingNode) return;
+
+      const columnOffset = Math.max(0, textCursor.x - existingNode.position.x);
+      const deleteAt = toCharIndexByColumn(existingNode.text, columnOffset) - 1;
+      if (deleteAt < 0) return;
+
+      const chars = graphemes(existingNode.text);
+      const removed = chars[deleteAt];
+      chars.splice(deleteAt, 1);
+      const nextText = chars.join("");
+      if (!nextText) {
+        applyStructuredScene(
+          structuredScene.filter((node) => node.id !== existingNode.id),
+          true
+        );
+      } else {
+        applyStructuredScene(
+          structuredScene.map((node) =>
+            node.id === existingNode.id
+              ? { ...existingNode, text: nextText }
+              : node
+          ),
+          true
+        );
+      }
+      set({
+        textCursor: {
+          x: textCursor.x - GridManager.getCharWidth(removed),
+          y: textCursor.y,
+        },
+      });
+      return;
+    }
+
     transactWithHistory(() => {
       const { x, y } = textCursor;
       const deletePos = resolveBackspaceAnchor(grid, x, y);
@@ -105,8 +320,12 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   },
 
   newlineText: () => {
-    const { textCursor, grid } = get();
+    const { textCursor, grid, canvasMode } = get();
     if (!textCursor) return;
+    if (canvasMode === "structured") {
+      set({ textCursor: { x: textCursor.x, y: textCursor.y + 1 } });
+      return;
+    }
 
     const currentY = textCursor.y;
     const currentX = textCursor.x;

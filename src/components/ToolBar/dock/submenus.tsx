@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { PALETTE } from "@/lib/constants";
 import type { ToolType } from "@/types";
 import { getFirstGrapheme } from "@/utils/characters";
-import { MATERIAL_PRESETS, SHAPE_TOOLS } from "./constants";
+import { MATERIAL_PRESETS } from "./constants";
 
 type SubmenuOptionClass = (active: boolean) => string;
 
@@ -87,6 +87,7 @@ export function BrushSubmenu({
 
 type ShapeSubmenuProps = {
   tool: ToolType;
+  shapeTools: ToolType[];
   setTool: (tool: ToolType) => void;
   setLastUsedShape: (tool: ToolType) => void;
   getToolMeta: (type: ToolType) => { icon: ComponentType<{ className?: string }>; label: string };
@@ -95,6 +96,7 @@ type ShapeSubmenuProps = {
 
 export function ShapeSubmenu({
   tool,
+  shapeTools,
   setTool,
   setLastUsedShape,
   getToolMeta,
@@ -102,7 +104,7 @@ export function ShapeSubmenu({
 }: ShapeSubmenuProps) {
   return (
     <>
-      {SHAPE_TOOLS.map((st) => {
+      {shapeTools.map((st) => {
         const meta = getToolMeta(st);
         const isSubActive = tool === st;
         return (

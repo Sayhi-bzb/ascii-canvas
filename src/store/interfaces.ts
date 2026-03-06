@@ -1,9 +1,11 @@
 import type {
+  CanvasMode,
   GridCell,
   GridMap,
   GridPoint,
   Point,
   SelectionArea,
+  StructuredNode,
   ToolType,
 } from "../types";
 
@@ -24,6 +26,12 @@ export interface DrawingSlice {
   erasePoints: (points: Point[], shouldSaveHistory?: boolean) => void;
   updateScratchForShape: (
     tool: ToolType,
+    start: Point,
+    end: Point,
+    options?: { axis?: "vertical" | "horizontal" | null }
+  ) => void;
+  commitStructuredShape: (
+    tool: "box" | "line",
     start: Point,
     end: Point,
     options?: { axis?: "vertical" | "horizontal" | null }
@@ -59,6 +67,8 @@ export interface SelectionSlice {
 export interface CanvasSession {
   id: string;
   name: string;
+  mode: CanvasMode;
+  scene: StructuredNode[];
   grid: [string, GridCell][];
 }
 
@@ -66,9 +76,11 @@ export type CanvasState = {
   offset: Point;
   zoom: number;
   tool: ToolType;
+  canvasMode: CanvasMode;
   brushChar: string;
   brushColor: string;
   grid: GridMap;
+  structuredScene: StructuredNode[];
   showGrid: boolean;
   exportShowGrid: boolean;
   hoveredGrid: Point | null;
@@ -78,12 +90,15 @@ export type CanvasState = {
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
   setTool: (tool: ToolType) => void;
+  setCanvasMode: (mode: CanvasMode) => boolean;
+  applyStructuredScene: (scene: StructuredNode[], shouldSaveHistory?: boolean) => void;
+  getNextStructuredOrder: () => number;
   setBrushChar: (char: string) => void;
   setBrushColor: (color: string) => void;
   setShowGrid: (show: boolean) => void;
   setExportShowGrid: (show: boolean) => void;
   setHoveredGrid: (pos: Point | null) => void;
-  createCanvasSession: () => void;
+  createCanvasSession: (mode?: CanvasMode) => void;
   switchCanvasSession: (canvasId: string) => void;
   removeCanvasSession: (canvasId: string) => void;
   renameCanvasSession: (canvasId: string, nextName: string) => void;

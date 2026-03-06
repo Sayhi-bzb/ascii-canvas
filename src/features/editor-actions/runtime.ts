@@ -21,6 +21,18 @@ export const canRunAction = (
   actionId: ActionId,
   state = useCanvasStore.getState()
 ) => {
+  if (state.canvasMode === "structured") {
+    switch (actionId) {
+      case "copy":
+        return state.structuredScene.length > 0;
+      case "copy-rich":
+      case "cut":
+      case "paste":
+      case "fill-selection-char":
+        return false;
+    }
+  }
+
   switch (actionId) {
     case "copy":
     case "copy-rich":

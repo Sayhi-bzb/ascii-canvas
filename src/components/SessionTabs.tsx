@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Box, Pencil, Plus, X } from "lucide-react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 import { uiClass } from "@/styles/components";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,7 @@ export function SessionTabs() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const canRemove = canvasSessions.length > 1;
@@ -67,6 +69,10 @@ export function SessionTabs() {
   const pendingDeleteSession = pendingDeleteId
     ? canvasSessions.find((session) => session.id === pendingDeleteId) || null
     : null;
+  const createOptions = [
+    { mode: "freeform" as const, label: "New Freeform", icon: Pencil },
+    { mode: "structured" as const, label: "New Structured", icon: Box },
+  ];
 
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] pointer-events-none">
@@ -74,6 +80,9 @@ export function SessionTabs() {
         <div className="flex items-center gap-1 max-w-[min(72vw,760px)] overflow-x-auto pr-1">
           {canvasSessions.map((session) => {
             const isActive = session.id === activeCanvasId;
+            const ModeIcon = session.mode === "structured" ? Box : Pencil;
+            const modeLabel =
+              session.mode === "structured" ? "Structured" : "Freeform";
             return (
               <div
                 key={session.id}
@@ -107,12 +116,18 @@ export function SessionTabs() {
                     onClick={() => switchCanvasSession(session.id)}
                     onDoubleClick={() => startRename(session.id, session.name)}
                     className={cn(
-                      "h-8 px-3 text-xs font-medium whitespace-nowrap max-w-36 truncate outline-none",
+                      "h-8 px-3 text-xs font-medium whitespace-nowrap max-w-44 outline-none flex items-center gap-1.5",
                       isActive ? "text-primary" : "text-foreground"
                     )}
-                    title={session.name}
+                    title={`${session.name} (${modeLabel})`}
                   >
-                    {session.name}
+                    <ModeIcon
+                      className={cn(
+                        "size-3.5 shrink-0",
+                        isActive ? "text-primary/80" : "text-muted-foreground"
+                      )}
+                    />
+                    <span className="truncate">{session.name}</span>
                   </button>
                 )}
                 <button
@@ -137,16 +152,43 @@ export function SessionTabs() {
           })}
         </div>
 
-        <Button
-          tone="subtle"
-          shape="square"
-          size="sm"
-          className="size-8 shrink-0"
-          onClick={() => createCanvasSession()}
-          aria-label="Create new canvas"
-        >
-          <Plus className="size-4" />
-        </Button>
+        <Popover open={createMenuOpen} onOpenChange={setCreateMenuOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              tone="subtle"
+              shape="square"
+              size="sm"
+              className="size-8 shrink-0"
+              aria-label="Create new canvas"
+            >
+              <Plus className="size-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            side="bottom"
+            align="end"
+            sideOffset={8}
+            className={cn(uiClass.submenuPanel, "w-44 p-1")}
+          >
+            {createOptions.map((option) => {
+              const Icon = option.icon;
+              return (
+                <button
+                  key={option.mode}
+                  type="button"
+                  onClick={() => {
+                    createCanvasSession(option.mode);
+                    setCreateMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 h-9 px-2 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <Icon className="size-3.5 shrink-0" />
+                  <span className="text-sm font-medium">{option.label}</span>
+                </button>
+              );
+            })}
+          </PopoverContent>
+        </Popover>
       </div>
 
       <AlertDialog
