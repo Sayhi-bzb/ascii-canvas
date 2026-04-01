@@ -2,7 +2,7 @@ import { useKeyPress, useLocalStorageState } from "ahooks";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
 import { AppLayout } from "./layout";
-import { Toolbar } from "./components/toolbar/dock";
+import { Toolbar } from "./components/ToolBar/dock";
 import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
 import { Suspense, lazy } from "react";
 import { runRedo, runUndo } from "./store/actions/shortcutActions";
@@ -13,7 +13,7 @@ import { useShallow } from "zustand/react/shallow";
 import { SessionTabs } from "./components/SessionTabs";
 
 const SidebarRight = lazy(() =>
-  import("./components/toolbar/sidebar-right").then((module) => ({
+  import("./components/ToolBar/sidebar-right").then((module) => ({
     default: module.SidebarRight,
   }))
 );

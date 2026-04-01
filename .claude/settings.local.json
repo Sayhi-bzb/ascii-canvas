@@ -11,7 +11,11 @@
       "Bash(git checkout:*)",
       "mcp__gitnexus__query",
       "mcp__gitnexus__context",
-      "mcp__gitnexus__impact"
+      "mcp__gitnexus__impact",
+      "Bash(xargs grep:*)",
+      "Bash(npx ast-grep:*)",
+      "Bash(ast-grep run:*)",
+      "Bash(ast-grep scan:*)"
     ],
     "deny": [],
     "ask": []
