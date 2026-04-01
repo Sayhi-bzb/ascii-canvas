@@ -14,10 +14,10 @@ import { useCanvasStore } from "@/store/canvasStore";
 import {
   TOOLBAR_ACTION_META,
   TOOLBAR_ACTION_ORDER,
-  resolveActiveToolbarAction,
   runToolbarAction,
-} from "@/features/toolbar-actions";
-import type { ToolbarActionId } from "@/features/toolbar-actions/types";
+} from "@/features/actions";
+import { resolveActiveToolbarAction } from "@/features/actions/handlers";
+import type { ToolbarActionId } from "@/features/actions/types";
 import {
   Tooltip,
   TooltipContent,
@@ -170,7 +170,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                         itemRefs.current[index] = el;
                       }}
                       onClick={() =>
-                        runToolbarAction(item.id, {
+                        runToolbarAction(item.id as ToolbarActionId, {
                           tool,
                           isShapeGroupActive,
                           lastUsedShape,
@@ -190,9 +190,9 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                           className="size-5 rounded-full border border-foreground/10 shadow-sm"
                           style={{ backgroundColor: brushColor }}
                         />
-                      ) : (
+                      ) : Icon ? (
                         <Icon className="size-5" />
-                      )}
+                      ) : null}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs">

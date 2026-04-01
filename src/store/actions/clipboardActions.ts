@@ -1,4 +1,4 @@
-import { exportSelectionToJSON, exportSelectionToString } from "../../utils/export";
+import { exportSelectionToJSON, exportSelectionToString } from "@/features/export";
 import { GridManager } from "../../utils/grid";
 import type { GridMap, Point, SelectionArea } from "../../types";
 import type { RichTextCell } from "../interfaces";

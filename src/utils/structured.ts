@@ -1,4 +1,4 @@
-import type { GridCell, GridMap, NodeBounds, Point, StructuredNode } from "@/types";
+import type { GridCell, NodeBounds, Point, StructuredNode } from "@/types";
 import { GridManager } from "@/utils/grid";
 import { getBoxPoints, getLShapeLinePoints } from "@/utils/shapes";
 import { placeCharInMap } from "@/store/utils";
@@ -229,8 +229,4 @@ export const withPointWithinBounds = (
 
 export const normalizeScene = (scene: StructuredNode[]): StructuredNode[] => {
   return [...scene].sort((a, b) => a.order - b.order);
-};
-
-export const sceneToGridMap = (scene: StructuredNode[]): GridMap => {
-  return renderStructuredScene(scene);
 };

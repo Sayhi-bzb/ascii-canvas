@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/tooltip";
 import { clipboard, feedback } from "@/services/effects";
 import { cn } from "@/lib/utils";
-import { ExportPreview } from "../export-preview";
-import { exportStructuredF12Text, exportToPNG, exportToString } from "@/utils/export";
+import { ExportPreview } from "./export-preview";
+import { exportStructuredF12Text, exportToPNG, exportToString } from "../utils/export";
 
 type ExportDialogProps = {
   grid: GridMap;

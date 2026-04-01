@@ -3,18 +3,15 @@
 import { useEffect } from "react";
 import { Eye, EyeOff, Github, Library, Target } from "lucide-react";
 import { SidebarStandard, useSidebar } from "@/components/ui/sidebar";
-import { CharLibrary } from "./right-sidebar/char-library";
-import { SearchForm } from "./right-sidebar/search-form";
+import { CharLibrary, SearchForm, useLibraryStore } from "@/features/character-library";
 import { useCanvasStore } from "@/store/canvasStore";
-import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
-import { SIDEBAR_ACTION_META, runSidebarAction } from "@/features/sidebar-actions";
+import { SIDEBAR_ACTION_META, runSidebarAction } from "@/features/actions";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ExportDialog } from "./sidebar-right/export-dialog";
-import { HandbookDialog } from "./sidebar-right/handbook-dialog";
-import { ClearCanvasDialog } from "./sidebar-right/clear-canvas-dialog";
+import { ExportDialog } from "@/features/export";
+import { HandbookDialog, ClearCanvasDialog } from "@/components/dialogs";
 import { useShallow } from "zustand/react/shallow";
 
 export function SidebarRight() {

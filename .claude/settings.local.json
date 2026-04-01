@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(cat \"D:\\docs\\ascii-canvas\\ascii-canvas\\public\\sitemap.xml\")",
-      "Bash(cat \"D:\\docs\\ascii-canvas\\ascii-canvas\\index.html\")"
+      "Bash(cat \"D:\\docs\\ascii-canvas\\ascii-canvas\\index.html\")",
+      "Bash(npx gitnexus:*)",
+      "mcp__gitnexus__list_repos",
+      "mcp__gitnexus__cypher",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git checkout:*)",
+      "mcp__gitnexus__query",
+      "mcp__gitnexus__context",
+      "mcp__gitnexus__impact"
     ],
     "deny": [],
     "ask": []

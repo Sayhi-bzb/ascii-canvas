@@ -14,12 +14,12 @@ import {
   ContextMenuShortcut,
 } from '@/components/ui/context-menu';
 import {
-  ACTION_META,
+  ACTION_CATALOG,
   CANVAS_CONTEXT_MENU,
   canRunAction,
-  getActionShortcutLabel,
   runAction,
-} from '@/features/editor-actions';
+} from '@/features/actions';
+import { getActionShortcutLabel } from '@/features/actions/shortcuts';
 import {
   resolveHistoryShortcutCommand,
 } from '../../store/actions/editorCommands';
@@ -275,7 +275,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
             return <ContextMenuSeparator key={`sep-${index}`} />;
           }
 
-          const meta = ACTION_META[entry.id];
+          const meta = ACTION_CATALOG[entry.id];
           const Icon = meta.icon;
           const disabled = !canRunAction(entry.id, useCanvasStore.getState());
           const shortcutLabel = getActionShortcutLabel(entry.id);

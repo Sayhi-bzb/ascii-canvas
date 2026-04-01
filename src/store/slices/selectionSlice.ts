@@ -6,7 +6,7 @@ import { getSelectionBounds } from "../../utils/selection";
 import {
   copySelectionToPngClipboard,
   exportStructuredF12Text,
-} from "../../utils/export";
+} from "@/features/export";
 import { placeCharInYMap } from "../utils";
 import { clipboard, feedback } from "@/services/effects";
 import type { GridCell } from "../../types";

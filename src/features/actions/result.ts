@@ -1,8 +1,4 @@
-export type ActionResult = {
-  handled: boolean;
-  succeeded: boolean;
-  reason?: string;
-};
+import type { ActionResult } from "./types";
 
 export const actionSucceeded = (reason?: string): ActionResult => ({
   handled: true,

@@ -1,6 +1,6 @@
 import { useCanvasStore } from "../canvasStore";
 import { isRedoShortcut, isUndoShortcut, runRedo, runUndo } from "./shortcutActions";
-import type { ActionId, ActionSource } from "@/features/editor-actions/types";
+import type { ActionId, ActionSource } from "@/features/actions/types";
 import {
   canRunManagedClipboardCommand as canRunManagedClipboardCommandByFocus,
   shouldIgnoreEditorCommandByFocus,

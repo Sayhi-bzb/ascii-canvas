@@ -8,7 +8,7 @@ import {
   SidebarGroupContent,
   SidebarInput,
 } from "@/components/ui/sidebar";
-import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
+import { useLibraryStore } from "../stores/useLibraryStore";
 import { rx } from "@/styles/recipes";
 import { cn } from "@/lib/utils";
 

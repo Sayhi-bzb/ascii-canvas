@@ -5,10 +5,10 @@ import {
   FONT_SIZE,
   BACKGROUND_COLOR,
   GRID_COLOR,
-} from "../lib/constants";
-import type { GridMap, SelectionArea, StructuredNode } from "../types";
-import { GridManager } from "./grid";
-import { getSelectionsBoundingBox } from "./selection";
+} from "@/lib/constants";
+import type { GridMap, SelectionArea, StructuredNode } from "@/types";
+import { GridManager } from "@/utils/grid";
+import { getSelectionsBoundingBox } from "@/utils/selection";
 import { clipboard } from "@/services/effects";
 import { buildStructuredTree, getStructuredNodeBounds } from "@/utils/structured";
 

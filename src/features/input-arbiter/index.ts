@@ -1,4 +1,4 @@
-import type { ActionSource } from "@/features/editor-actions/types";
+import type { ActionSource } from "@/features/actions/types";
 import { shouldIgnoreClipboardShortcut } from "@/utils/dom-focus";
 import { getFirstGrapheme } from "@/utils/characters";
 

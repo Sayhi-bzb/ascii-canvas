@@ -11,7 +11,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { useCanvasStore } from "@/store/canvasStore";
-import { useLibraryStore } from "@/components/ToolBar/right-sidebar/useLibraryStore";
+import { useLibraryStore } from "../stores/useLibraryStore";
 import { cn } from "@/lib/utils";
 import { rx } from "@/styles/recipes";
 import { feedback } from "@/services/effects";
