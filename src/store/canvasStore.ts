@@ -107,10 +107,6 @@ export const useCanvasStore = create<CanvasState>()(
             if (!isToolAllowedForMode(tool, state.canvasMode)) return state;
             return { tool, textCursor: null, hoveredGrid: null };
           }),
-        setCanvasMode: (mode) => {
-          const state = get();
-          return state.canvasMode === mode;
-        },
         applyStructuredScene: (scene, shouldSaveHistory = true) => {
           const normalizedScene = normalizeAndCloneScene(scene);
           const gridEntries = sceneToGridEntries(normalizedScene);

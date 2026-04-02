@@ -17,12 +17,10 @@ export const resolveNextSessionName = (sessions: CanvasSession[]) => {
 
 export const createSessionId = (sessions: CanvasSession[]) => {
   const existing = new Set(sessions.map((session) => session.id));
-  while (true) {
-    const next = `canvas-${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2, 7)}`;
-    if (!existing.has(next)) return next;
-  }
+  const next = `canvas-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 7)}`;
+  return existing.has(next) ? `${next}-${Math.random().toString(36).slice(2, 5)}` : next;
 };
 
 type ActiveSnapshot = {

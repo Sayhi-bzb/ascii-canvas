@@ -212,4 +212,33 @@ export const createSelectionSlice: StateCreator<
       }
     });
   },
+
+  moveSelections: (dx, dy) => {
+    const { selections } = get();
+    if (selections.length === 0) return;
+
+    set({
+      selections: selections.map((area) => ({
+        start: { x: area.start.x + dx, y: area.start.y + dy },
+        end: { x: area.end.x + dx, y: area.end.y + dy },
+      })),
+    });
+  },
+
+  expandSelection: (dx, dy) => {
+    const { selections } = get();
+    if (selections.length === 0) return;
+
+    // Only expand the last selection (most recent)
+    const lastIndex = selections.length - 1;
+    const lastSelection = selections[lastIndex];
+
+    const newSelections = [...selections];
+    newSelections[lastIndex] = {
+      start: { ...lastSelection.start },
+      end: { x: lastSelection.end.x + dx, y: lastSelection.end.y + dy },
+    };
+
+    set({ selections: newSelections });
+  },
 });

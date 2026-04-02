@@ -6,6 +6,11 @@ import {
 } from "../../lib/yjs-setup";
 import type { GridCell, StructuredNode } from "../../types";
 import { normalizeScene, sceneToGridEntries } from "@/utils/structured";
+import {
+  cloneStructuredNode,
+  normalizeAndCloneScene,
+  isSameCell,
+} from "./snapshotHelpers";
 
 export const rebuildGridFromYMap = () => {
   const nextGrid = new Map<string, GridCell>();
@@ -71,30 +76,4 @@ export const applyStructuredSnapshotToYMaps = (scene: StructuredNode[]) => {
     gridEntries.forEach(([key, val]) => yMainGrid.set(key, val));
   }, false);
   undoManager.clear();
-};
-
-// Helper functions needed by gridHelpers
-const cloneStructuredNode = (node: StructuredNode): StructuredNode => {
-  if (node.type === "text") {
-    return {
-      ...node,
-      position: { ...node.position },
-      style: { ...node.style },
-    };
-  }
-  return {
-    ...node,
-    start: { ...node.start },
-    end: { ...node.end },
-    style: { ...node.style },
-  };
-};
-
-const normalizeAndCloneScene = (scene: StructuredNode[]) => {
-  return scene.map((node) => cloneStructuredNode(node));
-};
-
-const isSameCell = (a?: GridCell, b?: GridCell) => {
-  if (!a || !b) return false;
-  return a.char === b.char && a.color === b.color;
 };

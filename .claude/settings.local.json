@@ -15,7 +15,10 @@
       "Bash(xargs grep:*)",
       "Bash(npx ast-grep:*)",
       "Bash(ast-grep run:*)",
-      "Bash(ast-grep scan:*)"
+      "Bash(ast-grep scan:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx playwright:*)"
     ],
     "deny": [],
     "ask": []

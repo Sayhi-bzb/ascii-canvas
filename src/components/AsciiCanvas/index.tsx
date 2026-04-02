@@ -86,6 +86,10 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     selections,
     offset,
     zoom,
+    moveSelections,
+    expandSelection,
+    fillSelectionsWithChar,
+    clearSelections,
   } = useCanvasStore(
     useShallow((state) => ({
       textCursor: state.textCursor,
@@ -98,6 +102,10 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       selections: state.selections,
       offset: state.offset,
       zoom: state.zoom,
+      moveSelections: state.moveSelections,
+      expandSelection: state.expandSelection,
+      fillSelectionsWithChar: state.fillSelectionsWithChar,
+      clearSelections: state.clearSelections,
     }))
   );
 
@@ -210,15 +218,32 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       newlineText();
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      indentText(); 
-    } else if (e.key.startsWith('Arrow') && textCursor) {
+      indentText();
+    } else if (e.key.startsWith('Arrow')) {
       e.preventDefault();
       const dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
       const dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
-      moveTextCursor(dx, dy);
+
+      if (textCursor) {
+        moveTextCursor(dx, dy);
+      } else if (selections.length > 0) {
+        if (e.shiftKey) {
+          expandSelection(dx, dy);
+        } else {
+          moveSelections(dx, dy);
+        }
+      }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      setTextCursor(null);
+      if (textCursor) {
+        setTextCursor(null);
+      } else if (selections.length > 0) {
+        clearSelections();
+      }
+    } else if (selections.length > 0 && !textCursor && e.key.length === 1) {
+      // Direct character fill when selection is active
+      e.preventDefault();
+      fillSelectionsWithChar(e.key);
     }
   };
 

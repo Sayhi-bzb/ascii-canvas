@@ -62,6 +62,8 @@ export interface SelectionSlice {
   copySelectionAsPng: (withGrid: boolean) => Promise<void>;
   fillSelectionsWithChar: (char: string) => void;
   fillArea: (area: SelectionArea) => void;
+  moveSelections: (dx: number, dy: number) => void;
+  expandSelection: (dx: number, dy: number) => void;
 }
 
 export interface CanvasSession {
@@ -90,7 +92,6 @@ export type CanvasState = {
   setOffset: (updater: (prev: Point) => Point) => void;
   setZoom: (updater: (prev: number) => number) => void;
   setTool: (tool: ToolType) => void;
-  setCanvasMode: (mode: CanvasMode) => boolean;
   applyStructuredScene: (scene: StructuredNode[], shouldSaveHistory?: boolean) => void;
   getNextStructuredOrder: () => number;
   setBrushChar: (char: string) => void;

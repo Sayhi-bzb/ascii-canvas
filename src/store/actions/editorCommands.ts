@@ -2,7 +2,7 @@ import { useCanvasStore } from "../canvasStore";
 import { isRedoShortcut, isUndoShortcut, runRedo, runUndo } from "./shortcutActions";
 import type { ActionId, ActionSource } from "@/features/actions/types";
 import {
-  canRunManagedClipboardCommand as canRunManagedClipboardCommandByFocus,
+  canRunManagedClipboardCommand,
   shouldIgnoreEditorCommandByFocus,
 } from "@/features/input-arbiter";
 import { getFirstGrapheme } from "@/utils/characters";
@@ -22,19 +22,6 @@ type RunEditorCommandOptions = {
   onRedo?: () => void;
 };
 
-const shouldIgnoreByFocus = (
-  source: CommandSource,
-  managedTextarea?: HTMLTextAreaElement | null
-) => {
-  return shouldIgnoreEditorCommandByFocus(source, managedTextarea);
-};
-
-export const canRunManagedClipboardCommand = (
-  managedTextarea?: HTMLTextAreaElement | null
-) => {
-  return canRunManagedClipboardCommandByFocus(managedTextarea);
-};
-
 export const resolveHistoryShortcutCommand = (
   event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "shiftKey" | "key">
 ): "undo" | "redo" | null => {
@@ -48,7 +35,7 @@ export const runEditorCommand = (
   options: RunEditorCommandOptions = {}
 ) => {
   const source = options.source ?? "global-hotkey";
-  if (shouldIgnoreByFocus(source, options.managedTextarea)) return false;
+  if (shouldIgnoreEditorCommandByFocus(source, options.managedTextarea)) return false;
 
   const state = useCanvasStore.getState();
 
