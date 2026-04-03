@@ -81,7 +81,10 @@ export const Minimap = ({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    if (!grid || grid.size === 0 || !containerSize) {
+    if (
+      (!grid || grid.size === 0) ||
+      !containerSize
+    ) {
       ctx.clearRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
       viewMetaRef.current = null;
       viewportRectRef.current = null;
@@ -99,6 +102,7 @@ export const Minimap = ({
     const style = getComputedStyle(document.body);
     const primaryColor = style.getPropertyValue("--primary").trim();
 
+    baseCtx.clearRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
     const meta = computeMinimapMeta(grid, MINIMAP_SIZE, PADDING);
     if (!meta.valid) {
       ctx.clearRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
@@ -107,7 +111,6 @@ export const Minimap = ({
       return;
     }
 
-    baseCtx.clearRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
     baseCtx.fillStyle = `oklch(from ${primaryColor} l c h / 0.3)`;
     grid.forEach((_, key) => {
       const [x, y] = key.split(",").map(Number);
@@ -286,7 +289,9 @@ export const Minimap = ({
   const handleMinimapClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.stopPropagation();
     if (suppressClickRef.current) return;
-    if (!grid || grid.size === 0 || !containerSize) return;
+    if ((!grid || grid.size === 0) || !containerSize) {
+      return;
+    }
     const meta = viewMetaRef.current;
     if (!meta || !meta.valid) return;
 
@@ -317,6 +322,7 @@ export const Minimap = ({
         ref={canvasRef}
         width={MINIMAP_SIZE}
         height={MINIMAP_SIZE}
+        aria-label="Canvas minimap"
         className={uiClass.minimapCanvas}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

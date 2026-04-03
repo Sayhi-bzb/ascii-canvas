@@ -2,7 +2,6 @@ import { useCanvasStore } from "../canvasStore";
 import { isRedoShortcut, isUndoShortcut, runRedo, runUndo } from "./shortcutActions";
 import type { ActionId, ActionSource } from "@/features/actions/types";
 import {
-  canRunManagedClipboardCommand,
   shouldIgnoreEditorCommandByFocus,
 } from "@/features/input-arbiter";
 import { getFirstGrapheme } from "@/utils/characters";

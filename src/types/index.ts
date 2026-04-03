@@ -20,7 +20,32 @@ export interface SelectionArea {
 
 export type GridMap = Map<string, GridCell>;
 
-export type CanvasMode = "freeform" | "structured";
+export interface AnimationCanvasSize {
+  width: number;
+  height: number;
+}
+
+export interface OnionSkinSettings {
+  enabled: boolean;
+  backwardLayers: number;
+  forwardLayers: number;
+  opacityFalloff: number[];
+}
+
+export interface AnimationFrame {
+  id: string;
+  grid: [string, GridCell][];
+}
+
+export interface AnimationTimeline {
+  frames: AnimationFrame[];
+  currentFrameId: string;
+  fps: number;
+  loop: boolean;
+  onionSkin: OnionSkinSettings;
+}
+
+export type CanvasMode = "freeform" | "structured" | "animation";
 
 export type ToolType =
   | "select"

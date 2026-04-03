@@ -18,10 +18,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 type ClearCanvasDialogProps = {
   isCollapsed: boolean;
+  label?: string;
+  description?: string;
   onConfirm: () => void;
 };
 
-export function ClearCanvasDialog({ isCollapsed, onConfirm }: ClearCanvasDialogProps) {
+export function ClearCanvasDialog({
+  isCollapsed,
+  label = "Clear Canvas",
+  description = "This will completely clear the current blueprint.",
+  onConfirm,
+}: ClearCanvasDialogProps) {
   return (
     <AlertDialog>
       <TooltipProvider>
@@ -39,21 +46,19 @@ export function ClearCanvasDialog({ isCollapsed, onConfirm }: ClearCanvasDialogP
               >
                 <Trash2 className="size-4" />
                 {!isCollapsed && (
-                  <span className="font-medium text-xs">Clear Canvas</span>
+                  <span className="font-medium text-xs">{label}</span>
                 )}
               </Button>
             </AlertDialogTrigger>
           </TooltipTrigger>
-          {isCollapsed && <TooltipContent side="left">Clear Canvas</TooltipContent>}
+          {isCollapsed && <TooltipContent side="left">{label}</TooltipContent>}
         </Tooltip>
       </TooltipProvider>
 
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Issuing a Demolition Order?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This will completely clear the current blueprint.
-          </AlertDialogDescription>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>

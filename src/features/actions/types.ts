@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import type { CanvasState } from "@/store/interfaces";
 import type { ToolType } from "@/types";
 
@@ -31,6 +32,15 @@ export type SidebarActionId =
 
 // Unified Action ID
 export type ActionId = EditorActionId | ToolbarActionId | SidebarActionId;
+
+export interface ActionMeta {
+  id: ActionId;
+  label: string;
+  shortcut?: string;
+  icon?: ComponentType<{ className?: string }>;
+  hasSub?: boolean;
+  destructive?: boolean;
+}
 
 // Action Source
 export type ActionSource = "keyboard" | "toolbar" | "context-menu" | "sidebar" | "canvas-keydown" | "global-hotkey";

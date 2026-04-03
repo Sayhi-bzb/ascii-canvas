@@ -4,7 +4,7 @@ import { rx } from "@/styles/recipes";
 export const uiClass = {
   sessionShell: cn(
     rx.surface({ kind: "overlay", elevated: true }),
-    "relative flex items-center gap-1.5 p-1.5 rounded-2xl backdrop-blur-md border-primary/10 pointer-events-auto"
+    "relative flex items-center gap-1.5 p-1.5 rounded-2xl border-primary/10 backdrop-blur-md pointer-events-auto"
   ),
   toolbarShell: cn(
     rx.surface({ kind: "overlay", elevated: true }),

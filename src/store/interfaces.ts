@@ -1,8 +1,11 @@
 import type {
+  AnimationCanvasSize,
+  AnimationTimeline,
   CanvasMode,
   GridCell,
   GridMap,
   GridPoint,
+  OnionSkinSettings,
   Point,
   SelectionArea,
   StructuredNode,
@@ -72,6 +75,8 @@ export interface CanvasSession {
   mode: CanvasMode;
   scene: StructuredNode[];
   grid: [string, GridCell][];
+  size?: AnimationCanvasSize;
+  timeline?: AnimationTimeline;
 }
 
 export type CanvasState = {
@@ -83,6 +88,9 @@ export type CanvasState = {
   brushColor: string;
   grid: GridMap;
   structuredScene: StructuredNode[];
+  canvasBounds: AnimationCanvasSize | null;
+  animationTimeline: AnimationTimeline | null;
+  animationIsPlaying: boolean;
   showGrid: boolean;
   exportShowGrid: boolean;
   hoveredGrid: Point | null;
@@ -99,10 +107,26 @@ export type CanvasState = {
   setShowGrid: (show: boolean) => void;
   setExportShowGrid: (show: boolean) => void;
   setHoveredGrid: (pos: Point | null) => void;
-  createCanvasSession: (mode?: CanvasMode) => void;
+  createCanvasSession: (
+    mode?: CanvasMode,
+    options?: { size?: AnimationCanvasSize }
+  ) => void;
   switchCanvasSession: (canvasId: string) => void;
   removeCanvasSession: (canvasId: string) => void;
   renameCanvasSession: (canvasId: string, nextName: string) => void;
+  setAnimationCurrentFrame: (frameId: string) => void;
+  insertAnimationFrame: (position?: "before" | "after") => void;
+  duplicateAnimationFrame: (frameId?: string) => void;
+  removeAnimationFrame: (frameId?: string) => void;
+  moveAnimationFrame: (frameId: string, direction: -1 | 1) => void;
+  setAnimationFps: (fps: number) => void;
+  toggleAnimationLoop: () => void;
+  setOnionSkinSettings: (settings: Partial<OnionSkinSettings>) => void;
+  setAnimationCanvasSize: (size: AnimationCanvasSize) => void;
+  playAnimation: () => void;
+  pauseAnimation: () => void;
+  stepAnimationFrame: (direction?: -1 | 1) => void;
+  tickAnimationPlayback: () => void;
 } & DrawingSlice &
   TextSlice &
   SelectionSlice;

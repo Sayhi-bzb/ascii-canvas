@@ -5,6 +5,7 @@ import { useCanvasInteraction } from './hooks/useCanvasInteraction';
 import { useCanvasRenderer } from './hooks/useCanvasRenderer';
 import { GridManager } from '../../utils/grid';
 import { Minimap } from './Minimap';
+import { getCenteredAnimationOffset } from '@/store/helpers/animationHelpers';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -60,8 +61,10 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       updateScratchForShape: state.updateScratchForShape,
       setHoveredGrid: state.setHoveredGrid,
       fillArea: state.fillArea,
+      canvasBounds: state.canvasBounds,
     }))
   );
+  const canvasMode = interactionStore.canvasMode;
   const rendererStore = useCanvasStore(
     useShallow((state) => ({
       offset: state.offset,
@@ -73,6 +76,9 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       showGrid: state.showGrid,
       hoveredGrid: state.hoveredGrid,
       tool: state.tool,
+      canvasMode: state.canvasMode,
+      canvasBounds: state.canvasBounds,
+      animationTimeline: state.animationTimeline,
     }))
   );
   const {
@@ -108,6 +114,35 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       clearSelections: state.clearSelections,
     }))
   );
+
+  useEffect(() => {
+    if (
+      interactionStore.canvasMode !== 'animation' ||
+      !interactionStore.canvasBounds ||
+      !size
+    ) {
+      return;
+    }
+
+    const centeredOffset = getCenteredAnimationOffset(
+      interactionStore.canvasBounds,
+      size,
+      zoom
+    );
+
+    interactionStore.setOffset((prev) => {
+      if (prev.x === centeredOffset.x && prev.y === centeredOffset.y) {
+        return prev;
+      }
+      return centeredOffset;
+    });
+  }, [
+    interactionStore.canvasMode,
+    interactionStore.canvasBounds,
+    interactionStore.setOffset,
+    size,
+    zoom,
+  ]);
 
   const { draggingSelection } = useCanvasInteraction(
     interactionStore,
@@ -267,7 +302,7 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
             ref={uiCanvasRef}
             className="absolute inset-0 w-full h-full block pointer-events-none"
           />
-          <Minimap containerSize={size} />
+          {canvasMode !== 'animation' && <Minimap containerSize={size} />}
           <textarea
             ref={textareaRef}
             style={textareaStyle}

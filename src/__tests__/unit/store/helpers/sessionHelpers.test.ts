@@ -86,6 +86,10 @@ describe('sessionHelpers', () => {
       expect(normalizeSessionMode('freeform')).toBe('freeform');
     });
 
+    it('should return animation for animation input', () => {
+      expect(normalizeSessionMode('animation')).toBe('animation');
+    });
+
     it('should return freeform for any other input', () => {
       expect(normalizeSessionMode(null)).toBe('freeform');
       expect(normalizeSessionMode(undefined)).toBe('freeform');
@@ -127,6 +131,55 @@ describe('sessionHelpers', () => {
       });
 
       expect(result).toEqual(sessions);
+    });
+
+    it('should update animation metadata for active animation session', () => {
+      const sessions: CanvasSession[] = [
+        {
+          id: '1',
+          name: 'Anim 1',
+          mode: 'animation',
+          scene: [],
+          grid: [],
+          size: { width: 80, height: 25 },
+          timeline: {
+            frames: [{ id: 'f1', grid: [] }],
+            currentFrameId: 'f1',
+            fps: 10,
+            loop: true,
+            onionSkin: {
+              enabled: true,
+              backwardLayers: 2,
+              forwardLayers: 2,
+              opacityFalloff: [0.5, 0.3, 0.1]
+            }
+          }
+        }
+      ];
+
+      const result = withActiveCanvasSnapshot(sessions, '1', {
+        mode: 'animation',
+        scene: [],
+        grid: [['0,0', { char: '@', color: '#fff' }]],
+        size: { width: 64, height: 64 },
+        timeline: {
+          frames: [{ id: 'f1', grid: [['0,0', { char: '@', color: '#fff' }]] }],
+          currentFrameId: 'f1',
+          fps: 12,
+          loop: false,
+          onionSkin: {
+            enabled: false,
+            backwardLayers: 1,
+            forwardLayers: 1,
+            opacityFalloff: [0.5]
+          }
+        }
+      });
+
+      expect(result[0].mode).toBe('animation');
+      expect(result[0].size).toEqual({ width: 64, height: 64 });
+      expect(result[0].timeline?.fps).toBe(12);
+      expect(result[0].grid).toHaveLength(1);
     });
   });
 });

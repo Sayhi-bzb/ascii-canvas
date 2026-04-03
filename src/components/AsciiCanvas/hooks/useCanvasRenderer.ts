@@ -14,6 +14,8 @@ import type { CanvasState } from "../../../store/canvasStore";
 import { GridManager } from "../../../utils/grid";
 import type { SelectionArea, GridMap, Point } from "../../../types";
 import { getSelectionBounds } from "../../../utils/selection";
+import { createMapFromEntries } from "@/store/helpers/snapshotHelpers";
+import { getAnimationFrameIndex } from "@/store/helpers/animationHelpers";
 
 interface LayerRefs {
   bg: React.RefObject<HTMLCanvasElement | null>;
@@ -35,6 +37,9 @@ export const useCanvasRenderer = (
     | "showGrid"
     | "hoveredGrid"
     | "tool"
+    | "canvasMode"
+    | "canvasBounds"
+    | "animationTimeline"
   >,
   draggingSelection: SelectionArea | null
 ) => {
@@ -48,7 +53,23 @@ export const useCanvasRenderer = (
     showGrid,
     hoveredGrid,
     tool,
+    canvasMode,
+    canvasBounds,
+    animationTimeline,
   } = store;
+
+  const traceRoundRect = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ) => {
+    const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, safeRadius);
+  };
 
   const prepareCanvas = (
     canvas: HTMLCanvasElement,
@@ -74,12 +95,15 @@ export const useCanvasRenderer = (
     targetGrid: GridMap | null,
     viewBounds: ReturnType<typeof GridManager.getViewportGridBounds>,
     zoom: number,
-    offset: Point
+    offset: Point,
+    alpha = 1
   ) => {
     if (!targetGrid || targetGrid.size === 0) return;
 
     const sw = CELL_WIDTH * zoom;
     const sh = CELL_HEIGHT * zoom;
+    ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.font = `${FONT_SIZE * zoom}px 'Maple Mono NF CN', monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
@@ -99,6 +123,49 @@ export const useCanvasRenderer = (
         );
       }
     }
+    ctx.restore();
+  };
+
+  const getAnimationGhostLayers = () => {
+    if (
+      canvasMode !== "animation" ||
+      !animationTimeline ||
+      !animationTimeline.onionSkin.enabled
+    ) {
+      return [];
+    }
+
+    const currentIndex = getAnimationFrameIndex(
+      animationTimeline,
+      animationTimeline.currentFrameId
+    );
+    if (currentIndex === -1) return [];
+
+    const { backwardLayers, forwardLayers, opacityFalloff } =
+      animationTimeline.onionSkin;
+    const layers: Array<{ grid: GridMap; alpha: number }> = [];
+
+    for (let i = backwardLayers; i >= 1; i--) {
+      const frame = animationTimeline.frames[currentIndex - i];
+      const alpha = opacityFalloff[i - 1] ?? 0;
+      if (!frame || alpha <= 0) continue;
+      layers.push({
+        grid: createMapFromEntries(frame.grid),
+        alpha,
+      });
+    }
+
+    for (let i = 1; i <= forwardLayers; i++) {
+      const frame = animationTimeline.frames[currentIndex + i];
+      const alpha = opacityFalloff[i - 1] ?? 0;
+      if (!frame || alpha <= 0) continue;
+      layers.push({
+        grid: createMapFromEntries(frame.grid),
+        alpha,
+      });
+    }
+
+    return layers;
   };
 
   useEffect(() => {
@@ -115,6 +182,25 @@ export const useCanvasRenderer = (
         offset.y,
         zoom
       );
+      const boundedView =
+        canvasMode === "animation" && canvasBounds
+          ? {
+              startX: Math.max(0, viewBounds.startX),
+              endX: Math.min(canvasBounds.width - 1, viewBounds.endX),
+              startY: Math.max(0, viewBounds.startY),
+              endY: Math.min(canvasBounds.height - 1, viewBounds.endY),
+            }
+          : viewBounds;
+      const animationViewportRect =
+        canvasMode === "animation" && canvasBounds
+          ? {
+              x: offset.x,
+              y: offset.y,
+              width: canvasBounds.width * sw,
+              height: canvasBounds.height * sh,
+            }
+          : null;
+      const animationGhostLayers = getAnimationGhostLayers();
 
       const bgCanvas = layers.bg.current;
       const bgCtx = bgCanvas?.getContext("2d", { alpha: false });
@@ -123,30 +209,95 @@ export const useCanvasRenderer = (
         bgCtx.fillStyle = BACKGROUND_COLOR;
         bgCtx.fillRect(0, 0, size.width, size.height);
 
+        if (animationViewportRect) {
+          const borderRadius = Math.min(16, sw * 0.45, sh * 0.45);
+          bgCtx.save();
+          traceRoundRect(
+            bgCtx,
+            Math.round(animationViewportRect.x),
+            Math.round(animationViewportRect.y),
+            Math.round(animationViewportRect.width),
+            Math.round(animationViewportRect.height),
+            borderRadius
+          );
+          bgCtx.clip();
+        }
+
         if (showGrid) {
           bgCtx.beginPath();
           bgCtx.strokeStyle = GRID_COLOR;
           bgCtx.lineWidth = 1;
-          for (let x = viewBounds.startX; x <= viewBounds.endX; x++) {
+          const gridStartX =
+            canvasMode === "animation" && canvasBounds
+              ? Math.max(0, boundedView.startX)
+              : viewBounds.startX;
+          const gridEndX =
+            canvasMode === "animation" && canvasBounds
+              ? Math.min(canvasBounds.width, boundedView.endX + 1)
+              : viewBounds.endX;
+          const gridStartY =
+            canvasMode === "animation" && canvasBounds
+              ? Math.max(0, boundedView.startY)
+              : viewBounds.startY;
+          const gridEndY =
+            canvasMode === "animation" && canvasBounds
+              ? Math.min(canvasBounds.height, boundedView.endY + 1)
+              : viewBounds.endY;
+          for (let x = gridStartX; x <= gridEndX; x++) {
             const posX = Math.round(x * sw + offset.x);
             bgCtx.moveTo(posX, 0);
             bgCtx.lineTo(posX, size.height);
           }
-          for (let y = viewBounds.startY; y <= viewBounds.endY; y++) {
+          for (let y = gridStartY; y <= gridEndY; y++) {
             const posY = Math.round(y * sh + offset.y);
             bgCtx.moveTo(0, posY);
             bgCtx.lineTo(size.width, posY);
           }
           bgCtx.stroke();
         }
-        drawLayer(bgCtx, grid, viewBounds, zoom, offset);
+        animationGhostLayers.forEach((layer) => {
+          drawLayer(bgCtx, layer.grid, boundedView, zoom, offset, layer.alpha);
+        });
+        drawLayer(
+          bgCtx,
+          grid,
+          canvasMode === "animation" ? boundedView : viewBounds,
+          zoom,
+          offset
+        );
+
+        if (animationViewportRect) {
+          bgCtx.restore();
+        }
+
+        if (canvasMode === "animation" && canvasBounds) {
+          const borderPos = GridManager.gridToScreen(0, 0, offset.x, offset.y, zoom);
+          const borderRadius = Math.min(16, sw * 0.45, sh * 0.45);
+          bgCtx.strokeStyle = "#000000";
+          bgCtx.lineWidth = 2;
+          traceRoundRect(
+            bgCtx,
+            Math.round(borderPos.x),
+            Math.round(borderPos.y),
+            Math.round(canvasBounds.width * sw),
+            Math.round(canvasBounds.height * sh),
+            borderRadius
+          );
+          bgCtx.stroke();
+        }
       }
 
       const scratchCanvas = layers.scratch.current;
       const scratchCtx = scratchCanvas?.getContext("2d");
       if (scratchCanvas && scratchCtx) {
         prepareCanvas(scratchCanvas, scratchCtx, size.width, size.height, dpr);
-        drawLayer(scratchCtx, scratchLayer, viewBounds, zoom, offset);
+        drawLayer(
+          scratchCtx,
+          scratchLayer,
+          canvasMode === "animation" ? boundedView : viewBounds,
+          zoom,
+          offset
+        );
       }
 
       const uiCanvas = layers.ui.current;
@@ -221,11 +372,13 @@ export const useCanvasRenderer = (
           }
         }
 
-        uiCtx.fillStyle = COLOR_ORIGIN_MARKER;
-        const originX = Math.round(offset.x);
-        const originY = Math.round(offset.y);
-        uiCtx.fillRect(originX - 1, originY - 10, 2, 20);
-        uiCtx.fillRect(originX - 10, originY - 1, 20, 2);
+        if (canvasMode !== "animation") {
+          uiCtx.fillStyle = COLOR_ORIGIN_MARKER;
+          const originX = Math.round(offset.x);
+          const originY = Math.round(offset.y);
+          uiCtx.fillRect(originX - 1, originY - 10, 2, 20);
+          uiCtx.fillRect(originX - 10, originY - 1, 20, 2);
+        }
       }
     };
 
@@ -243,6 +396,9 @@ export const useCanvasRenderer = (
     showGrid,
     hoveredGrid,
     tool,
+    canvasMode,
+    canvasBounds,
+    animationTimeline,
     layers,
   ]);
 };

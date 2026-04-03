@@ -12,6 +12,7 @@ import {
   getStepLinePoints,
 } from "../../utils/shapes";
 import { createStructuredNodeId } from "@/utils/structured";
+import { filterGridPointsToBounds, filterPointsToBounds } from "../helpers/animationHelpers";
 
 export const createDrawingSlice: StateCreator<
   CanvasState,
@@ -22,19 +23,19 @@ export const createDrawingSlice: StateCreator<
   scratchLayer: null,
 
   setScratchLayer: (points) => {
-    const { brushColor } = get();
+    const { brushColor, canvasBounds } = get();
     const layer = new Map();
-    points.forEach((p) => {
+    filterGridPointsToBounds(points, canvasBounds).forEach((p) => {
       placeCharInMap(layer, p.x, p.y, p.char, p.color || brushColor);
     });
     set({ scratchLayer: layer });
   },
 
   addScratchPoints: (points) => {
-    const { brushColor } = get();
+    const { brushColor, canvasBounds } = get();
     set((state) => {
       const layer = new Map(state.scratchLayer || []);
-      points.forEach((p) => {
+      filterGridPointsToBounds(points, canvasBounds).forEach((p) => {
         placeCharInMap(layer, p.x, p.y, p.char, p.color || brushColor);
       });
       return { scratchLayer: layer };
@@ -60,7 +61,10 @@ export const createDrawingSlice: StateCreator<
         break;
       }
     }
-    const coloredPoints = points.map((p) => ({ ...p, color }));
+    const coloredPoints = filterGridPointsToBounds(
+      points.map((p) => ({ ...p, color })),
+      get().canvasBounds
+    );
     get().setScratchLayer(coloredPoints);
   },
 
@@ -92,9 +96,12 @@ export const createDrawingSlice: StateCreator<
   },
 
   erasePoints: (points, shouldSaveHistory = true) => {
-    if (get().canvasMode === "structured") return;
+    const { canvasMode, canvasBounds } = get();
+    if (canvasMode === "structured") return;
+    const boundedPoints = filterPointsToBounds(points, canvasBounds);
+    if (boundedPoints.length === 0) return;
     transactWithHistory(() => {
-      points.forEach((p) => {
+      boundedPoints.forEach((p) => {
         deleteCellAt(yMainGrid, p.x, p.y);
       });
     }, shouldSaveHistory);

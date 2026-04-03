@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Box, Pencil, Plus, X } from "lucide-react";
+import { Box, Clapperboard, Pencil, Plus, X } from "lucide-react";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+const ANIMATION_SIZE_PRESETS = [
+  { label: "Classic Terminal", width: 80, height: 25 },
+  { label: "Square 64", width: 64, height: 64 },
+  { label: "Poster 128", width: 128, height: 128 },
+];
 
 export function SessionTabs() {
   const {
@@ -41,6 +56,9 @@ export function SessionTabs() {
   const [editingName, setEditingName] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [animationDialogOpen, setAnimationDialogOpen] = useState(false);
+  const [animationWidth, setAnimationWidth] = useState("80");
+  const [animationHeight, setAnimationHeight] = useState("25");
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const canRemove = canvasSessions.length > 1;
@@ -71,8 +89,20 @@ export function SessionTabs() {
     : null;
   const createOptions = [
     { mode: "freeform" as const, label: "New Freeform", icon: Pencil },
-    { mode: "structured" as const, label: "New Structured", icon: Box },
+    { mode: "animation" as const, label: "New Animation", icon: Clapperboard },
   ];
+
+  const commitAnimationCreation = () => {
+    const width = Number.parseInt(animationWidth, 10);
+    const height = Number.parseInt(animationHeight, 10);
+    createCanvasSession("animation", {
+      size: {
+        width: Number.isFinite(width) ? width : 80,
+        height: Number.isFinite(height) ? height : 25,
+      },
+    });
+    setAnimationDialogOpen(false);
+  };
 
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] pointer-events-none">
@@ -80,17 +110,26 @@ export function SessionTabs() {
         <div className="flex items-center gap-1 max-w-[min(72vw,760px)] overflow-x-auto pr-1">
           {canvasSessions.map((session) => {
             const isActive = session.id === activeCanvasId;
-            const ModeIcon = session.mode === "structured" ? Box : Pencil;
+            const ModeIcon =
+              session.mode === "structured"
+                ? Box
+                : session.mode === "animation"
+                ? Clapperboard
+                : Pencil;
             const modeLabel =
-              session.mode === "structured" ? "Structured" : "Freeform";
+              session.mode === "structured"
+                ? "Structured"
+                : session.mode === "animation"
+                ? "Animation"
+                : "Freeform";
             return (
               <div
                 key={session.id}
                 className={cn(
-                  "group flex items-center rounded-lg border transition-colors",
+                  "group flex items-center rounded-lg transition-colors",
                   isActive
-                    ? "bg-primary/12 border-primary/25"
-                    : "bg-background/70 border-border/70 hover:bg-accent/60"
+                    ? "bg-primary/12"
+                    : "bg-transparent hover:bg-accent/60"
                 )}
               >
                 {editingId === session.id ? (
@@ -177,7 +216,11 @@ export function SessionTabs() {
                   key={option.mode}
                   type="button"
                   onClick={() => {
-                    createCanvasSession(option.mode);
+                    if (option.mode === "animation") {
+                      setAnimationDialogOpen(true);
+                    } else {
+                      createCanvasSession(option.mode);
+                    }
                     setCreateMenuOpen(false);
                   }}
                   className="w-full flex items-center gap-2 h-9 px-2 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
@@ -190,6 +233,112 @@ export function SessionTabs() {
           </PopoverContent>
         </Popover>
       </div>
+
+      <Dialog open={animationDialogOpen} onOpenChange={setAnimationDialogOpen}>
+        <DialogContent className="max-w-md overflow-hidden border-none p-0 shadow-2xl">
+          <div className="border-b bg-muted/30 px-5 py-4">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <Clapperboard className="size-4 text-primary" />
+                Create Animation Session
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Fixed bounds, onion-skin playback, and frame-based editing in the
+                same workspace language as the rest of the app.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="space-y-4 bg-background px-5 py-5">
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                Presets
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {ANIMATION_SIZE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      setAnimationWidth(String(preset.width));
+                      setAnimationHeight(String(preset.height));
+                    }}
+                    className="rounded-xl border border-border/60 bg-muted/25 px-3 py-3 text-left transition-colors hover:bg-accent/45"
+                  >
+                    <div className="text-[11px] font-semibold text-foreground">
+                      {preset.width} x {preset.height}
+                    </div>
+                    <div className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                      {preset.label}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="animation-width">Width</Label>
+                <Input
+                  id="animation-width"
+                  inputMode="numeric"
+                  value={animationWidth}
+                  onChange={(event) => setAnimationWidth(event.target.value)}
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="animation-height">Height</Label>
+                <Input
+                  id="animation-height"
+                  inputMode="numeric"
+                  value={animationHeight}
+                  onChange={(event) => setAnimationHeight(event.target.value)}
+                  className="h-10"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/60 bg-muted/25 px-4 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                Startup Defaults
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Playback
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-foreground">10 FPS</div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    Loop enabled by default.
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Onion Skin
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-foreground">
+                    2 back / 2 forward
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    Fade profile: 0.5, 0.3, 0.1
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                tone="neutral"
+                onClick={() => setAnimationDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={commitAnimationCreation}>Create Animation</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={!!pendingDeleteSession}

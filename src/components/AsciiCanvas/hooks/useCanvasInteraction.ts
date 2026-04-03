@@ -8,6 +8,11 @@ import { forceHistorySave } from "../../../lib/yjs-setup";
 import bresenham from "bresenham";
 import { isCtrlOrMeta } from "../../../utils/event";
 import { MIN_ZOOM, MAX_ZOOM } from "../../../lib/constants";
+import {
+  clampPointToBounds,
+  clampSelectionToBounds,
+  isPointWithinBounds,
+} from "../../../store/helpers/animationHelpers";
 
 const isShapeTool = (tool: ToolType, canvasMode: CanvasState["canvasMode"]): boolean => {
   if (canvasMode === "structured") return tool === "box" || tool === "line";
@@ -57,6 +62,7 @@ export const useCanvasInteraction = (
     | "updateScratchForShape"
     | "setHoveredGrid"
     | "fillArea"
+    | "canvasBounds"
   >,
   containerRef: React.RefObject<HTMLDivElement | null>
 ) => {
@@ -80,6 +86,7 @@ export const useCanvasInteraction = (
     updateScratchForShape,
     setHoveredGrid,
     fillArea,
+    canvasBounds,
   } = store;
 
   const resolveGridPointFromScreen = (clientX: number, clientY: number) => {
@@ -92,7 +99,10 @@ export const useCanvasInteraction = (
       offset.y,
       zoom
     );
-    return GridManager.snapToCharStart(raw, grid);
+    const snapped = GridManager.snapToCharStart(raw, grid);
+    return canvasMode === "animation"
+      ? clampPointToBounds(snapped, canvasBounds)
+      : snapped;
   };
 
   const dragStartGrid = useRef<Point | null>(null);
@@ -228,13 +238,24 @@ export const useCanvasInteraction = (
             offset.y,
             zoom
           );
-          setHoveredGrid(raw);
+          if (canvasMode === "animation" && !isPointWithinBounds(raw, canvasBounds)) {
+            setHoveredGrid(null);
+            return;
+          }
+          setHoveredGrid(
+            canvasMode === "animation"
+              ? clampPointToBounds(raw, canvasBounds)
+              : raw
+          );
         }
       },
       onDragStart: ({ xy: [x, y], event }) => {
         if (isFromMinimap(event)) return;
         const mouseEvent = event as MouseEvent;
-        if (mouseEvent.button === 1 || isCtrlOrMeta(mouseEvent)) {
+        if (
+          canvasMode !== "animation" &&
+          (mouseEvent.button === 1 || isCtrlOrMeta(mouseEvent))
+        ) {
           isPanningRef.current = true;
           interactionModeRef.current = "panning";
           document.body.style.cursor = "grabbing";
@@ -250,7 +271,10 @@ export const useCanvasInteraction = (
             offset.y,
             zoom
           );
-          const start = GridManager.snapToCharStart(raw, grid);
+          const start =
+            canvasMode === "animation"
+              ? clampPointToBounds(GridManager.snapToCharStart(raw, grid), canvasBounds)
+              : GridManager.snapToCharStart(raw, grid);
 
           if (isSelectionTool(tool, canvasMode)) {
             interactionModeRef.current = "selecting";
@@ -275,7 +299,11 @@ export const useCanvasInteraction = (
               anchorGrid.current = start;
             }
 
-            setDraggingSelection({ start, end: start });
+            setDraggingSelection(
+              canvasMode === "animation"
+                ? clampSelectionToBounds({ start, end: start }, canvasBounds)
+                : { start, end: start }
+            );
             dragStartGrid.current = start;
             setTextCursor(null);
             return;
@@ -296,10 +324,10 @@ export const useCanvasInteraction = (
           anchorGrid.current = start;
           lineAxisRef.current = null;
 
-          if (tool === "brush" && canvasMode === "freeform") {
+          if (tool === "brush" && canvasMode !== "structured") {
             interactionModeRef.current = "drawing";
             addScratchPoints([{ ...start, char: brushChar }]);
-          } else if (tool === "eraser" && canvasMode === "freeform") {
+          } else if (tool === "eraser" && canvasMode !== "structured") {
             interactionModeRef.current = "drawing";
             erasePoints([start], false);
           } else if (isShapeTool(tool, canvasMode)) {
@@ -323,14 +351,27 @@ export const useCanvasInteraction = (
             offset.y,
             zoom
           );
-          const currentGrid = GridManager.snapToCharStart(raw, grid);
+          const currentGrid =
+            canvasMode === "animation"
+              ? clampPointToBounds(GridManager.snapToCharStart(raw, grid), canvasBounds)
+              : GridManager.snapToCharStart(raw, grid);
 
           switch (interactionModeRef.current) {
             case "selecting":
-              setDraggingSelection({
-                start: dragStartGrid.current,
-                end: currentGrid,
-              });
+              setDraggingSelection(
+                canvasMode === "animation"
+                  ? clampSelectionToBounds(
+                      {
+                        start: dragStartGrid.current,
+                        end: currentGrid,
+                      },
+                      canvasBounds
+                    )
+                  : {
+                      start: dragStartGrid.current,
+                      end: currentGrid,
+                    }
+              );
               break;
             case "drawing":
               if (tool === "brush" || tool === "eraser") {
@@ -430,14 +471,17 @@ export const useCanvasInteraction = (
           );
 
           if (nextZoom !== oldZoom) {
-            const actualScale = nextZoom / oldZoom;
             setZoom(() => nextZoom);
-            setOffset((prev: Point) => ({
-              x: mouseX - (mouseX - prev.x) * actualScale,
-              y: mouseY - (mouseY - prev.y) * actualScale,
-            }));
+            if (canvasMode !== "animation") {
+              const actualScale = nextZoom / oldZoom;
+              setOffset((prev: Point) => ({
+                x: mouseX - (mouseX - prev.x) * actualScale,
+                y: mouseY - (mouseY - prev.y) * actualScale,
+              }));
+            }
           }
         } else {
+          if (canvasMode === "animation") return;
           const wheelEvent = event as WheelEvent;
           let deltaX = wheelEvent.deltaX;
           let deltaY = wheelEvent.deltaY;

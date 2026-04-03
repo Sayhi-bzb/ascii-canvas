@@ -18,6 +18,7 @@ import {
   writeClipboardPayload,
 } from "../actions/clipboardActions";
 import { getStructuredNodeBounds, intersectsBounds, withPointWithinBounds } from "@/utils/structured";
+import { clampSelectionToBounds } from "../helpers/animationHelpers";
 
 export const createSelectionSlice: StateCreator<
   CanvasState,
@@ -26,7 +27,13 @@ export const createSelectionSlice: StateCreator<
   SelectionSlice
 > = (set, get) => ({
   selections: [],
-  addSelection: (area) => set((s) => ({ selections: [...s.selections, area] })),
+  addSelection: (area) =>
+    set((s) => ({
+      selections: [
+        ...s.selections,
+        clampSelectionToBounds(area, s.canvasBounds),
+      ],
+    })),
   clearSelections: () => set({ selections: [] }),
   clearInteractionState: () => set({ selections: [], textCursor: null }),
   canCopyOrCut: () => {
@@ -214,19 +221,24 @@ export const createSelectionSlice: StateCreator<
   },
 
   moveSelections: (dx, dy) => {
-    const { selections } = get();
+    const { selections, canvasBounds } = get();
     if (selections.length === 0) return;
 
     set({
       selections: selections.map((area) => ({
-        start: { x: area.start.x + dx, y: area.start.y + dy },
-        end: { x: area.end.x + dx, y: area.end.y + dy },
+        ...clampSelectionToBounds(
+          {
+            start: { x: area.start.x + dx, y: area.start.y + dy },
+            end: { x: area.end.x + dx, y: area.end.y + dy },
+          },
+          canvasBounds
+        ),
       })),
     });
   },
 
   expandSelection: (dx, dy) => {
-    const { selections } = get();
+    const { selections, canvasBounds } = get();
     if (selections.length === 0) return;
 
     // Only expand the last selection (most recent)
@@ -234,10 +246,13 @@ export const createSelectionSlice: StateCreator<
     const lastSelection = selections[lastIndex];
 
     const newSelections = [...selections];
-    newSelections[lastIndex] = {
-      start: { ...lastSelection.start },
-      end: { x: lastSelection.end.x + dx, y: lastSelection.end.y + dy },
-    };
+    newSelections[lastIndex] = clampSelectionToBounds(
+      {
+        start: { ...lastSelection.start },
+        end: { x: lastSelection.end.x + dx, y: lastSelection.end.y + dy },
+      },
+      canvasBounds
+    );
 
     set({ selections: newSelections });
   },

@@ -1,6 +1,10 @@
 import type { CanvasSession } from "../interfaces";
-import type { CanvasMode } from "../../types";
-import type { StructuredNode } from "../../types";
+import type {
+  AnimationCanvasSize,
+  AnimationTimeline,
+  CanvasMode,
+  StructuredNode,
+} from "../../types";
 
 export const resolveNextSessionName = (sessions: CanvasSession[]) => {
   let maxIndex = 0;
@@ -27,6 +31,8 @@ type ActiveSnapshot = {
   mode: CanvasMode;
   scene: StructuredNode[];
   grid: [string, { char: string; color: string }][];
+  size?: AnimationCanvasSize;
+  timeline?: AnimationTimeline;
 };
 
 export const withActiveCanvasSnapshot = (
@@ -36,16 +42,20 @@ export const withActiveCanvasSnapshot = (
 ) => {
   return sessions.map((session) =>
     session.id === activeCanvasId
-      ? {
+        ? {
           ...session,
           mode: snapshot.mode,
           scene: snapshot.scene,
           grid: snapshot.grid,
+          size: snapshot.mode === "animation" ? snapshot.size : undefined,
+          timeline: snapshot.mode === "animation" ? snapshot.timeline : undefined,
         }
       : session
   );
 };
 
 export const normalizeSessionMode = (mode: unknown): CanvasMode => {
-  return mode === "structured" ? "structured" : "freeform";
+  if (mode === "structured") return "structured";
+  if (mode === "animation") return "animation";
+  return "freeform";
 };

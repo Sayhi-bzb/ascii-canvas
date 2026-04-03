@@ -15,6 +15,10 @@ import {
   withPointWithinBounds,
   getStructuredNodeBounds,
 } from "@/utils/structured";
+import {
+  clampPointToBounds,
+  isPointWithinBounds,
+} from "../helpers/animationHelpers";
 
 const graphemes = (text: string) => Array.from(text);
 
@@ -84,6 +88,7 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
       textCursor,
       brushColor,
       canvasMode,
+      canvasBounds,
       structuredScene,
       applyStructuredScene,
       getNextStructuredOrder,
@@ -172,15 +177,28 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
     const cursor = startPos || textCursor;
     if (!cursor) return;
 
-    let currentX = cursor.x;
-    let currentY = cursor.y;
-    const startX = cursor.x;
+    const boundedCursor = clampPointToBounds(cursor, canvasBounds);
+    let currentX = boundedCursor.x;
+    let currentY = boundedCursor.y;
+    const startX = boundedCursor.x;
 
     transactWithHistory(() => {
       for (const char of str) {
         if (char === "\n") {
+          if (
+            canvasBounds &&
+            currentY + 1 >= canvasBounds.height
+          ) {
+            break;
+          }
           currentY++;
           currentX = startX;
+          continue;
+        }
+        if (!isPointWithinBounds({ x: currentX, y: currentY }, canvasBounds)) {
+          continue;
+        }
+        if (canvasBounds && currentX >= canvasBounds.width) {
           continue;
         }
         placeCharInYMap(yMainGrid, currentX, currentY, char, brushColor);
@@ -191,7 +209,7 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   },
 
   pasteRichData: (cells, startPos) => {
-    const { textCursor, selections, canvasMode } = get();
+    const { textCursor, selections, canvasMode, canvasBounds } = get();
     if (canvasMode === "structured") return;
 
     let pos = startPos || textCursor;
@@ -207,10 +225,15 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
     const basePos = pos;
     transactWithHistory(() => {
       cells.forEach((cell) => {
+        const nextPoint = {
+          x: basePos.x + cell.x,
+          y: basePos.y + cell.y,
+        };
+        if (!isPointWithinBounds(nextPoint, canvasBounds)) return;
         placeCharInYMap(
           yMainGrid,
-          basePos.x + cell.x,
-          basePos.y + cell.y,
+          nextPoint.x,
+          nextPoint.y,
           cell.char,
           cell.color
         );
@@ -219,7 +242,7 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   },
 
   moveTextCursor: (dx, dy) => {
-    const { textCursor, grid } = get();
+    const { textCursor, grid, canvasBounds } = get();
     if (!textCursor) return;
     let newX = textCursor.x;
     const newY = textCursor.y + dy;
@@ -236,7 +259,7 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
         newX -= 1;
       }
     }
-    set({ textCursor: { x: newX, y: newY } });
+    set({ textCursor: clampPointToBounds({ x: newX, y: newY }, canvasBounds) });
   },
 
   backspaceText: () => {
@@ -320,7 +343,7 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
   },
 
   newlineText: () => {
-    const { textCursor, grid, canvasMode } = get();
+    const { textCursor, grid, canvasMode, canvasBounds } = get();
     if (!textCursor) return;
     if (canvasMode === "structured") {
       set({ textCursor: { x: textCursor.x, y: textCursor.y + 1 } });
@@ -348,12 +371,22 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
       }
     }
     const targetX = minLineX + leadingSpaces;
-    set({ textCursor: { x: targetX, y: currentY + 1 } });
+    set({
+      textCursor: clampPointToBounds(
+        { x: targetX, y: currentY + 1 },
+        canvasBounds
+      ),
+    });
   },
 
   indentText: () => {
-    const { textCursor } = get();
+    const { textCursor, canvasBounds } = get();
     if (!textCursor) return;
-    set({ textCursor: { x: textCursor.x + 2, y: textCursor.y } });
+    set({
+      textCursor: clampPointToBounds(
+        { x: textCursor.x + 2, y: textCursor.y },
+        canvasBounds
+      ),
+    });
   },
 });

@@ -1,0 +1,78 @@
+import { describe, expect, it } from "vitest";
+import {
+  clampPointToBounds,
+  clampSelectionToBounds,
+  DEFAULT_ANIMATION_SIZE,
+  getCenteredAnimationOffset,
+  normalizeAnimationCanvasSize,
+  normalizeAnimationTimeline,
+  updateAnimationFrameEntries,
+} from "@/store/helpers/animationHelpers";
+
+describe("animationHelpers", () => {
+  it("normalizes invalid canvas size inputs", () => {
+    expect(normalizeAnimationCanvasSize(undefined)).toEqual(DEFAULT_ANIMATION_SIZE);
+    expect(normalizeAnimationCanvasSize({ width: -1, height: 9999 })).toEqual({
+      width: 1,
+      height: 512,
+    });
+  });
+
+  it("creates a usable default timeline", () => {
+    const timeline = normalizeAnimationTimeline(undefined);
+    expect(timeline.frames).toHaveLength(1);
+    expect(timeline.currentFrameId).toBe(timeline.frames[0].id);
+    expect(timeline.fps).toBe(10);
+  });
+
+  it("updates the targeted frame grid without mutating other timeline fields", () => {
+    const timeline = normalizeAnimationTimeline({
+      frames: [{ id: "f1", grid: [] }],
+      currentFrameId: "f1",
+      fps: 8,
+      loop: true,
+    });
+    const next = updateAnimationFrameEntries(timeline, "f1", [
+      ["0,0", { char: "#", color: "#000" }],
+    ]);
+
+    expect(next.frames[0].grid).toEqual([
+      ["0,0", { char: "#", color: "#000" }],
+    ]);
+    expect(next.fps).toBe(8);
+    expect(timeline.frames[0].grid).toEqual([]);
+  });
+
+  it("clamps points and selections to the fixed animation bounds", () => {
+    const bounds = { width: 8, height: 6 };
+    expect(clampPointToBounds({ x: -2, y: 12 }, bounds)).toEqual({
+      x: 0,
+      y: 5,
+    });
+    expect(
+      clampSelectionToBounds(
+        {
+          start: { x: -1, y: 2 },
+          end: { x: 12, y: 8 },
+        },
+        bounds
+      )
+    ).toEqual({
+      start: { x: 0, y: 2 },
+      end: { x: 7, y: 5 },
+    });
+  });
+
+  it("centers the fixed animation canvas inside the viewport", () => {
+    expect(
+      getCenteredAnimationOffset(
+        { width: 80, height: 25 },
+        { width: 1600, height: 900 },
+        1
+      )
+    ).toEqual({
+      x: 400,
+      y: 200,
+    });
+  });
+});

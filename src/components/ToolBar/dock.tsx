@@ -37,6 +37,7 @@ import {
 } from "./dock/submenus";
 import { MATERIAL_PRESETS, SHAPE_TOOLS } from "./dock/constants";
 import { useShallow } from "zustand/react/shallow";
+import { AnimationTimeline } from "@/components/AnimationTimeline";
 
 interface ToolbarProps {
   tool: ToolType;
@@ -147,122 +148,131 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
   return (
     <TooltipProvider delayDuration={200}>
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-        <nav className={uiClass.toolbarShell}>
-          {navItems.map((item, index) => {
-            const isActive = index === activeIndex;
-            const Icon = item.icon;
-            const isColorTab = item.id === "color";
+        <div
+          className={cn(
+            uiClass.toolbarShell,
+            canvasMode === "animation" && "flex-col items-center gap-2 p-2.5"
+          )}
+        >
+          <nav className="relative flex items-center justify-center gap-1">
+            {navItems.map((item, index) => {
+              const isActive = index === activeIndex;
+              const Icon = item.icon;
+              const isColorTab = item.id === "color";
 
-            return (
-              <div
-                key={item.id}
-                className={cn(
-                  "relative flex items-center rounded-lg transition-all",
-                  isActive
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      ref={(el) => {
-                        itemRefs.current[index] = el;
-                      }}
-                      onClick={() =>
-                        runToolbarAction(item.id as ToolbarActionId, {
-                          tool,
-                          isShapeGroupActive,
-                          lastUsedShape,
-                          setTool,
-                          onUndo,
-                        })
-                      }
-                      className={cn(
-                        "flex items-center justify-center h-9 px-3 outline-none rounded-l-lg transition-colors",
-                        !item.hasSub && "rounded-lg",
-                        !isActive && "hover:bg-muted/50",
-                        isColorTab && "px-2"
-                      )}
-                    >
-                      {isColorTab ? (
-                        <div
-                          className="size-5 rounded-full border border-foreground/10 shadow-sm"
-                          style={{ backgroundColor: brushColor }}
-                        />
-                      ) : Icon ? (
-                        <Icon className="size-5" />
-                      ) : null}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
-                    {item.label}
-                  </TooltipContent>
-                </Tooltip>
-
-                {item.hasSub && (
-                  <Popover
-                    open={openSubMenuId === item.id}
-                    onOpenChange={(o) => setOpenSubMenuId(o ? item.id : null)}
-                  >
-                    <PopoverTrigger asChild>
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "relative flex items-center rounded-lg transition-all",
+                    isActive
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                       <button
+                        ref={(el) => {
+                          itemRefs.current[index] = el;
+                        }}
+                        onClick={() =>
+                          runToolbarAction(item.id as ToolbarActionId, {
+                            tool,
+                            isShapeGroupActive,
+                            lastUsedShape,
+                            setTool,
+                            onUndo,
+                          })
+                        }
                         className={cn(
-                          "flex items-center justify-center h-9 px-1 border-l border-transparent hover:border-border/40 outline-none rounded-r-lg opacity-30 hover:opacity-100 transition-all",
-                          openSubMenuId === item.id && "bg-muted/50 opacity-100"
+                          "flex items-center justify-center h-9 px-3 outline-none rounded-l-lg transition-colors",
+                          !item.hasSub && "rounded-lg",
+                          !isActive && "hover:bg-muted/50",
+                          isColorTab && "px-2"
                         )}
                       >
-                        <ChevronDown className="size-3" />
+                        {isColorTab ? (
+                          <div
+                            className="size-5 rounded-full border border-foreground/10 shadow-sm"
+                            style={{ backgroundColor: brushColor }}
+                          />
+                        ) : Icon ? (
+                          <Icon className="size-5" />
+                        ) : null}
                       </button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side="top"
-                      align={isColorTab ? "end" : "start"}
-                      sideOffset={12}
-                      className={uiClass.submenuPanel}
-                    >
-                      {item.id === "brush" ? (
-                        <BrushSubmenu
-                          brushChar={brushChar}
-                          customChar={customChar}
-                          setCustomChar={setCustomChar}
-                          setBrushChar={setBrushChar}
-                          setTool={setTool}
-                          inputRef={inputRef}
-                          submenuOptionClass={submenuOptionClass}
-                        />
-                      ) : item.id === "color" ? (
-                        <ColorSubmenu
-                          brushColor={brushColor}
-                          setBrushColor={setBrushColor}
-                          onPicked={() => setOpenSubMenuId(null)}
-                        />
-                      ) : (
-                        <ShapeSubmenu
-                          tool={tool}
-                          shapeTools={structuredShapeTools}
-                          setTool={setTool}
-                          setLastUsedShape={setLastUsedShape}
-                          getToolMeta={getToolMeta}
-                          submenuOptionClass={submenuOptionClass}
-                        />
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                )}
-              </div>
-            );
-          })}
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      {item.label}
+                    </TooltipContent>
+                  </Tooltip>
 
-          <div
-            className="absolute bottom-1 left-0 bg-primary rounded-full transition-all duration-300 ease-out pointer-events-none"
-            style={{
-              width: `${indicatorStyle.width}px`,
-              transform: `translateX(${indicatorStyle.left}px)`,
-              height: "2px",
-            }}
-          />
-        </nav>
+                  {item.hasSub && (
+                    <Popover
+                      open={openSubMenuId === item.id}
+                      onOpenChange={(o) => setOpenSubMenuId(o ? item.id : null)}
+                    >
+                      <PopoverTrigger asChild>
+                        <button
+                          className={cn(
+                            "flex items-center justify-center h-9 px-1 border-l border-transparent hover:border-border/40 outline-none rounded-r-lg opacity-30 hover:opacity-100 transition-all",
+                            openSubMenuId === item.id && "bg-muted/50 opacity-100"
+                          )}
+                        >
+                          <ChevronDown className="size-3" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        side="top"
+                        align={isColorTab ? "end" : "start"}
+                        sideOffset={12}
+                        className={uiClass.submenuPanel}
+                      >
+                        {item.id === "brush" ? (
+                          <BrushSubmenu
+                            brushChar={brushChar}
+                            customChar={customChar}
+                            setCustomChar={setCustomChar}
+                            setBrushChar={setBrushChar}
+                            setTool={setTool}
+                            inputRef={inputRef}
+                            submenuOptionClass={submenuOptionClass}
+                          />
+                        ) : item.id === "color" ? (
+                          <ColorSubmenu
+                            brushColor={brushColor}
+                            setBrushColor={setBrushColor}
+                            onPicked={() => setOpenSubMenuId(null)}
+                          />
+                        ) : (
+                          <ShapeSubmenu
+                            tool={tool}
+                            shapeTools={structuredShapeTools}
+                            setTool={setTool}
+                            setLastUsedShape={setLastUsedShape}
+                            getToolMeta={getToolMeta}
+                            submenuOptionClass={submenuOptionClass}
+                          />
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+              );
+            })}
+
+            <div
+              className="absolute bottom-1 left-0 bg-primary rounded-full transition-all duration-300 ease-out pointer-events-none"
+              style={{
+                width: `${indicatorStyle.width}px`,
+                transform: `translateX(${indicatorStyle.left}px)`,
+                height: "2px",
+              }}
+            />
+          </nav>
+
+          {canvasMode === "animation" && <AnimationTimeline embedded />}
+        </div>
       </div>
     </TooltipProvider>
   );

@@ -18,12 +18,24 @@ const SidebarRight = lazy(() =>
   }))
 );
 
+const SidebarLeft = lazy(() =>
+  import("./components/ToolBar/sidebar-left").then((module) => ({
+    default: module.SidebarLeft,
+  }))
+);
+
 export default function App() {
-  const { tool, setTool } = useCanvasStore(
+  const { tool, setTool, canvasMode } = useCanvasStore(
     useShallow((state) => ({
       tool: state.tool,
       setTool: state.setTool,
+      canvasMode: state.canvasMode,
     }))
+  );
+
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useLocalStorageState<boolean>(
+    "ui-left-panel-status",
+    { defaultValue: true }
   );
 
   const [isRightPanelOpen, setIsRightPanelOpen] = useLocalStorageState<boolean>(
@@ -86,6 +98,20 @@ export default function App() {
             onUndo={handleUndo}
           />
         </AppLayout>
+
+        {canvasMode === "animation" && (
+          <div className="absolute top-0 left-0 h-full pointer-events-none z-50">
+            <SidebarProvider
+              open={isLeftPanelOpen}
+              onOpenChange={setIsLeftPanelOpen}
+              className="h-full items-start"
+            >
+              <Suspense fallback={<div className="w-0" />}>
+                <SidebarLeft />
+              </Suspense>
+            </SidebarProvider>
+          </div>
+        )}
 
         <div className="absolute top-0 right-0 h-full pointer-events-none z-50">
           <SidebarProvider

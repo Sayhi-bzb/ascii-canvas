@@ -9,7 +9,13 @@ import {
   isPoint,
   toStructuredNode
 } from '@/store/helpers/snapshotHelpers';
-import type { StructuredNode, GridCell } from '@/types';
+import type {
+  StructuredBoxNode,
+  StructuredLineNode,
+  StructuredNode,
+  StructuredTextNode,
+  GridCell,
+} from '@/types';
 
 describe('snapshotHelpers', () => {
   describe('cloneStructuredNode', () => {
@@ -22,7 +28,7 @@ describe('snapshotHelpers', () => {
         text: 'Hello',
         style: { color: '#000' }
       };
-      const cloned = cloneStructuredNode(node);
+      const cloned = cloneStructuredNode(node) as StructuredTextNode;
 
       expect(cloned).toEqual(node);
       expect(cloned).not.toBe(node);
@@ -39,7 +45,7 @@ describe('snapshotHelpers', () => {
         end: { x: 10, y: 10 },
         style: { color: '#000' }
       };
-      const cloned = cloneStructuredNode(node);
+      const cloned = cloneStructuredNode(node) as StructuredBoxNode;
 
       expect(cloned).toEqual(node);
       expect(cloned.start).not.toBe(node.start);
@@ -57,7 +63,7 @@ describe('snapshotHelpers', () => {
         axis: 'horizontal',
         style: { color: '#000' }
       };
-      const cloned = cloneStructuredNode(node);
+      const cloned = cloneStructuredNode(node) as StructuredLineNode;
 
       expect(cloned).toEqual(node);
       expect(cloned.start).not.toBe(node.start);
@@ -73,7 +79,7 @@ describe('snapshotHelpers', () => {
         end: { x: 10, y: 10 },
         style: { color: '#000' }
       };
-      const cloned = cloneStructuredNode(node);
+      const cloned = cloneStructuredNode(node) as StructuredBoxNode;
       cloned.start.x = 100;
 
       expect(node.start.x).toBe(0);

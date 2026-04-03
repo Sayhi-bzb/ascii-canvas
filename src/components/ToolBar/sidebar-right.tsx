@@ -19,6 +19,8 @@ export function SidebarRight() {
     grid,
     canvasMode,
     structuredScene,
+    canvasBounds,
+    animationTimeline,
     clearCanvas,
     showGrid,
     setShowGrid,
@@ -31,6 +33,8 @@ export function SidebarRight() {
       grid: state.grid,
       canvasMode: state.canvasMode,
       structuredScene: state.structuredScene,
+      canvasBounds: state.canvasBounds,
+      animationTimeline: state.animationTimeline,
       clearCanvas: state.clearCanvas,
       showGrid: state.showGrid,
       setShowGrid: state.setShowGrid,
@@ -73,6 +77,8 @@ export function SidebarRight() {
                 grid={grid}
                 canvasMode={canvasMode}
                 structuredScene={structuredScene}
+                canvasBounds={canvasBounds}
+                animationTimeline={animationTimeline}
                 exportShowGrid={exportShowGrid}
                 setExportShowGrid={setExportShowGrid}
               />
@@ -166,7 +172,16 @@ export function SidebarRight() {
             </TooltipProvider>
           </div>
 
-          <ClearCanvasDialog isCollapsed={isCollapsed} onConfirm={clearCanvas} />
+          <ClearCanvasDialog
+            isCollapsed={isCollapsed}
+            label={canvasMode === "animation" ? "Clear Frame" : "Clear Canvas"}
+            description={
+              canvasMode === "animation"
+                ? "This will completely clear the current animation frame."
+                : "This will completely clear the current blueprint."
+            }
+            onConfirm={clearCanvas}
+          />
         </div>
       }
     >
