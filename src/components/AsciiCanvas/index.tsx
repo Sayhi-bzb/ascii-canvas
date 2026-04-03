@@ -21,6 +21,7 @@ import {
   runAction,
 } from '@/features/actions';
 import { getActionShortcutLabel } from '@/features/actions/shortcuts';
+import { resolveFillHotkeyChar } from '@/features/input-arbiter';
 import {
   resolveHistoryShortcutCommand,
 } from '../../store/actions/editorCommands';
@@ -275,10 +276,13 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       } else if (selections.length > 0) {
         clearSelections();
       }
-    } else if (selections.length > 0 && !textCursor && e.key.length === 1) {
+    } else if (selections.length > 0 && !textCursor) {
+      const fillChar = resolveFillHotkeyChar(e);
+      if (!fillChar) return;
+
       // Direct character fill when selection is active
       e.preventDefault();
-      fillSelectionsWithChar(e.key);
+      fillSelectionsWithChar(fillChar);
     }
   };
 

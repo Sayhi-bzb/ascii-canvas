@@ -60,7 +60,9 @@ export const writeClipboardPayload = async (
   if (event?.clipboardData) {
     event.preventDefault();
     event.clipboardData.setData("text/plain", payload.plain);
-    if (withRich && payload.rich) {
+    // Include app-native rich data on copy events so in-app paste can
+    // reconstruct multi-cell selections while external apps still receive plain text.
+    if (payload.rich) {
       event.clipboardData.setData(MIME_RICH_DATA, payload.rich);
     }
     return true;

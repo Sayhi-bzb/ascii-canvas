@@ -174,7 +174,15 @@ export const createTextSlice: StateCreator<CanvasState, [], [], TextSlice> = (
       return;
     }
 
-    const cursor = startPos || textCursor;
+    const fallbackSelectionStart =
+      !startPos && !textCursor && selections.length > 0
+        ? {
+            x: Math.min(selections[0].start.x, selections[0].end.x),
+            y: Math.min(selections[0].start.y, selections[0].end.y),
+          }
+        : null;
+
+    const cursor = startPos || textCursor || fallbackSelectionStart;
     if (!cursor) return;
 
     const boundedCursor = clampPointToBounds(cursor, canvasBounds);

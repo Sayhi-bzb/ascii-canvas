@@ -17,14 +17,32 @@ body,
   --font-mono: "Maple Mono NF CN", ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
 
-  /* 强制所有圆角变量为 0 */
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
-  --radius-2xl: 0px;
-  --radius-3xl: 0px;
-  --radius-4xl: 0px;
+  /* 恢复圆角变量的计算，不再强制为0 */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  /* 合理规划：通过 Tailwind Theme 从根本上移除各种软效果的值 */
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-2xl: none;
+  --shadow-inner: none;
+  --shadow: none;
+
+  --blur-sm: none;
+  --blur-md: none;
+  --blur-lg: none;
+  --blur-xl: none;
+  --blur-2xl: none;
+  --blur-3xl: none;
+  --blur: none;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -60,8 +78,10 @@ body,
 }
 
 :root {
-  --radius: 0rem;
-  /* Stark White background */
+  /* 恢复圆角：线框风格下带圆角会更现代化，不至于太过锐利 */
+  --radius: 0.75rem;
+
+  /* Stark White background - 高对比度 */
   --background: oklch(1 0 0);
   --foreground: oklch(0 0 0);
   --card: oklch(1 0 0);
@@ -96,8 +116,9 @@ body,
 }
 
 .dark {
-  --radius: 0rem;
-  /* Stark Black background */
+  --radius: 0.75rem;
+
+  /* Stark Black background - 高对比度 */
   --background: oklch(0 0 0);
   --foreground: oklch(1 0 0);
   --card: oklch(0 0 0);
@@ -132,17 +153,30 @@ body,
 }
 
 @layer base {
+  /* 移除了暴力全局 * 覆盖，恢复为常规的组件默认样式 */
   * {
     @apply border-border outline-ring/50;
-    /* 强力覆盖：移除所有圆角、阴影、背景模糊和渐变 */
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    background-image: none !important;
   }
   body {
     @apply bg-background text-foreground font-mono;
   }
+}
+
+/* 合理规划：通过定制 Tailwind Utilities 来干净地覆盖 */
+@layer utilities {
+  /* Wireframe: 加粗基础边框，使其更有力量感 */
+  .border { border-width: 2px; }
+  .border-t { border-top-width: 2px; }
+  .border-b { border-bottom-width: 2px; }
+  .border-l { border-left-width: 2px; }
+  .border-r { border-right-width: 2px; }
+  .border-x { border-left-width: 2px; border-right-width: 2px; }
+  .border-y { border-top-width: 2px; border-bottom-width: 2px; }
+
+  /* 清除遗留的任意值阴影和渐变类名，不影响其他常规属性 */
+  [class*="shadow-["] { box-shadow: none !important; }
+  [class*="backdrop-blur"] { backdrop-filter: none !important; }
+  [class*="bg-gradient"] { background-image: none !important; }
 }
 
 [data-slot="sidebar-gap"] {
