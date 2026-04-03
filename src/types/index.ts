@@ -34,6 +34,7 @@ export interface OnionSkinSettings {
 
 export interface AnimationFrame {
   id: string;
+  name: string;
   grid: [string, GridCell][];
 }
 

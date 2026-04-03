@@ -163,16 +163,15 @@ body,
 }
 
 /* 合理规划：通过定制 Tailwind Utilities 来干净地覆盖 */
-@layer utilities {
-  /* Wireframe: 加粗基础边框，使其更有力量感 */
-  .border { border-width: 2px; }
-  .border-t { border-top-width: 2px; }
-  .border-b { border-bottom-width: 2px; }
-  .border-l { border-left-width: 2px; }
-  .border-r { border-right-width: 2px; }
-  .border-x { border-left-width: 2px; border-right-width: 2px; }
-  .border-y { border-top-width: 2px; border-bottom-width: 2px; }
+@utility border { border-width: 2px; }
+@utility border-t { border-top-width: 2px; }
+@utility border-b { border-bottom-width: 2px; }
+@utility border-l { border-left-width: 2px; }
+@utility border-r { border-right-width: 2px; }
+@utility border-x { border-left-width: 2px; border-right-width: 2px; }
+@utility border-y { border-top-width: 2px; border-bottom-width: 2px; }
 
+@layer utilities {
   /* 清除遗留的任意值阴影和渐变类名，不影响其他常规属性 */
   [class*="shadow-["] { box-shadow: none !important; }
   [class*="backdrop-blur"] { backdrop-filter: none !important; }

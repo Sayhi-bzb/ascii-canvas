@@ -151,7 +151,7 @@ export function ColorSubmenu({
             onPicked();
           }}
           className={cn(
-            "size-6 rounded-md border border-foreground/10 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center",
+            "size-6 rounded-md border border-border transition-transform hover:scale-110 active:scale-95 flex items-center justify-center",
             brushColor === c && "ring-2 ring-primary ring-offset-1 ring-offset-popover"
           )}
           style={{ backgroundColor: c }}

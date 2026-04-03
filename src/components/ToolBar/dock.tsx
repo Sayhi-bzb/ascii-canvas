@@ -194,7 +194,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                       >
                         {isColorTab ? (
                           <div
-                            className="size-5 rounded-full border border-foreground/10 shadow-sm"
+                            className="size-5 rounded-full border border-border shadow-sm"
                             style={{ backgroundColor: brushColor }}
                           />
                         ) : Icon ? (
@@ -215,7 +215,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
                       <PopoverTrigger asChild>
                         <button
                           className={cn(
-                            "flex items-center justify-center h-9 px-1 border-l border-transparent hover:border-border/40 outline-none rounded-r-lg opacity-30 hover:opacity-100 transition-all",
+                            "flex items-center justify-center h-9 px-1 border-l border-transparent hover:border-border outline-none rounded-r-lg opacity-30 hover:opacity-100 transition-all",
                             openSubMenuId === item.id && "bg-muted/50 opacity-100"
                           )}
                         >

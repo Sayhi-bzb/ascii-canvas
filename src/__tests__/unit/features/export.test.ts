@@ -13,6 +13,7 @@ describe("export utilities", () => {
       frames: [
         {
           id: "f1",
+          name: "Idle",
           grid: [["1,2", { char: "@", color: "#ff0000" }]],
         },
       ],
@@ -34,6 +35,7 @@ describe("export utilities", () => {
       },
       frames: [
         {
+          name: "Idle",
           cells: [{ x: 1, y: 2, char: "@", color: "#ff0000" }],
         },
       ],
@@ -42,7 +44,7 @@ describe("export utilities", () => {
 
   it("serializes the animation exchange document without editor-only fields", () => {
     const timeline = normalizeAnimationTimeline({
-      frames: [{ id: "f1", grid: [] }],
+      frames: [{ id: "f1", name: "Frame 1", grid: [] }],
       currentFrameId: "f1",
     });
 
@@ -54,6 +56,7 @@ describe("export utilities", () => {
       fps: timeline.fps,
       loop: timeline.loop,
     });
+    expect(parsed.frames[0]).toHaveProperty("name", "Frame 1");
     expect(parsed.frames[0]).not.toHaveProperty("id");
     expect(parsed.frames[0]).not.toHaveProperty("index");
   });

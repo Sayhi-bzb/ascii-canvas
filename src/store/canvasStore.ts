@@ -44,11 +44,15 @@ import {
   toStructuredNode,
 } from "./helpers/snapshotHelpers";
 import {
+  cloneAnimationFrame,
   cloneAnimationTimeline,
+  createDuplicateAnimationFrameName,
   createEmptyAnimationFrame,
+  createNextAnimationFrameName,
   DEFAULT_ANIMATION_SIZE,
   getAnimationFrameEntries,
   getAnimationFrameIndex,
+  getUniqueAnimationFrameName,
   normalizeAnimationCanvasSize,
   normalizeAnimationTimeline,
   updateAnimationFrameEntries,
@@ -71,7 +75,10 @@ const getFallbackToolForMode = (mode: CanvasMode): ToolType => {
 };
 
 const createDefaultAnimationTimeline = (): AnimationTimeline => {
-  const initialFrame = createEmptyAnimationFrame();
+  const initialFrame = createEmptyAnimationFrame(
+    undefined,
+    createNextAnimationFrameName([])
+  );
   return normalizeAnimationTimeline({
     frames: [initialFrame],
     currentFrameId: initialFrame.id,
@@ -490,13 +497,43 @@ export const useCanvasStore = create<CanvasState>()(
             syncedTimeline,
             syncedTimeline.currentFrameId
           );
-          const nextFrame = createEmptyAnimationFrame();
+          const nextFrame = createEmptyAnimationFrame(
+            undefined,
+            createNextAnimationFrameName(syncedTimeline.frames)
+          );
           const insertIndex =
             position === "before" ? currentIndex : currentIndex + 1;
           const nextTimeline = cloneAnimationTimeline(syncedTimeline);
           nextTimeline.frames.splice(insertIndex, 0, nextFrame);
           nextTimeline.currentFrameId = nextFrame.id;
           syncAnimationRuntime(nextTimeline, { isPlaying: false });
+        },
+        renameAnimationFrame: (frameId, nextName) => {
+          const state = get();
+          if (state.canvasMode !== "animation" || !state.animationTimeline) return;
+          if (!nextName.trim()) return;
+
+          const syncedTimeline = updateAnimationFrameEntries(
+            state.animationTimeline,
+            state.animationTimeline.currentFrameId,
+            serializeGrid(state.grid)
+          );
+          const targetIndex = getAnimationFrameIndex(syncedTimeline, frameId);
+          if (targetIndex === -1) return;
+
+          const resolvedName = getUniqueAnimationFrameName(
+            syncedTimeline.frames,
+            nextName,
+            frameId
+          );
+          const nextTimeline = cloneAnimationTimeline(syncedTimeline);
+          nextTimeline.frames[targetIndex] = {
+            ...nextTimeline.frames[targetIndex],
+            name: resolvedName,
+          };
+          syncAnimationRuntime(nextTimeline, {
+            isPlaying: state.animationIsPlaying,
+          });
         },
         duplicateAnimationFrame: (frameId) => {
           const state = get();
@@ -514,6 +551,10 @@ export const useCanvasStore = create<CanvasState>()(
           const sourceFrame = nextTimeline.frames[sourceIndex];
           const duplicated = {
             id: createEmptyAnimationFrame().id,
+            name: createDuplicateAnimationFrameName(
+              nextTimeline.frames,
+              sourceFrame.name
+            ),
             grid: sourceFrame.grid.map(
               ([key, cell]) => [key, { ...cell }] as [string, GridCell]
             ),
@@ -571,6 +612,34 @@ export const useCanvasStore = create<CanvasState>()(
           const nextTimeline = cloneAnimationTimeline(syncedTimeline);
           const [frame] = nextTimeline.frames.splice(currentIndex, 1);
           nextTimeline.frames.splice(nextIndex, 0, frame);
+          syncAnimationRuntime(nextTimeline, {
+            isPlaying: state.animationIsPlaying,
+          });
+        },
+        reorderAnimationFrames: (frameIds) => {
+          const state = get();
+          if (state.canvasMode !== "animation" || !state.animationTimeline) return;
+          if (frameIds.length !== state.animationTimeline.frames.length) return;
+
+          const syncedTimeline = updateAnimationFrameEntries(
+            state.animationTimeline,
+            state.animationTimeline.currentFrameId,
+            serializeGrid(state.grid)
+          );
+          const frameMap = new Map(
+            syncedTimeline.frames.map((frame) => [frame.id, frame] as const)
+          );
+          if (frameMap.size !== frameIds.length) return;
+
+          const nextFrames = frameIds
+            .map((frameId) => frameMap.get(frameId))
+            .filter((frame): frame is (typeof syncedTimeline.frames)[number] => !!frame);
+
+          if (nextFrames.length !== syncedTimeline.frames.length) return;
+
+          const nextTimeline = cloneAnimationTimeline(syncedTimeline);
+          nextTimeline.frames = nextFrames.map((frame) => cloneAnimationFrame(frame));
+
           syncAnimationRuntime(nextTimeline, {
             isPlaying: state.animationIsPlaying,
           });

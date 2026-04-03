@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { AnimationTimeline } from "@/types";
 import {
+  cloneAnimationFrame,
   clampPointToBounds,
   clampSelectionToBounds,
   DEFAULT_ANIMATION_SIZE,
@@ -22,12 +24,30 @@ describe("animationHelpers", () => {
     const timeline = normalizeAnimationTimeline(undefined);
     expect(timeline.frames).toHaveLength(1);
     expect(timeline.currentFrameId).toBe(timeline.frames[0].id);
+    expect(timeline.frames[0].name).toBe("Frame 1");
     expect(timeline.fps).toBe(10);
+  });
+
+  it("hydrates stable frame names for legacy timelines", () => {
+    const timeline = normalizeAnimationTimeline(
+      {
+        frames: [
+          { id: "f1", grid: [] },
+          { id: "f2", name: "Idle", grid: [] },
+        ],
+        currentFrameId: "f1",
+      } as Partial<AnimationTimeline>
+    );
+
+    expect(timeline.frames.map((frame) => frame.name)).toEqual([
+      "Frame 1",
+      "Idle",
+    ]);
   });
 
   it("updates the targeted frame grid without mutating other timeline fields", () => {
     const timeline = normalizeAnimationTimeline({
-      frames: [{ id: "f1", grid: [] }],
+      frames: [{ id: "f1", name: "Frame 1", grid: [] }],
       currentFrameId: "f1",
       fps: 8,
       loop: true,
@@ -41,6 +61,20 @@ describe("animationHelpers", () => {
     ]);
     expect(next.fps).toBe(8);
     expect(timeline.frames[0].grid).toEqual([]);
+  });
+
+  it("preserves frame names when cloning frames", () => {
+    expect(
+      cloneAnimationFrame({
+        id: "f1",
+        name: "Idle",
+        grid: [["0,0", { char: "#", color: "#000" }]],
+      })
+    ).toEqual({
+      id: "f1",
+      name: "Idle",
+      grid: [["0,0", { char: "#", color: "#000" }]],
+    });
   });
 
   it("clamps points and selections to the fixed animation bounds", () => {

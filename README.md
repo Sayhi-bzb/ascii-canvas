@@ -28,10 +28,16 @@
 
 **ASCII Canvas** is a high-performance, collaborative ASCII art creation engine. Unlike traditional whiteboards that output pixels (opaque to LLMs), this engine renders structured, semantic Unicode grids.
 
+It now supports three session modes:
+
+- **Freeform**: the original infinite ASCII canvas for exploratory drawing.
+- **Animation**: a fixed-size frame timeline for ASCII motion work.
+- **Structured**: an in-progress layout mode for semantic scene construction.
+
 ### 1. High-Performance Rendering
 
 - **Multi-layer Architecture**: Utilizes three distinct layers (Background, Scratch, and UI) to maintain 60FPS.
-- **Infinite Viewport**: Integrated screen-to-grid mapping for seamless panning and zooming.
+- **Mode-aware Viewports**: Freeform uses an infinite viewport, while Animation uses a fixed camera and bounded canvas.
 
 ### 2. Intelligent Layout Engine
 
@@ -39,12 +45,19 @@
 - **Wide-Character Support**: Native support for **CJK characters**, **Nerd Fonts**, and **Emojis**.
 - **Modular Indentation**: Professional Tab system shifting cursor by 2 grid units.
 
-### 3. Distributed Collaboration
+### 3. Animation Workflow
+
+- **Fixed Canvas Presets**: Start animation sessions with common sizes like `80x25`, `64x64`, and `128x128`, or enter custom dimensions.
+- **Frame Timeline**: Add, duplicate, delete, reorder, and rename frames from the dedicated animation sidebar.
+- **Onion Skin Playback**: Toggle ghosted neighboring frames for frame-by-frame ASCII animation.
+- **Export Ready**: Export animations as lightweight JSON, with GIF export support built into the app.
+
+### 4. Distributed Collaboration
 
 - **Yjs CRDT Integration**: Real-time, low-latency collaborative editing.
 - **Robust Persistence**: High-granularity undo/redo management with local storage sync.
 
-### 4. Precision Editing Tools
+### 5. Precision Editing Tools
 
 - **Anchor Zoning**: `Shift + Click` for rapid rectangular selection.
 - **Mass Fill**: Instantly fill active selections with any character.
@@ -66,6 +79,7 @@
 - **State Management**: Zustand (Slice Pattern)
 - **Synchronization**: Yjs / Y-IndexedDB
 - **Gestures**: @use-gesture/react
+- **Animation Export**: JSON exchange format, in-browser GIF generation
 - **UI Components**: Tailwind CSS, Shadcn UI, Radix UI
 
 ---
@@ -105,6 +119,8 @@ npm run build
 | **Pave Space**    | `Tab`           | Shift cursor right by 2 grid units                |
 | **Context Menu**  | `Right Click`   | Access Copy, Cut, Paste, and Delete commands      |
 
+Animation sessions also expose timeline controls for frame stepping, playback, loop, ghost toggle, and export from the animation bar/sidebar UI.
+
 ---
 
 ## 🗺 Roadmap
@@ -113,6 +129,7 @@ npm run build
 - [x] Real-time collaboration via Yjs.
 - [x] Intelligent Indentation & Tab system.
 - [x] Context Menu & Clipboard integration.
+- [x] Fixed-size animation mode with timeline, onion skin, and export.
 - [ ] **NES (Next Edit Suggestion)**: Predictive character placement based on layout patterns.
 - [ ] **AI Chat Integration**: Natural language interface for generating canvas components.
 - [ ] ANSI Sequence & SVG Export support.

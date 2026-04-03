@@ -51,7 +51,7 @@ const CharButton = ({
       "font-mono text-sm border shrink-0",
       isSelected
         ? "border-primary shadow-sm"
-        : "bg-background border-border hover:border-primary/50 text-foreground"
+        : "bg-background border-border hover:border-primary text-foreground"
     )}
   >
     {char}

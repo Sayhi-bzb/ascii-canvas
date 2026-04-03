@@ -85,7 +85,7 @@ export function HandbookDialog() {
               <h4 className="text-sm font-semibold flex items-center gap-2 text-primary">
                 <Maximize className="size-4" /> Rapid Zoning (Selection)
               </h4>
-              <div className="bg-primary/5 border border-primary/20 p-3 rounded-lg text-xs space-y-3">
+              <div className="bg-primary/5 border border-primary p-3 rounded-lg text-xs space-y-3">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
                     <p className="font-bold text-foreground">Anchor Surveying</p>
@@ -98,7 +98,7 @@ export function HandbookDialog() {
                     </p>
                   </div>
                 </div>
-                <div className="flex justify-between items-start border-t border-primary/10 pt-2">
+                <div className="flex justify-between items-start border-t border-primary pt-2">
                   <div className="space-y-1">
                     <p className="font-bold text-foreground">Mass Pouring (Fill)</p>
                     <p className="text-muted-foreground">
@@ -118,7 +118,7 @@ export function HandbookDialog() {
                 <Type className="size-4" /> Construction & Typing
               </h4>
               <div className="space-y-2 text-xs">
-                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                <div className="flex items-center justify-between py-1.5 border-b border-border">
                   <div className="flex flex-col">
                     <span className="font-medium">Setback Inheritance</span>
                     <span className="text-[10px] text-muted-foreground">
@@ -129,7 +129,7 @@ export function HandbookDialog() {
                     Enter
                   </kbd>
                 </div>
-                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                <div className="flex items-center justify-between py-1.5 border-b border-border">
                   <div className="flex flex-col">
                     <span className="font-medium">Modular Paving</span>
                     <span className="text-[10px] text-muted-foreground">
@@ -140,7 +140,7 @@ export function HandbookDialog() {
                     Tab
                   </kbd>
                 </div>
-                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                <div className="flex items-center justify-between py-1.5 border-b border-border">
                   <span className="text-muted-foreground italic">Quick Undo</span>
                   <div className="flex gap-1">
                     <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">

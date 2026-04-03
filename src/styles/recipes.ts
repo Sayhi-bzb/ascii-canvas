@@ -73,7 +73,7 @@ export const rx = {
     cn(
       kind === "panel" && "bg-background border border-border rounded-xl",
       kind === "overlay" && "bg-popover/95 border border-border rounded-xl",
-      kind === "muted" && "bg-muted/40 border border-border/50 rounded-lg",
+      kind === "muted" && "bg-muted/40 border border-border rounded-lg",
       elevated && "shadow-xl"
     ),
 

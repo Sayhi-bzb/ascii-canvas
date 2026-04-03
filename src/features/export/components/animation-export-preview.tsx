@@ -113,8 +113,8 @@ export function AnimationExportPreview({
   }, [frameMap, size.height, size.width]);
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border/60 bg-muted/20 overflow-hidden">
-      <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/40 px-3 py-2">
+    <div className="flex h-full flex-col rounded-lg border border-border bg-muted/20 overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/40 px-3 py-2">
         <div className="flex items-center gap-2">
           <Button
             type="button"

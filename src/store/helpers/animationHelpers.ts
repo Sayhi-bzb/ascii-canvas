@@ -15,6 +15,7 @@ export const DEFAULT_ANIMATION_SIZE: AnimationCanvasSize = {
 };
 
 export const DEFAULT_ANIMATION_FPS = 10;
+export const DEFAULT_ANIMATION_FRAME_NAME = "Frame";
 
 export const DEFAULT_ONION_SKIN = {
   enabled: true,
@@ -33,6 +34,71 @@ export const createAnimationFrameId = () => {
     .slice(2, 7)}`;
 };
 
+const getTrimmedFrameName = (name: string | null | undefined) => {
+  return typeof name === "string" ? name.trim() : "";
+};
+
+const buildFrameNameSet = (
+  existingFrames: Array<Pick<AnimationFrame, "id" | "name">>,
+  excludeFrameId?: string
+) => {
+  return new Set(
+    existingFrames
+      .filter((frame) => frame.id !== excludeFrameId)
+      .map((frame) => getTrimmedFrameName(frame.name).toLocaleLowerCase())
+      .filter(Boolean)
+  );
+};
+
+export const getUniqueAnimationFrameName = (
+  existingFrames: Array<Pick<AnimationFrame, "id" | "name">>,
+  preferredName: string,
+  excludeFrameId?: string
+) => {
+  const trimmedName = getTrimmedFrameName(preferredName);
+  if (!trimmedName) {
+    return createNextAnimationFrameName(existingFrames);
+  }
+
+  const usedNames = buildFrameNameSet(existingFrames, excludeFrameId);
+  if (!usedNames.has(trimmedName.toLocaleLowerCase())) {
+    return trimmedName;
+  }
+
+  let duplicateIndex = 2;
+  while (usedNames.has(`${trimmedName} ${duplicateIndex}`.toLocaleLowerCase())) {
+    duplicateIndex += 1;
+  }
+  return `${trimmedName} ${duplicateIndex}`;
+};
+
+export const createNextAnimationFrameName = (
+  existingFrames: Array<Pick<AnimationFrame, "id" | "name">>
+) => {
+  const usedNames = buildFrameNameSet(existingFrames);
+  let frameNumber = 1;
+  while (
+    usedNames.has(
+      `${DEFAULT_ANIMATION_FRAME_NAME} ${frameNumber}`.toLocaleLowerCase()
+    )
+  ) {
+    frameNumber += 1;
+  }
+  return `${DEFAULT_ANIMATION_FRAME_NAME} ${frameNumber}`;
+};
+
+export const createDuplicateAnimationFrameName = (
+  existingFrames: Array<Pick<AnimationFrame, "id" | "name">>,
+  sourceName: string
+) => {
+  const trimmedSourceName =
+    getTrimmedFrameName(sourceName) || DEFAULT_ANIMATION_FRAME_NAME;
+  return getUniqueAnimationFrameName(
+    existingFrames,
+    `${trimmedSourceName} Copy`
+  );
+};
+
 export const normalizeAnimationCanvasSize = (
   size: Partial<AnimationCanvasSize> | null | undefined
 ): AnimationCanvasSize => {
@@ -49,15 +115,18 @@ export const normalizeAnimationCanvasSize = (
 export const cloneAnimationFrame = (frame: AnimationFrame): AnimationFrame => {
   return {
     id: frame.id,
+    name: getTrimmedFrameName(frame.name) || DEFAULT_ANIMATION_FRAME_NAME,
     grid: frame.grid.map(([key, cell]) => [key, { ...cell }] satisfies [string, GridCell]),
   };
 };
 
 export const createEmptyAnimationFrame = (
-  frameId = createAnimationFrameId()
+  frameId = createAnimationFrameId(),
+  name = DEFAULT_ANIMATION_FRAME_NAME
 ): AnimationFrame => {
   return {
     id: frameId,
+    name: getTrimmedFrameName(name) || DEFAULT_ANIMATION_FRAME_NAME,
     grid: [],
   };
 };
@@ -117,35 +186,39 @@ export const normalizeAnimationTimeline = (
   fallbackGrid: [string, GridCell][] = []
 ): AnimationTimeline => {
   const rawFrames = Array.isArray(timeline?.frames) ? timeline.frames : [];
-  const frames = rawFrames
-    .map((frame) => {
-      if (!frame || typeof frame !== "object" || typeof frame.id !== "string") {
-        return null;
-      }
-      return {
-        id: frame.id,
-        grid: Array.isArray(frame.grid)
-          ? frame.grid
-              .filter(
-                (entry): entry is [string, GridCell] =>
-                  Array.isArray(entry) &&
-                  typeof entry[0] === "string" &&
-                  !!entry[1] &&
-                  typeof entry[1] === "object" &&
-                  typeof entry[1].char === "string" &&
-                  typeof entry[1].color === "string"
-              )
-              .map(
-                ([key, cell]) =>
-                  [key, { char: cell.char, color: cell.color }] satisfies [
-                    string,
-                    GridCell,
-                  ]
-              )
-          : [],
-      } satisfies AnimationFrame;
-    })
-    .filter((frame): frame is AnimationFrame => !!frame);
+  const frames = rawFrames.reduce<AnimationFrame[]>((accumulator, frame) => {
+    if (!frame || typeof frame !== "object" || typeof frame.id !== "string") {
+      return accumulator;
+    }
+    accumulator.push({
+      id: frame.id,
+      name: getTrimmedFrameName(
+        typeof frame.name === "string" ? frame.name : undefined
+      )
+        ? getUniqueAnimationFrameName(accumulator, frame.name)
+        : createNextAnimationFrameName(accumulator),
+      grid: Array.isArray(frame.grid)
+        ? frame.grid
+            .filter(
+              (entry): entry is [string, GridCell] =>
+                Array.isArray(entry) &&
+                typeof entry[0] === "string" &&
+                !!entry[1] &&
+                typeof entry[1] === "object" &&
+                typeof entry[1].char === "string" &&
+                typeof entry[1].color === "string"
+            )
+            .map(
+              ([key, cell]) =>
+                [key, { char: cell.char, color: cell.color }] satisfies [
+                  string,
+                  GridCell,
+                ]
+            )
+        : [],
+    });
+    return accumulator;
+  }, []);
 
   const normalizedFrames =
     frames.length > 0
@@ -153,6 +226,7 @@ export const normalizeAnimationTimeline = (
       : [
           {
             id: createAnimationFrameId(),
+            name: createNextAnimationFrameName([]),
             grid: fallbackGrid.map(
               ([key, cell]) =>
                 [key, { char: cell.char, color: cell.color }] satisfies [

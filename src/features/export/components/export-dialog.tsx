@@ -140,7 +140,7 @@ export function ExportDialog({
                         {animationDocument?.type} · v{animationDocument?.version}
                       </div>
                     </div>
-                    <div className="inline-flex rounded-xl border border-border/60 bg-muted/25 p-1">
+                    <div className="inline-flex rounded-xl border border-border bg-muted/25 p-1">
                       {[
                         { value: "preview" as const, label: "Preview" },
                         { value: "json" as const, label: "JSON" },
@@ -169,8 +169,8 @@ export function ExportDialog({
                         timeline={animationTimeline}
                       />
                     ) : (
-                      <div className="h-full min-w-0 rounded-lg border border-border/60 bg-muted/20 overflow-hidden flex flex-col">
-                        <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-2 py-1.5">
+                      <div className="h-full min-w-0 rounded-lg border border-border bg-muted/20 overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-2 py-1.5">
                           <div className="text-[10px] font-medium text-muted-foreground">
                             {lineCount} lines · {charCount} chars
                           </div>
@@ -200,8 +200,8 @@ export function ExportDialog({
                   </div>
                 </div>
               ) : shouldExportStructured ? (
-                <div className="h-full min-w-0 rounded-lg border border-border/60 bg-muted/20 overflow-hidden flex flex-col">
-                  <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-2 py-1.5">
+                <div className="h-full min-w-0 rounded-lg border border-border bg-muted/20 overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-2 py-1.5">
                     <div className="text-[10px] font-medium text-muted-foreground">
                       {lineCount} lines · {charCount} chars
                     </div>
@@ -332,7 +332,7 @@ export function ExportDialog({
           </div>
 
           {!shouldExportAnimation && (
-            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 border border-border/50">
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 border border-border">
               <span className="text-xs font-medium text-muted-foreground">
                 Print Grid on PNG
               </span>

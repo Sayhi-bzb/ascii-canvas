@@ -143,7 +143,7 @@ describe('sessionHelpers', () => {
           grid: [],
           size: { width: 80, height: 25 },
           timeline: {
-            frames: [{ id: 'f1', grid: [] }],
+            frames: [{ id: 'f1', name: 'Frame 1', grid: [] }],
             currentFrameId: 'f1',
             fps: 10,
             loop: true,
@@ -163,7 +163,7 @@ describe('sessionHelpers', () => {
         grid: [['0,0', { char: '@', color: '#fff' }]],
         size: { width: 64, height: 64 },
         timeline: {
-          frames: [{ id: 'f1', grid: [['0,0', { char: '@', color: '#fff' }]] }],
+          frames: [{ id: 'f1', name: 'Frame 1', grid: [['0,0', { char: '@', color: '#fff' }]] }],
           currentFrameId: 'f1',
           fps: 12,
           loop: false,

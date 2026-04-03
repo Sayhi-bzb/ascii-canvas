@@ -35,6 +35,7 @@ type AnimationExchangeDocument = {
     loop: boolean;
   };
   frames: Array<{
+    name: string;
     cells: AnimationExchangeCell[];
   }>;
 };
@@ -461,6 +462,7 @@ export const buildAnimationExchangeDocument = (
       loop: timeline.loop,
     },
     frames: timeline.frames.map((frame) => ({
+      name: frame.name,
       cells: frame.grid.map(([key, cell]) => {
         const [x, y] = key.split(",").map(Number);
         return {
