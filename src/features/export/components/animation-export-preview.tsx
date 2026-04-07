@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, Repeat } from "lucide-react";
 import type { AnimationCanvasSize, AnimationTimeline, GridCell } from "@/types";
-import { CELL_HEIGHT, CELL_WIDTH, FONT_SIZE, BACKGROUND_COLOR } from "@/lib/constants";
+import {
+  CELL_HEIGHT,
+  CELL_WIDTH,
+  FONT_SIZE,
+  BACKGROUND_COLOR,
+  COLOR_PRIMARY_TEXT,
+} from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { GridManager } from "@/utils/grid";
@@ -11,6 +17,7 @@ import { GridManager } from "@/utils/grid";
 type AnimationExportPreviewProps = {
   size: AnimationCanvasSize;
   timeline: AnimationTimeline;
+  showColor?: boolean;
 };
 
 const PREVIEW_PADDING = 12;
@@ -18,6 +25,7 @@ const PREVIEW_PADDING = 12;
 export function AnimationExportPreview({
   size,
   timeline,
+  showColor = true,
 }: AnimationExportPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [frameIndex, setFrameIndex] = useState(0);
@@ -31,8 +39,11 @@ export function AnimationExportPreview({
   }, [currentFrame]);
 
   useEffect(() => {
-    setFrameIndex(0);
-    setIsPlaying(true);
+    const resetId = window.requestAnimationFrame(() => {
+      setFrameIndex(0);
+      setIsPlaying(true);
+    });
+    return () => window.cancelAnimationFrame(resetId);
   }, [timeline]);
 
   useEffect(() => {
@@ -98,7 +109,7 @@ export function AnimationExportPreview({
       const drawY = y * CELL_HEIGHT;
       const wide = GridManager.isWideChar(cell.char);
 
-      ctx.fillStyle = cell.color;
+      ctx.fillStyle = showColor ? cell.color : COLOR_PRIMARY_TEXT;
       ctx.fillText(
         cell.char,
         drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
@@ -110,7 +121,7 @@ export function AnimationExportPreview({
     ctx.lineWidth = 2;
     ctx.strokeRect(0, 0, sourceWidth, sourceHeight);
     ctx.restore();
-  }, [frameMap, size.height, size.width]);
+  }, [frameMap, showColor, size.height, size.width]);
 
   return (
     <div className="flex h-full flex-col rounded-lg border border-border bg-muted/20 overflow-hidden">

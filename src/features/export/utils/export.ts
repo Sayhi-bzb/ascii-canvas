@@ -5,15 +5,19 @@ import {
   FONT_SIZE,
   BACKGROUND_COLOR,
   GRID_COLOR,
+  COLOR_PRIMARY_TEXT,
 } from "@/lib/constants";
 import type {
   AnimationCanvasSize,
   AnimationTimeline,
+  CanvasMode,
   GridCell,
   GridMap,
   SelectionArea,
   StructuredNode,
 } from "@/types";
+import { buildProtocolDocumentFromCanvasState } from "@/features/protocol";
+import type { AsciiCanvasDocumentV1 } from "@/features/protocol";
 import { GridManager } from "@/utils/grid";
 import { getSelectionsBoundingBox } from "@/utils/selection";
 import { clipboard } from "@/services/effects";
@@ -40,8 +44,66 @@ type AnimationExchangeDocument = {
   }>;
 };
 
+interface ProtocolExportInput {
+  canvasMode: CanvasMode;
+  grid: GridMap;
+  structuredScene: StructuredNode[];
+  canvasBounds: AnimationCanvasSize | null;
+  animationTimeline: AnimationTimeline | null;
+  includeColor?: boolean;
+}
+
 const GIF_GLOBAL_COLOR_COUNT = 256;
 const GIF_PALETTE_COMPONENTS = 3;
+const ANSI_RESET = "\u001b[0m";
+const MONOCHROME_EXPORT_COLOR = COLOR_PRIMARY_TEXT;
+
+type AnsiRgb = {
+  red: number;
+  green: number;
+  blue: number;
+};
+
+const resolveExportColor = (color: string, includeColor: boolean) => {
+  return includeColor ? color : MONOCHROME_EXPORT_COLOR;
+};
+
+const applyMonochromeProtocolColor = (
+  document: AsciiCanvasDocumentV1
+): AsciiCanvasDocumentV1 => {
+  switch (document.mode) {
+    case "freeform":
+      return {
+        ...document,
+        cells: document.cells.map((cell) => ({
+          ...cell,
+          color: MONOCHROME_EXPORT_COLOR,
+        })),
+      };
+    case "animation":
+      return {
+        ...document,
+        frames: document.frames.map((frame) => ({
+          ...frame,
+          cells: frame.cells.map((cell) => ({
+            ...cell,
+            color: MONOCHROME_EXPORT_COLOR,
+          })),
+        })),
+      };
+    case "structured":
+      return {
+        ...document,
+        nodes: document.nodes.map((node) => ({
+          ...node,
+          style: {
+            ...node.style,
+            color: MONOCHROME_EXPORT_COLOR,
+          },
+        })),
+      };
+  }
+};
 
 const renderAnimationFrame = (
   ctx: CanvasRenderingContext2D,
@@ -49,6 +111,7 @@ const renderAnimationFrame = (
   frameGrid: [string, GridCell][],
   options?: {
     showGrid?: boolean;
+    includeColor?: boolean;
   }
 ) => {
   const width = size.width * CELL_WIDTH;
@@ -223,6 +286,109 @@ const downloadBlob = (filename: string, blob: Blob) => {
   return true;
 };
 
+const parseAnsiHexColor = (value: string): AnsiRgb | null => {
+  const shortHex = /^#([\da-f]{3})$/i.exec(value);
+  if (shortHex) {
+    const [red, green, blue] = shortHex[1].split("");
+    return {
+      red: Number.parseInt(`${red}${red}`, 16),
+      green: Number.parseInt(`${green}${green}`, 16),
+      blue: Number.parseInt(`${blue}${blue}`, 16),
+    };
+  }
+
+  const fullHex = /^#([\da-f]{6})$/i.exec(value);
+  if (fullHex) {
+    return {
+      red: Number.parseInt(fullHex[1].slice(0, 2), 16),
+      green: Number.parseInt(fullHex[1].slice(2, 4), 16),
+      blue: Number.parseInt(fullHex[1].slice(4, 6), 16),
+    };
+  }
+
+  return null;
+};
+
+const toAnsiForeground = ({ red, green, blue }: AnsiRgb) => {
+  return `\u001b[38;2;${red};${green};${blue}m`;
+};
+
+type AnsiPiece = {
+  char: string;
+  color: string | null;
+};
+
+const buildAnsiPiecesFromBounds = (
+  grid: GridMap,
+  minX: number,
+  maxX: number,
+  y: number,
+  options?: {
+    includeColor?: boolean;
+  }
+) => {
+  const pieces: AnsiPiece[] = [];
+
+  for (let x = minX; x <= maxX; x++) {
+    const cell = grid.get(GridManager.toKey(x, y));
+    if (cell) {
+      pieces.push({
+        char: cell.char,
+        color: options?.includeColor === false ? null : cell.color,
+      });
+      if (GridManager.getCharWidth(cell.char) === 2) x++;
+      continue;
+    }
+    pieces.push({ char: " ", color: null });
+  }
+
+  return pieces;
+};
+
+const trimTrailingAnsiSpaces = (pieces: AnsiPiece[]) => {
+  let end = pieces.length;
+  while (end > 0 && pieces[end - 1].char === " ") {
+    end -= 1;
+  }
+  return pieces.slice(0, end);
+};
+
+const serializeAnsiLine = (pieces: AnsiPiece[]) => {
+  if (pieces.length === 0) return "";
+
+  let out = "";
+  let activeColor: string | null = null;
+  let usedColor = false;
+
+  pieces.forEach((piece) => {
+    const parsedColor = piece.color ? parseAnsiHexColor(piece.color) : null;
+    const nextColor = parsedColor && piece.color ? piece.color : null;
+
+    if (nextColor === null) {
+      if (activeColor !== null) {
+        out += ANSI_RESET;
+        activeColor = null;
+      }
+      out += piece.char;
+      return;
+    }
+
+    if (!parsedColor) {
+      out += piece.char;
+      return;
+    }
+
+    if (activeColor !== nextColor) {
+      out += toAnsiForeground(parsedColor);
+      activeColor = nextColor;
+      usedColor = true;
+    }
+    out += piece.char;
+  });
+
+  return usedColor ? `${out}${ANSI_RESET}` : out;
+};
+
 const generateStringFromBounds = (
   grid: GridMap,
   minX: number,
@@ -270,6 +436,51 @@ export const exportSelectionToString = (
   return generateStringFromBounds(grid, minX, maxX, minY, maxY);
 };
 
+export const exportToAnsi = (
+  grid: GridMap,
+  options?: {
+    includeColor?: boolean;
+  }
+) => {
+  if (grid.size === 0) return "";
+
+  const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
+  const lines: string[] = [];
+
+  for (let y = minY; y <= maxY; y++) {
+    const pieces = trimTrailingAnsiSpaces(
+      buildAnsiPiecesFromBounds(grid, minX, maxX, y, options)
+    );
+    lines.push(serializeAnsiLine(pieces));
+  }
+
+  return lines.join("\n");
+};
+
+export const exportAnimationFrameToAnsi = (
+  size: AnimationCanvasSize,
+  frameGrid: [string, GridCell][],
+  options?: {
+    includeColor?: boolean;
+  }
+) => {
+  const grid = new Map(frameGrid);
+  const lines: string[] = [];
+
+  for (let y = 0; y < size.height; y++) {
+    const pieces = buildAnsiPiecesFromBounds(
+      grid,
+      0,
+      size.width - 1,
+      y,
+      options
+    );
+    lines.push(serializeAnsiLine(pieces));
+  }
+
+  return lines.join("\n");
+};
+
 export const exportSelectionToJSON = (
   grid: GridMap,
   selections: SelectionArea[]
@@ -303,7 +514,8 @@ export const exportSelectionToJSON = (
 export const copySelectionToPngClipboard = async (
   grid: GridMap,
   selections: SelectionArea[],
-  showGrid: boolean = true
+  showGrid: boolean = true,
+  includeColor: boolean = true
 ) => {
   if (selections.length === 0) return;
 
@@ -360,7 +572,7 @@ export const copySelectionToPngClipboard = async (
       const drawY = (y - (minY - padding)) * CELL_HEIGHT;
       const wide = GridManager.isWideChar(cell.char);
 
-      ctx.fillStyle = cell.color;
+      ctx.fillStyle = resolveExportColor(cell.color, includeColor);
       ctx.fillText(
         cell.char,
         drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
@@ -388,9 +600,84 @@ export const copySelectionToPngClipboard = async (
   }
 };
 
-export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
-  if (grid.size === 0) return false;
+const createPngBlobFromGrid = async (
+  grid: GridMap,
+  showGrid: boolean = false,
+  includeColor: boolean = true
+) => {
+  if (grid.size === 0) return null;
+  const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
+  const padding = 2;
+  const width = (maxX - minX + 1 + padding * 2) * CELL_WIDTH;
+  const height = (maxY - minY + 1 + padding * 2) * CELL_HEIGHT;
 
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const dpr = 2;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillRect(0, 0, width, height);
+
+  if (showGrid) {
+    ctx.beginPath();
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.lineWidth = 0.5;
+    const gridWidth = maxX - minX + 1 + padding * 2;
+    const gridHeight = maxY - minY + 1 + padding * 2;
+    for (let x = 0; x <= gridWidth; x++) {
+      ctx.moveTo(x * CELL_WIDTH, 0);
+      ctx.lineTo(x * CELL_WIDTH, height);
+    }
+    for (let y = 0; y <= gridHeight; y++) {
+      ctx.moveTo(0, y * CELL_HEIGHT);
+      ctx.lineTo(width, y * CELL_HEIGHT);
+    }
+    ctx.stroke();
+  }
+
+  ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+
+  GridManager.iterate(grid, (cell, x, y) => {
+    const drawX = (x - minX + padding) * CELL_WIDTH;
+    const drawY = (y - minY + padding) * CELL_HEIGHT;
+    const wide = GridManager.isWideChar(cell.char);
+
+    ctx.fillStyle = resolveExportColor(cell.color, includeColor);
+    ctx.fillText(
+      cell.char,
+      drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
+      drawY + CELL_HEIGHT / 2
+    );
+  });
+
+  return new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/png", 1.0)
+  );
+};
+
+export const copyCanvasToPngClipboard = async (
+  grid: GridMap,
+  showGrid: boolean = false,
+  includeColor: boolean = true
+) => {
+  const blob = await createPngBlobFromGrid(grid, showGrid, includeColor);
+  if (!blob) return false;
+  return clipboard.writeItems([new ClipboardItem({ [blob.type]: blob })]);
+};
+
+export const exportToPNG = (
+  grid: GridMap,
+  showGrid: boolean = false,
+  includeColor: boolean = true
+) => {
+  if (grid.size === 0) return false;
   const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
   const padding = 2;
   const width = (maxX - minX + 1 + padding * 2) * CELL_WIDTH;
@@ -434,7 +721,7 @@ export const exportToPNG = (grid: GridMap, showGrid: boolean = false) => {
     const drawY = (y - minY + padding) * CELL_HEIGHT;
     const wide = GridManager.isWideChar(cell.char);
 
-    ctx.fillStyle = cell.color;
+    ctx.fillStyle = resolveExportColor(cell.color, includeColor);
     ctx.fillText(
       cell.char,
       drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
@@ -476,6 +763,28 @@ export const buildAnimationExchangeDocument = (
   };
 };
 
+export const buildProtocolExportDocument = ({
+  canvasMode,
+  grid,
+  structuredScene,
+  canvasBounds,
+  animationTimeline,
+  includeColor = true,
+}: ProtocolExportInput) => {
+  const document = buildProtocolDocumentFromCanvasState({
+    canvasMode,
+    grid,
+    structuredScene,
+    canvasBounds,
+    animationTimeline,
+  });
+  return includeColor ? document : applyMonochromeProtocolColor(document);
+};
+
+export const exportProtocolToJSON = (input: ProtocolExportInput) => {
+  return JSON.stringify(buildProtocolExportDocument(input), null, 2);
+};
+
 export const exportAnimationToJSON = (
   size: AnimationCanvasSize,
   timeline: AnimationTimeline
@@ -485,7 +794,8 @@ export const exportAnimationToJSON = (
 
 export const exportAnimationToGIF = async (
   size: AnimationCanvasSize,
-  timeline: AnimationTimeline
+  timeline: AnimationTimeline,
+  includeColor: boolean = true
 ) => {
   const width = Math.max(1, Math.round(size.width * CELL_WIDTH));
   const height = Math.max(1, Math.round(size.height * CELL_HEIGHT));
@@ -530,7 +840,7 @@ export const exportAnimationToGIF = async (
   }
 
   timeline.frames.forEach((frame) => {
-    renderAnimationFrame(ctx, size, frame.grid);
+    renderAnimationFrame(ctx, size, frame.grid, { includeColor });
     const indices = imageDataToGifIndices(ctx.getImageData(0, 0, width, height));
 
     bytes.push(0x21, 0xf9, 0x04, 0x00);

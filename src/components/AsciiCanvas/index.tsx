@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useSize, useEventListener } from 'ahooks';
 import { useCanvasStore } from '../../store/canvasStore';
 import { useCanvasInteraction } from './hooks/useCanvasInteraction';
@@ -157,12 +157,20 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
     draggingSelection
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
     const shouldFocus = textCursor || selections.length > 0;
-    if (shouldFocus && textareaRef.current) {
-      setTimeout(() => textareaRef.current?.focus(), 0);
-    } else if (textareaRef.current && !shouldFocus) {
-      textareaRef.current.blur();
+    if (shouldFocus) {
+      if (document.activeElement !== textarea) {
+        textarea.focus({ preventScroll: true });
+      }
+      return;
+    }
+
+    if (document.activeElement === textarea) {
+      textarea.blur();
     }
   }, [textCursor, selections.length]);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Copy, Download, FileJson2, Film, ImageIcon } from "lucide-react";
+import { Copy, Download, Film, ImageIcon } from "lucide-react";
 import type {
   AnimationCanvasSize,
   AnimationTimeline,
@@ -14,7 +14,6 @@ import { ActionButton } from "@/components/ui/action-button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -30,11 +29,13 @@ import { cn } from "@/lib/utils";
 import { ExportPreview } from "./export-preview";
 import { AnimationExportPreview } from "./animation-export-preview";
 import {
+  copyCanvasToPngClipboard,
   downloadTextFile,
-  buildAnimationExchangeDocument,
+  exportAnimationFrameToAnsi,
   exportAnimationToGIF,
-  exportAnimationToJSON,
+  exportProtocolToJSON,
   exportStructuredF12Text,
+  exportToAnsi,
   exportToPNG,
   exportToString,
 } from "../utils/export";
@@ -49,6 +50,35 @@ type ExportDialogProps = {
   setExportShowGrid: (show: boolean) => void;
 };
 
+type ExportFormat = "txt" | "json" | "ansi" | "png" | "gif";
+
+const PREVIEW_CHAR_LIMIT = 12_000;
+const PREVIEW_LINE_LIMIT = 160;
+
+function createPreviewSnippet(value: string) {
+  let index = 0;
+  let lineCount = 0;
+
+  while (index < value.length && index < PREVIEW_CHAR_LIMIT) {
+    if (value[index] === "\n") {
+      lineCount += 1;
+      if (lineCount >= PREVIEW_LINE_LIMIT) {
+        break;
+      }
+    }
+    index += 1;
+  }
+
+  const hitCharLimit = index >= PREVIEW_CHAR_LIMIT && index < value.length;
+  const hitLineLimit = lineCount >= PREVIEW_LINE_LIMIT && index < value.length;
+  const endIndex = hitCharLimit || hitLineLimit ? index : value.length;
+
+  return {
+    content: value.slice(0, endIndex),
+    truncated: endIndex < value.length,
+  };
+}
+
 export function ExportDialog({
   grid,
   canvasMode,
@@ -60,33 +90,184 @@ export function ExportDialog({
 }: ExportDialogProps) {
   const shouldExportStructured = canvasMode === "structured";
   const shouldExportAnimation = canvasMode === "animation";
-  const [wrapPreview, setWrapPreview] = useState(false);
-  const [animationView, setAnimationView] = useState<"preview" | "json">("preview");
-  const textExport = useMemo(
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("txt");
+  const [includeColor, setIncludeColor] = useState(true);
+  const availableFormats = useMemo(
     () =>
-      shouldExportAnimation && canvasBounds && animationTimeline
-        ? exportAnimationToJSON(canvasBounds, animationTimeline)
-        : shouldExportStructured
-        ? exportStructuredF12Text(structuredScene)
-        : exportToString(grid),
+      shouldExportAnimation
+        ? [
+            { value: "json" as const, label: "JSON", subLabel: "protocol" },
+            { value: "gif" as const, label: "GIF", subLabel: "animation" },
+          ]
+        : [
+            { value: "txt" as const, label: "TXT", subLabel: "plain" },
+            { value: "json" as const, label: "JSON", subLabel: "protocol" },
+            { value: "ansi" as const, label: "ANSI", subLabel: "terminal" },
+            { value: "png" as const, label: "PNG", subLabel: "image" },
+          ],
+    [shouldExportAnimation]
+  );
+  const activeFormat = availableFormats.some(
+    (format) => format.value === exportFormat
+  )
+    ? exportFormat
+    : availableFormats[0].value;
+  const protocolJsonExport = useMemo(
+    () =>
+      canvasMode === "animation" && (!canvasBounds || !animationTimeline)
+        ? ""
+        : exportProtocolToJSON({
+            canvasMode,
+            grid,
+            structuredScene,
+            canvasBounds,
+            animationTimeline,
+            includeColor,
+          }),
     [
-      shouldExportAnimation,
+      canvasMode,
       canvasBounds,
       animationTimeline,
-      shouldExportStructured,
+      includeColor,
       structuredScene,
       grid,
     ]
   );
-  const lineCount = useMemo(
-    () => (textExport ? textExport.split("\n").length : 0),
-    [textExport]
+  const plainTextExport = useMemo(() => exportToString(grid), [grid]);
+  const structuredF12Export = useMemo(
+    () => exportStructuredF12Text(structuredScene),
+    [structuredScene]
   );
+  const ansiExport = useMemo(
+    () =>
+      shouldExportAnimation && canvasBounds
+        ? exportAnimationFrameToAnsi(canvasBounds, Array.from(grid.entries()), {
+            includeColor,
+          })
+        : exportToAnsi(grid, { includeColor }),
+    [shouldExportAnimation, canvasBounds, grid, includeColor]
+  );
+  const textExport = useMemo(() => {
+    if (activeFormat === "json") return protocolJsonExport;
+    if (activeFormat === "ansi") return ansiExport;
+    if (activeFormat === "txt") {
+      return shouldExportStructured ? structuredF12Export : plainTextExport;
+    }
+    return "";
+  }, [
+    activeFormat,
+    ansiExport,
+    plainTextExport,
+    protocolJsonExport,
+    shouldExportStructured,
+    structuredF12Export,
+  ]);
+  const isTextPreview =
+    activeFormat === "txt" || activeFormat === "json" || activeFormat === "ansi";
+  const supportsColorToggle =
+    activeFormat === "json" ||
+    activeFormat === "ansi" ||
+    activeFormat === "png" ||
+    activeFormat === "gif";
+  const shouldTruncatePreview =
+    activeFormat === "json" || activeFormat === "ansi";
+  const lineCount = useMemo(() => {
+    if (shouldTruncatePreview || !textExport) return 0;
+    return textExport.split("\n").length;
+  }, [shouldTruncatePreview, textExport]);
   const charCount = textExport.length;
-  const animationDocument = useMemo(() => {
-    if (!shouldExportAnimation || !canvasBounds || !animationTimeline) return null;
-    return buildAnimationExchangeDocument(canvasBounds, animationTimeline);
-  }, [animationTimeline, canvasBounds, shouldExportAnimation]);
+  const activeFormatMeta =
+    availableFormats.find((format) => format.value === activeFormat) ??
+    availableFormats[0];
+  const previewState = useMemo(() => {
+    if (!textExport) {
+      return { content: "", truncated: false };
+    }
+    if (!shouldTruncatePreview) {
+      return { content: textExport, truncated: false };
+    }
+    return createPreviewSnippet(textExport);
+  }, [shouldTruncatePreview, textExport]);
+  const previewLineCount = useMemo(
+    () => (previewState.content ? previewState.content.split("\n").length : 0),
+    [previewState.content]
+  );
+  const previewCharCount = previewState.content.length;
+  const previewFallback = useMemo(() => {
+    if (activeFormat === "json") {
+      return shouldExportAnimation
+        ? '{\n  "type": "ascii-canvas-document",\n  "version": 1,\n  "mode": "animation",\n  "frames": []\n}'
+        : shouldExportStructured
+        ? '{\n  "type": "ascii-canvas-document",\n  "version": 1,\n  "mode": "structured",\n  "nodes": []\n}'
+        : '{\n  "type": "ascii-canvas-document",\n  "version": 1,\n  "mode": "freeform",\n  "cells": []\n}';
+    }
+
+    if (activeFormat === "ansi") {
+      return "\u001b[38;2;255;255;255m# ANSI preview will appear here\u001b[0m";
+    }
+
+    return shouldExportStructured
+      ? "No structured nodes to export yet."
+      : "No characters to export yet.";
+  }, [activeFormat, shouldExportAnimation, shouldExportStructured]);
+  const saveIcon = activeFormat === "gif" ? Film : activeFormat === "png" ? ImageIcon : Download;
+  const canShowAnimationPreview =
+    shouldExportAnimation && canvasBounds && animationTimeline;
+
+  const copyActiveFormat = async () => {
+    if (activeFormat === "gif") {
+      feedback.warning("Copy unavailable", {
+        description: "GIF is save-only in this export panel.",
+      });
+      return false;
+    }
+
+    if (activeFormat === "png") {
+      const copied = await copyCanvasToPngClipboard(
+        grid,
+        exportShowGrid,
+        includeColor
+      );
+      if (!copied) {
+        feedback.error("Copy failed", {
+          description: "Could not write PNG image to clipboard.",
+        });
+      }
+      return copied;
+    }
+
+    const copied = await clipboard.writeText(textExport);
+    if (!copied) {
+      feedback.error("Copy failed", {
+        description: `Could not write ${activeFormat.toUpperCase()} export to clipboard.`,
+      });
+    }
+    return copied;
+  };
+
+  const saveActiveFormat = async () => {
+    switch (activeFormat) {
+      case "txt":
+        return downloadTextFile(
+          `ascii-canvas-${Date.now()}.txt`,
+          textExport,
+          "text/plain;charset=utf-8"
+        );
+      case "json":
+        return downloadTextFile(`ascii-canvas-${Date.now()}.json`, textExport);
+      case "ansi":
+        return downloadTextFile(
+          `ascii-canvas-${Date.now()}.ans`,
+          textExport,
+          "text/plain;charset=utf-8"
+        );
+      case "png":
+        return exportToPNG(grid, exportShowGrid, includeColor);
+      case "gif":
+        if (!canvasBounds || !animationTimeline) return false;
+        return exportAnimationToGIF(canvasBounds, animationTimeline, includeColor);
+    }
+  };
 
   return (
     <Dialog>
@@ -110,17 +291,39 @@ export function ExportDialog({
         </Tooltip>
       </TooltipProvider>
 
-      <DialogContent className="sm:max-w-xl gap-0 p-0 max-h-[85vh] overflow-hidden border-none shadow-2xl">
+      <DialogContent className="sm:max-w-xl gap-0 p-0 max-h-[85vh] min-w-0 overflow-hidden border-none shadow-2xl">
         <div className="bg-muted/30 p-5 pb-3">
           <DialogHeader>
             <DialogTitle className="text-base">Export</DialogTitle>
-            <DialogDescription className="text-[10px] uppercase tracking-widest">
-              ASCII Metropolis
-            </DialogDescription>
           </DialogHeader>
         </div>
 
-        <div className="px-5 py-4 space-y-4 min-h-0">
+        <div className="min-h-0 min-w-0 space-y-4 px-5 py-4">
+          <div className="min-w-0 space-y-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {availableFormats.map((format) => (
+                <button
+                  key={format.value}
+                  type="button"
+                  onClick={() => setExportFormat(format.value)}
+                  className={cn(
+                    "rounded-xl border px-3 py-2 text-left transition-colors",
+                    activeFormat === format.value
+                      ? "border-primary/50 bg-primary/10 text-primary shadow-sm"
+                      : "border-border bg-muted/20 text-foreground hover:bg-accent/45"
+                  )}
+                >
+                  <div className="text-xs font-semibold uppercase tracking-[0.24em]">
+                    {format.label}
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    {format.subLabel}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div
             className={cn(
               "w-full relative group min-w-0",
@@ -129,221 +332,127 @@ export function ExportDialog({
           >
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/5 rounded-xl blur opacity-25" />
             <div className="relative h-full border rounded-xl bg-background overflow-hidden shadow-inner p-3 min-w-0">
-              {shouldExportAnimation && canvasBounds && animationTimeline ? (
-                <div className="flex h-full min-w-0 flex-col gap-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-                        Animation Export
-                      </div>
-                      <div className="mt-1 text-sm font-semibold text-foreground">
-                        {animationDocument?.type} · v{animationDocument?.version}
-                      </div>
-                    </div>
-                    <div className="inline-flex rounded-xl border border-border bg-muted/25 p-1">
-                      {[
-                        { value: "preview" as const, label: "Preview" },
-                        { value: "json" as const, label: "JSON" },
-                      ].map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setAnimationView(option.value)}
-                          className={cn(
-                            "rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors",
-                            animationView === option.value
-                              ? "bg-primary/12 text-primary"
-                              : "text-muted-foreground hover:bg-accent/45 hover:text-foreground"
-                          )}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+              <div className="flex h-full min-w-0 flex-col gap-3">
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="mt-1 truncate text-sm font-semibold text-foreground">
+                      {activeFormatMeta.label}
                     </div>
                   </div>
 
-                  <div className="min-h-0 flex-1">
-                    {animationView === "preview" ? (
+                  {isTextPreview ? (
+                    <div className="flex min-w-0 shrink-0 items-center">
+                      <div className="max-w-[11rem] text-right text-[10px] font-medium text-muted-foreground">
+                        {shouldTruncatePreview && previewState.truncated
+                          ? `Previewing ${previewLineCount} lines · ${previewCharCount}/${charCount} chars`
+                          : `${lineCount} lines · ${charCount} chars`}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-[10px] font-medium uppercase tracking-[0.24em] text-muted-foreground">
+                      {activeFormat === "gif" ? "save-only" : "preview"}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex min-h-0 min-w-0 flex-1">
+                  {activeFormat === "gif" && canShowAnimationPreview ? (
+                    <AnimationExportPreview
+                      size={canvasBounds}
+                      timeline={animationTimeline}
+                      showColor={includeColor}
+                    />
+                  ) : activeFormat === "png" ? (
+                    canShowAnimationPreview ? (
                       <AnimationExportPreview
                         size={canvasBounds}
                         timeline={animationTimeline}
+                        showColor={includeColor}
                       />
                     ) : (
-                      <div className="h-full min-w-0 rounded-lg border border-border bg-muted/20 overflow-hidden flex flex-col">
-                        <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-2 py-1.5">
-                          <div className="text-[10px] font-medium text-muted-foreground">
-                            {lineCount} lines · {charCount} chars
-                          </div>
-                          <Button
-                            tone={wrapPreview ? "primary" : "neutral"}
-                            size="sm"
-                            onClick={() => setWrapPreview((prev) => !prev)}
-                            className="h-5 px-2 rounded text-[9px] uppercase font-bold"
-                          >
-                            Wrap {wrapPreview ? "ON" : "OFF"}
-                          </Button>
-                        </div>
-
-                        <div className="min-h-0 flex-1 p-2">
-                          <pre
-                            className={cn(
-                              "h-full w-full overflow-auto rounded-md bg-background p-2 font-mono text-[10px] leading-relaxed text-foreground min-w-0",
-                              wrapPreview ? "whitespace-pre-wrap break-words" : "whitespace-pre"
-                            )}
-                          >
-                            {textExport ||
-                              '{\n  "type": "ascii-animation",\n  "version": 1,\n  "frames": []\n}'}
-                          </pre>
-                        </div>
+                      <div className="flex h-full min-h-0 min-w-0 flex-1 rounded-lg border border-border bg-muted/20 p-3">
+                        <ExportPreview
+                          grid={grid}
+                          showColor={includeColor}
+                          showGrid={exportShowGrid}
+                        />
                       </div>
-                    )}
-                  </div>
-                </div>
-              ) : shouldExportStructured ? (
-                <div className="h-full min-w-0 rounded-lg border border-border bg-muted/20 overflow-hidden flex flex-col">
-                  <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-2 py-1.5">
-                    <div className="text-[10px] font-medium text-muted-foreground">
-                      {lineCount} lines · {charCount} chars
-                    </div>
-                    <Button
-                      tone={wrapPreview ? "primary" : "neutral"}
-                      size="sm"
-                      onClick={() => setWrapPreview((prev) => !prev)}
-                      className="h-5 px-2 rounded text-[9px] uppercase font-bold"
-                    >
-                      Wrap {wrapPreview ? "ON" : "OFF"}
-                    </Button>
-                  </div>
-
-                  <div className="min-h-0 flex-1 p-2">
-                    <pre
-                      className={cn(
-                        "h-full w-full overflow-auto rounded-md bg-background p-2 font-mono text-[10px] leading-relaxed text-foreground min-w-0",
-                        wrapPreview ? "whitespace-pre-wrap break-words" : "whitespace-pre"
+                    )
+                  ) : (
+                    <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-muted/20">
+                      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-2">
+                        <pre
+                          className="min-h-0 min-w-0 w-0 max-w-full flex-1 overflow-x-auto overflow-y-auto rounded-md bg-background p-2 font-mono text-[10px] leading-relaxed text-foreground whitespace-pre"
+                        >
+                          {previewState.content || previewFallback}
+                        </pre>
+                      </div>
+                      {shouldTruncatePreview && previewState.truncated && (
+                        <div className="border-t border-border bg-muted/30 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                          Preview truncated. Copy or save for full {activeFormatMeta.label}.
+                        </div>
                       )}
-                    >
-                      {textExport ||
-                        '<canvas\n  mode="structured"\n  nodes="0"\n>\n</canvas>'}
-                    </pre>
-                  </div>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <ExportPreview />
-              )}
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3 py-2">
-            {shouldExportAnimation && canvasBounds && animationTimeline ? (
-              <div className="grid w-full grid-cols-3 gap-2">
-                <ActionButton
-                  tone="neutral"
-                  size="full"
-                  shape="auto"
-                  icon={Copy}
-                  label="Copy JSON"
-                  subLabel="schema"
-                  className="border rounded-2xl"
-                  onAction={async () => {
-                    const copied = await clipboard.writeText(textExport);
-                    if (!copied) {
-                      feedback.error("Copy failed", {
-                        description: "Could not write animation JSON to clipboard.",
-                      });
-                    }
-                    return copied;
-                  }}
-                />
-                <ActionButton
-                  tone="neutral"
-                  size="full"
-                  shape="auto"
-                  icon={FileJson2}
-                  label="Save JSON"
-                  subLabel="exchange"
-                  className="border rounded-2xl"
-                  onAction={() =>
-                    downloadTextFile(`ascii-animation-${Date.now()}.json`, textExport)
-                  }
-                />
-                <ActionButton
-                  tone="neutral"
-                  size="full"
-                  shape="auto"
-                  icon={Film}
-                  label="Save GIF"
-                  subLabel="animated"
-                  className="border rounded-2xl"
-                  onAction={async () => {
-                    const saved = await exportAnimationToGIF(
-                      canvasBounds,
-                      animationTimeline
-                    );
-                    if (!saved) {
-                      feedback.error("GIF export failed", {
-                        description: "Could not encode animation frames into a GIF.",
-                      });
-                    }
-                    return saved;
-                  }}
-                />
-              </div>
-            ) : (
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <ActionButton
-                      tone="neutral"
-                      size="md"
-                      icon={Copy}
-                      className="border-2 rounded-xl"
-                      onAction={async () => {
-                        const copied = await clipboard.writeText(textExport);
-                        if (!copied) {
-                          feedback.error("Copy failed", {
-                            description: "Could not write text to clipboard.",
-                          });
-                        }
-                        return copied;
-                      }}
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">
-                    Copy Text
-                  </TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <ActionButton
-                      tone="neutral"
-                      size="md"
-                      icon={ImageIcon}
-                      className="border-2 rounded-xl"
-                      onAction={() => exportToPNG(grid, exportShowGrid)}
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">
-                    Save Image
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
+          <div className="grid w-full grid-cols-2 gap-2 py-2">
+            <ActionButton
+              tone="neutral"
+              size="full"
+              shape="auto"
+              icon={Copy}
+              whileHover={{ scale: 1 }}
+              label="Copy"
+              disabled={activeFormat === "gif"}
+              className="rounded-2xl border border-border bg-muted/20 text-foreground transition-colors hover:bg-accent/45 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+              onAction={copyActiveFormat}
+            />
+            <ActionButton
+              tone="neutral"
+              size="full"
+              shape="auto"
+              icon={saveIcon}
+              whileHover={{ scale: 1 }}
+              label="Save"
+              className="rounded-2xl border border-border bg-muted/20 text-foreground transition-colors hover:bg-accent/45 hover:text-foreground"
+              onAction={saveActiveFormat}
+            />
           </div>
 
-          {!shouldExportAnimation && (
-            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 border border-border">
-              <span className="text-xs font-medium text-muted-foreground">
-                Print Grid on PNG
-              </span>
-              <Button
-                tone={exportShowGrid ? "primary" : "neutral"}
-                size="sm"
-                onClick={() => setExportShowGrid(!exportShowGrid)}
-                className="h-6 px-2 rounded-md text-[10px] uppercase font-bold"
-              >
-                {exportShowGrid ? "ON" : "OFF"}
-              </Button>
+          {supportsColorToggle && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
+                <div className="text-xs font-medium text-muted-foreground">
+                  Color
+                </div>
+                <Button
+                  tone={includeColor ? "primary" : "neutral"}
+                  size="sm"
+                  onClick={() => setIncludeColor((prev) => !prev)}
+                  className="h-6 px-2 rounded-md text-[10px] uppercase font-bold"
+                >
+                  {includeColor ? "ON" : "OFF"}
+                </Button>
+              </div>
+              {activeFormat === "png" && (
+                <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Grid
+                  </div>
+                  <Button
+                    tone={exportShowGrid ? "primary" : "neutral"}
+                    size="sm"
+                    onClick={() => setExportShowGrid(!exportShowGrid)}
+                    className="h-6 px-2 rounded-md text-[10px] uppercase font-bold"
+                  >
+                    {exportShowGrid ? "ON" : "OFF"}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>

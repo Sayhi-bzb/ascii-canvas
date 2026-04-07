@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useCanvasStore } from "@/store/canvasStore";
+import type { GridMap } from "@/types";
 import { GridManager } from "@/utils/grid";
 import {
   CELL_WIDTH,
@@ -9,17 +9,17 @@ import {
   FONT_SIZE,
   BACKGROUND_COLOR,
   GRID_COLOR,
+  COLOR_PRIMARY_TEXT,
 } from "@/lib/constants";
-import { useShallow } from "zustand/react/shallow";
 
-export function ExportPreview() {
+type ExportPreviewProps = {
+  grid: GridMap;
+  showGrid: boolean;
+  showColor: boolean;
+};
+
+export function ExportPreview({ grid, showGrid, showColor }: ExportPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { grid, exportShowGrid } = useCanvasStore(
-    useShallow((state) => ({
-      grid: state.grid,
-      exportShowGrid: state.exportShowGrid,
-    }))
-  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -54,7 +54,7 @@ export function ExportPreview() {
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    if (exportShowGrid) {
+    if (showGrid) {
       ctx.beginPath();
       ctx.strokeStyle = GRID_COLOR;
       ctx.lineWidth = 0.5;
@@ -79,7 +79,7 @@ export function ExportPreview() {
       const drawX = (x - minX + padding) * CELL_WIDTH;
       const drawY = (y - minY + padding) * CELL_HEIGHT;
       const wide = GridManager.isWideChar(cell.char);
-      ctx.fillStyle = cell.color;
+      ctx.fillStyle = showColor ? cell.color : COLOR_PRIMARY_TEXT;
       ctx.fillText(
         cell.char,
         drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
@@ -87,7 +87,7 @@ export function ExportPreview() {
       );
     });
     ctx.restore();
-  }, [grid, exportShowGrid]);
+  }, [grid, showColor, showGrid]);
 
   return <canvas ref={canvasRef} className="w-full h-full rounded-lg" />;
 }

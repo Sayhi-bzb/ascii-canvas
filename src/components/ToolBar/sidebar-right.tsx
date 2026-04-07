@@ -48,6 +48,7 @@ export function SidebarRight() {
   const { fetchLibrary } = useLibraryStore();
   const { state, isMobile } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
+  const canResetView = canvasMode !== "animation";
 
   useEffect(() => {
     fetchLibrary();
@@ -117,29 +118,31 @@ export function SidebarRight() {
                   </TooltipContent>
                 </Tooltip>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      tone="subtle"
-                      shape="square"
-                      size="md"
-                      className="size-8 text-muted-foreground"
-                      onClick={() =>
-                        runSidebarAction("reset-view", {
-                          showGrid,
-                          setShowGrid,
-                          setZoom,
-                          setOffset,
-                        })
-                      }
-                    >
-                      <Target className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="left">
-                    {SIDEBAR_ACTION_META["reset-view"].label}
-                  </TooltipContent>
-                </Tooltip>
+                {canResetView && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        tone="subtle"
+                        shape="square"
+                        size="md"
+                        className="size-8 text-muted-foreground"
+                        onClick={() =>
+                          runSidebarAction("reset-view", {
+                            showGrid,
+                            setShowGrid,
+                            setZoom,
+                            setOffset,
+                          })
+                        }
+                      >
+                        <Target className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">
+                      {SIDEBAR_ACTION_META["reset-view"].label}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
 
                 <HandbookDialog />
               </TooltipProvider>

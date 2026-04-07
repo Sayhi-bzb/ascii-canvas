@@ -43,7 +43,14 @@ export interface ActionMeta {
 }
 
 // Action Source
-export type ActionSource = "keyboard" | "toolbar" | "context-menu" | "sidebar" | "canvas-keydown" | "global-hotkey";
+export type ActionSource =
+  | "keyboard"
+  | "toolbar"
+  | "context-menu"
+  | "sidebar"
+  | "canvas-keydown"
+  | "global-hotkey"
+  | "clipboard-event";
 
 // Action Result
 export interface ActionResult {

@@ -1,0 +1,170 @@
+import type { StateCreator } from "zustand";
+import type { CanvasState, SessionSlice } from "../interfaces";
+import {
+  buildSessionSnapshot,
+  createAnimationSession,
+  resolveSessionRuntime,
+} from "../helpers/storeUtils";
+import {
+  withActiveCanvasSnapshot,
+  normalizeSessionMode,
+  createSessionId,
+  resolveNextSessionName,
+} from "../helpers/sessionHelpers";
+import { createMapFromEntries } from "../helpers/snapshotHelpers";
+import {
+  applyStructuredSnapshotToYMaps,
+  applyFreeformSnapshotToYMaps,
+} from "../helpers/gridHelpers";
+
+export const createSessionSlice: StateCreator<
+  CanvasState,
+  [],
+  [],
+  SessionSlice
+> = (set, get) => ({
+  createCanvasSession: (mode = "freeform", options) => {
+    const state = get();
+    const snapshot = buildSessionSnapshot(state);
+    const sessionsWithSnapshot = withActiveCanvasSnapshot(
+      state.canvasSessions,
+      state.activeCanvasId,
+      snapshot
+    );
+
+    const normalizedMode = normalizeSessionMode(mode);
+    const newSession =
+      normalizedMode === "animation"
+        ? createAnimationSession(sessionsWithSnapshot, options?.size)
+        : {
+            id: createSessionId(sessionsWithSnapshot),
+            name: resolveNextSessionName(sessionsWithSnapshot),
+            mode: normalizedMode,
+            scene: [],
+            grid: [],
+          };
+
+    const runtime = resolveSessionRuntime(newSession, state.tool);
+
+    set({
+      canvasSessions: [...sessionsWithSnapshot, newSession],
+      activeCanvasId: newSession.id,
+      canvasMode: runtime.nextMode,
+      structuredScene: runtime.nextScene,
+      grid: createMapFromEntries(runtime.nextGridEntries),
+      tool: runtime.nextTool,
+      canvasBounds: runtime.nextBounds,
+      animationTimeline: runtime.nextTimeline,
+      animationIsPlaying: false,
+      selections: [],
+      textCursor: null,
+      hoveredGrid: null,
+      scratchLayer: null,
+    });
+
+    if (runtime.nextMode === "structured") {
+      applyStructuredSnapshotToYMaps(runtime.nextScene);
+    } else {
+      applyFreeformSnapshotToYMaps(runtime.nextGridEntries);
+    }
+  },
+  switchCanvasSession: (canvasId) => {
+    const state = get();
+    if (canvasId === state.activeCanvasId) return;
+
+    const snapshot = buildSessionSnapshot(state);
+    const sessionsWithSnapshot = withActiveCanvasSnapshot(
+      state.canvasSessions,
+      state.activeCanvasId,
+      snapshot
+    );
+    const target = sessionsWithSnapshot.find(
+      (session) => session.id === canvasId
+    );
+    if (!target) return;
+
+    const runtime = resolveSessionRuntime(target, state.tool);
+
+    set({
+      canvasSessions: sessionsWithSnapshot,
+      activeCanvasId: canvasId,
+      canvasMode: runtime.nextMode,
+      structuredScene: runtime.nextScene,
+      grid: createMapFromEntries(runtime.nextGridEntries),
+      tool: runtime.nextTool,
+      canvasBounds: runtime.nextBounds,
+      animationTimeline: runtime.nextTimeline,
+      animationIsPlaying: false,
+      selections: [],
+      textCursor: null,
+      hoveredGrid: null,
+      scratchLayer: null,
+    });
+
+    if (runtime.nextMode === "structured") {
+      applyStructuredSnapshotToYMaps(runtime.nextScene);
+    } else {
+      applyFreeformSnapshotToYMaps(runtime.nextGridEntries);
+    }
+  },
+  removeCanvasSession: (canvasId) => {
+    const state = get();
+    if (state.canvasSessions.length <= 1) return;
+
+    const snapshot = buildSessionSnapshot(state);
+    const sessionsWithSnapshot = withActiveCanvasSnapshot(
+      state.canvasSessions,
+      state.activeCanvasId,
+      snapshot
+    );
+    const removedIndex = sessionsWithSnapshot.findIndex(
+      (session) => session.id === canvasId
+    );
+    if (removedIndex === -1) return;
+
+    const remaining = sessionsWithSnapshot.filter(
+      (session) => session.id !== canvasId
+    );
+    if (remaining.length === 0) return;
+
+    if (canvasId !== state.activeCanvasId) {
+      set({ canvasSessions: remaining });
+      return;
+    }
+
+    const nextIndex = Math.min(removedIndex, remaining.length - 1);
+    const nextSession = remaining[nextIndex];
+    const runtime = resolveSessionRuntime(nextSession, state.tool);
+
+    set({
+      canvasSessions: remaining,
+      activeCanvasId: nextSession.id,
+      canvasMode: runtime.nextMode,
+      structuredScene: runtime.nextScene,
+      grid: createMapFromEntries(runtime.nextGridEntries),
+      tool: runtime.nextTool,
+      canvasBounds: runtime.nextBounds,
+      animationTimeline: runtime.nextTimeline,
+      animationIsPlaying: false,
+      selections: [],
+      textCursor: null,
+      hoveredGrid: null,
+      scratchLayer: null,
+    });
+
+    if (runtime.nextMode === "structured") {
+      applyStructuredSnapshotToYMaps(runtime.nextScene);
+    } else {
+      applyFreeformSnapshotToYMaps(runtime.nextGridEntries);
+    }
+  },
+  renameCanvasSession: (canvasId, nextName) => {
+    const name = nextName.trim();
+    if (!name) return;
+    set((state) => ({
+      canvasSessions: state.canvasSessions.map((session) =>
+        session.id === canvasId ? { ...session, name } : session
+      ),
+    }));
+  },
+});

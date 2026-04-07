@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -44,22 +43,19 @@ export function HandbookDialog() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Keyboard className="size-5 text-primary" />
-              <span>Mayor&apos;s Handbook v2.0</span>
+              <span>User Manual</span>
             </DialogTitle>
-            <DialogDescription>
-              Advanced protocols for your ASCII Metropolis.
-            </DialogDescription>
           </DialogHeader>
         </div>
         <ScrollArea className="max-h-[65vh] overflow-y-auto">
           <div className="p-5 space-y-6">
             <section className="space-y-3">
               <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
-                <Move className="size-4" /> Navigation & Viewport
+                <Move className="size-4" /> View
               </h4>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-muted/50 p-2 rounded-md flex justify-between items-center">
-                  <span>Pan View</span>
+                  <span>Pan</span>
                   <div className="flex gap-1 items-center">
                     <kbd className="bg-background px-1.2 py-0.5 rounded border text-[9px] font-mono shadow-sm">
                       Space
@@ -83,30 +79,30 @@ export function HandbookDialog() {
 
             <section className="space-y-3">
               <h4 className="text-sm font-semibold flex items-center gap-2 text-primary">
-                <Maximize className="size-4" /> Rapid Zoning (Selection)
+                <Maximize className="size-4" /> Selection
               </h4>
               <div className="bg-primary/5 border border-primary p-3 rounded-lg text-xs space-y-3">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="font-bold text-foreground">Anchor Surveying</p>
+                    <p className="font-bold text-foreground">Anchor Select</p>
                     <p className="text-muted-foreground">
-                      Click a point, then{" "}
+                      Click once, then{" "}
                       <kbd className="font-mono bg-muted px-1 rounded">
                         Shift + Click
                       </kbd>{" "}
-                      another to instantly frame the lot.
+                      to select a rectangle.
                     </p>
                   </div>
                 </div>
                 <div className="flex justify-between items-start border-t border-primary pt-2">
                   <div className="space-y-1">
-                    <p className="font-bold text-foreground">Mass Pouring (Fill)</p>
+                    <p className="font-bold text-foreground">Fill</p>
                     <p className="text-muted-foreground">
-                      Select an area and{" "}
+                      Type{" "}
                       <span className="text-primary font-bold">
-                        press any character
+                        any character
                       </span>{" "}
-                      to fill the entire sector instantly.
+                      to fill the current selection.
                     </p>
                   </div>
                 </div>
@@ -115,14 +111,14 @@ export function HandbookDialog() {
 
             <section className="space-y-3">
               <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
-                <Type className="size-4" /> Construction & Typing
+                <Type className="size-4" /> Typing
               </h4>
               <div className="space-y-2 text-xs">
                 <div className="flex items-center justify-between py-1.5 border-b border-border">
                   <div className="flex flex-col">
-                    <span className="font-medium">Setback Inheritance</span>
+                    <span className="font-medium">Smart Newline</span>
                     <span className="text-[10px] text-muted-foreground">
-                      Auto-aligns newline with previous indentation
+                      Keeps the previous indentation
                     </span>
                   </div>
                   <kbd className="bg-muted px-2 py-0.5 rounded border text-[10px] font-mono">
@@ -131,9 +127,9 @@ export function HandbookDialog() {
                 </div>
                 <div className="flex items-center justify-between py-1.5 border-b border-border">
                   <div className="flex flex-col">
-                    <span className="font-medium">Modular Paving</span>
+                    <span className="font-medium">Tab</span>
                     <span className="text-[10px] text-muted-foreground">
-                      Instantly pavs 2 grids of vacant space
+                      Moves 2 cells to the right
                     </span>
                   </div>
                   <kbd className="bg-muted px-2 py-0.5 rounded border text-[10px] font-mono">
@@ -141,7 +137,7 @@ export function HandbookDialog() {
                   </kbd>
                 </div>
                 <div className="flex items-center justify-between py-1.5 border-b border-border">
-                  <span className="text-muted-foreground italic">Quick Undo</span>
+                  <span className="text-muted-foreground italic">Undo</span>
                   <div className="flex gap-1">
                     <kbd className="bg-muted px-1.5 py-0.5 rounded border text-[10px] font-mono">
                       Ctrl
@@ -158,10 +154,8 @@ export function HandbookDialog() {
             <div className="flex gap-2 p-3 rounded-md bg-accent/50 border border-border">
               <Info className="size-4 text-primary shrink-0" />
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                <strong className="text-foreground">Pro Tip:</strong> Use the{" "}
-                <span className="font-bold underline">Select tool</span> to place
-                the cursor. Once a zoning box is active, typing acts as a fill
-                command instead of cursor placement.
+                Use the <span className="font-bold underline">Select tool</span>{" "}
+                to place the cursor. If a selection is active, typing fills it.
               </p>
             </div>
           </div>

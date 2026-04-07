@@ -8,6 +8,7 @@ import {
 import type {
   ActionHandler,
   ActionResult,
+  ActionSource,
   EditorActionId,
 } from "../types";
 
@@ -16,6 +17,7 @@ type UndoRedoOptions = { onUndo?: () => void; onRedo?: () => void };
 type ClipboardOptions = {
   clipboardEvent?: ClipboardEvent;
   managedTextarea?: HTMLTextAreaElement | null;
+  source?: ActionSource;
 };
 type FillOptions = { fillChar?: string };
 
@@ -57,7 +59,7 @@ export const editorHandlers: Record<
       return actionFailed("empty-selection");
     }
     const succeeded = runEditorCommand("copy", {
-      source: "keyboard",
+      source: opts.source ?? "keyboard",
       clipboardEvent: opts.clipboardEvent,
       managedTextarea: opts.managedTextarea,
     });
@@ -73,7 +75,7 @@ export const editorHandlers: Record<
       return actionFailed("empty-selection");
     }
     const succeeded = runEditorCommand("copy-rich", {
-      source: "keyboard",
+      source: opts.source ?? "keyboard",
       clipboardEvent: opts.clipboardEvent,
       managedTextarea: opts.managedTextarea,
     });
@@ -89,17 +91,17 @@ export const editorHandlers: Record<
       return actionFailed("empty-selection");
     }
     const succeeded = runEditorCommand("cut", {
-      source: "keyboard",
+      source: opts.source ?? "keyboard",
       clipboardEvent: opts.clipboardEvent,
       managedTextarea: opts.managedTextarea,
     });
     return succeeded ? actionSucceeded() : actionFailed("command-failed");
   },
 
-  paste: (options, _context): ActionResult => {
+  paste: (options): ActionResult => {
     const opts = options as ClipboardOptions;
     const succeeded = runEditorCommand("paste", {
-      source: "keyboard",
+      source: opts.source ?? "keyboard",
       clipboardEvent: opts.clipboardEvent,
       managedTextarea: opts.managedTextarea,
     });

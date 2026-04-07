@@ -79,6 +79,34 @@ export interface CanvasSession {
   timeline?: AnimationTimeline;
 }
 
+export interface SessionSlice {
+  createCanvasSession: (
+    mode?: CanvasMode,
+    options?: { size?: AnimationCanvasSize }
+  ) => void;
+  switchCanvasSession: (canvasId: string) => void;
+  removeCanvasSession: (canvasId: string) => void;
+  renameCanvasSession: (canvasId: string, nextName: string) => void;
+}
+
+export interface AnimationSlice {
+  setAnimationCurrentFrame: (frameId: string) => void;
+  insertAnimationFrame: (position?: "before" | "after") => void;
+  renameAnimationFrame: (frameId: string, nextName: string) => void;
+  duplicateAnimationFrame: (frameId?: string) => void;
+  removeAnimationFrame: (frameId?: string) => void;
+  moveAnimationFrame: (frameId: string, direction: -1 | 1) => void;
+  reorderAnimationFrames: (frameIds: string[]) => void;
+  setAnimationFps: (fps: number) => void;
+  toggleAnimationLoop: () => void;
+  setOnionSkinSettings: (settings: Partial<OnionSkinSettings>) => void;
+  setAnimationCanvasSize: (size: AnimationCanvasSize) => void;
+  playAnimation: () => void;
+  pauseAnimation: () => void;
+  stepAnimationFrame: (direction?: -1 | 1) => void;
+  tickAnimationPlayback: () => void;
+}
+
 export type CanvasState = {
   offset: Point;
   zoom: number;
@@ -107,28 +135,8 @@ export type CanvasState = {
   setShowGrid: (show: boolean) => void;
   setExportShowGrid: (show: boolean) => void;
   setHoveredGrid: (pos: Point | null) => void;
-  createCanvasSession: (
-    mode?: CanvasMode,
-    options?: { size?: AnimationCanvasSize }
-  ) => void;
-  switchCanvasSession: (canvasId: string) => void;
-  removeCanvasSession: (canvasId: string) => void;
-  renameCanvasSession: (canvasId: string, nextName: string) => void;
-  setAnimationCurrentFrame: (frameId: string) => void;
-  insertAnimationFrame: (position?: "before" | "after") => void;
-  renameAnimationFrame: (frameId: string, nextName: string) => void;
-  duplicateAnimationFrame: (frameId?: string) => void;
-  removeAnimationFrame: (frameId?: string) => void;
-  moveAnimationFrame: (frameId: string, direction: -1 | 1) => void;
-  reorderAnimationFrames: (frameIds: string[]) => void;
-  setAnimationFps: (fps: number) => void;
-  toggleAnimationLoop: () => void;
-  setOnionSkinSettings: (settings: Partial<OnionSkinSettings>) => void;
-  setAnimationCanvasSize: (size: AnimationCanvasSize) => void;
-  playAnimation: () => void;
-  pauseAnimation: () => void;
-  stepAnimationFrame: (direction?: -1 | 1) => void;
-  tickAnimationPlayback: () => void;
 } & DrawingSlice &
   TextSlice &
-  SelectionSlice;
+  SelectionSlice &
+  SessionSlice &
+  AnimationSlice;
