@@ -4,6 +4,7 @@ import {
   cloneScene,
   normalizeAndCloneScene,
   serializeGrid,
+  normalizeGridEntries,
   createMapFromEntries,
   isSameCell,
   isPoint,
@@ -162,6 +163,38 @@ describe('snapshotHelpers', () => {
     it('should handle empty entries', () => {
       expect(createMapFromEntries([])).toEqual(new Map());
     });
+
+    it('should migrate legacy string cell entries', () => {
+      const result = createMapFromEntries([
+        ['0,0', 'A'],
+        ['1,1', 'B']
+      ]);
+
+      expect(result.get('0,0')).toEqual({ char: 'A', color: '#000000' });
+      expect(result.get('1,1')).toEqual({ char: 'B', color: '#000000' });
+    });
+  });
+
+  describe('normalizeGridEntries', () => {
+    it('should preserve valid grid cells', () => {
+      expect(
+        normalizeGridEntries([
+          ['0,0', { char: 'A', color: '#111111' }]
+        ])
+      ).toEqual([
+        ['0,0', { char: 'A', color: '#111111' }]
+      ]);
+    });
+
+    it('should fill missing colors for partial grid cells', () => {
+      expect(
+        normalizeGridEntries([
+          ['0,0', { char: 'A' }]
+        ])
+      ).toEqual([
+        ['0,0', { char: 'A', color: '#000000' }]
+      ]);
+    });
   });
 
   describe('isSameCell', () => {
@@ -313,7 +346,7 @@ describe('snapshotHelpers', () => {
       const result = toStructuredNode(raw);
       expect(result).not.toBeNull();
       expect(result?.type).toBe('box');
-      expect((result as any).name).toBe('My Box');
+      expect(result && result.type === 'box' ? result.name : undefined).toBe('My Box');
     });
   });
 });

@@ -1,5 +1,5 @@
-export const CELL_WIDTH = 10;
-export const CELL_HEIGHT = 20;
+export const CELL_WIDTH = 9;
+export const CELL_HEIGHT = 19;
 
 export const GRID_COLOR = "#e5e7eb";
 export const BACKGROUND_COLOR = "#ffffff";

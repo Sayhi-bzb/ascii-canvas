@@ -1,4 +1,5 @@
 import type { GridCell, StructuredNode } from "../../types";
+import { COLOR_PRIMARY_TEXT } from "@/lib/constants";
 import { normalizeScene } from "@/utils/structured";
 
 export const cloneStructuredNode = (node: StructuredNode): StructuredNode => {
@@ -29,8 +30,45 @@ export const serializeGrid = (grid: Map<string, GridCell>) => {
   return Array.from(grid.entries());
 };
 
-export const createMapFromEntries = (entries: [string, GridCell][]) => {
-  return new Map<string, GridCell>(entries);
+export const normalizeGridEntries = (
+  entries: unknown,
+  fallbackColor = COLOR_PRIMARY_TEXT
+) => {
+  if (!Array.isArray(entries)) return [];
+
+  return entries.reduce<[string, GridCell][]>((normalized, entry) => {
+    if (!Array.isArray(entry) || typeof entry[0] !== "string") {
+      return normalized;
+    }
+
+    const [key, rawCell] = entry;
+    if (typeof rawCell === "string") {
+      normalized.push([key, { char: rawCell, color: fallbackColor }]);
+      return normalized;
+    }
+
+    if (
+      rawCell &&
+      typeof rawCell === "object" &&
+      typeof (rawCell as Partial<GridCell>).char === "string"
+    ) {
+      const cell = rawCell as Partial<GridCell>;
+      const char = (rawCell as { char: string }).char;
+      normalized.push([
+        key,
+        {
+          char,
+          color: typeof cell.color === "string" ? cell.color : fallbackColor,
+        },
+      ]);
+    }
+
+    return normalized;
+  }, []);
+};
+
+export const createMapFromEntries = (entries: unknown) => {
+  return new Map<string, GridCell>(normalizeGridEntries(entries));
 };
 
 export const isSameCell = (a?: GridCell, b?: GridCell) => {

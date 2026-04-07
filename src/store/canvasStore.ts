@@ -14,7 +14,6 @@ import {
 import type { CanvasSession, CanvasState } from "./interfaces";
 import type {
   AnimationCanvasSize,
-  GridCell,
   StructuredNode,
 } from "../types";
 import { normalizeBrushChar } from "../utils/characters";
@@ -35,6 +34,7 @@ import {
   cloneScene,
   normalizeAndCloneScene,
   createMapFromEntries,
+  normalizeGridEntries,
   toStructuredNode,
 } from "./helpers/snapshotHelpers";
 import {
@@ -202,9 +202,7 @@ export const useCanvasStore = create<CanvasState>()(
             DEFAULT_BRUSH_CHAR
           );
 
-          const legacyGridEntries = Array.isArray(hState.grid)
-            ? (hState.grid as unknown as [string, GridCell][])
-            : [];
+          const legacyGridEntries = normalizeGridEntries(hState.grid);
           const legacyMode = normalizeSessionMode(hState.canvasMode);
           const legacyScene = Array.isArray(hState.structuredScene)
             ? (hState.structuredScene
@@ -240,9 +238,7 @@ export const useCanvasStore = create<CanvasState>()(
                     );
                     const timeline = normalizeAnimationTimeline(
                       maybe.timeline,
-                      Array.isArray(maybe.grid)
-                        ? (maybe.grid as [string, GridCell][])
-                        : []
+                      normalizeGridEntries(maybe.grid)
                     );
                     return {
                       id: maybe.id,
@@ -266,9 +262,7 @@ export const useCanvasStore = create<CanvasState>()(
                         : "Canvas",
                     mode,
                     scene: normalizeAndCloneScene(scene),
-                    grid: Array.isArray(maybe.grid)
-                      ? (maybe.grid as [string, GridCell][])
-                      : [],
+                    grid: normalizeGridEntries(maybe.grid),
                   } satisfies CanvasSession;
                 })
                 .filter((session): session is CanvasSession => session !== null)

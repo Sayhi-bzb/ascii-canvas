@@ -105,8 +105,8 @@ describe("animationHelpers", () => {
         1
       )
     ).toEqual({
-      x: 400,
-      y: 200,
+      x: 440,
+      y: 212.5,
     });
   });
 });
