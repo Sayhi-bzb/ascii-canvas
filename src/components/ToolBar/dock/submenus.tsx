@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentType, RefObject } from "react";
+import { useState, type ComponentType, type RefObject } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -136,31 +136,165 @@ type ColorSubmenuProps = {
   onPicked: () => void;
 };
 
+const DIY_COLOR_GRID = [
+  "#7f1d1d",
+  "#991b1b",
+  "#dc2626",
+  "#f87171",
+  "#831843",
+  "#be185d",
+  "#db2777",
+  "#f9a8d4",
+  "#7c2d12",
+  "#c2410c",
+  "#ea580c",
+  "#fdba74",
+  "#713f12",
+  "#a16207",
+  "#ca8a04",
+  "#fde047",
+  "#14532d",
+  "#15803d",
+  "#16a34a",
+  "#86efac",
+  "#064e3b",
+  "#047857",
+  "#10b981",
+  "#6ee7b7",
+  "#164e63",
+  "#0e7490",
+  "#06b6d4",
+  "#67e8f9",
+  "#1e3a8a",
+  "#2563eb",
+  "#3b82f6",
+  "#93c5fd",
+  "#312e81",
+  "#4f46e5",
+  "#6366f1",
+  "#a5b4fc",
+  "#581c87",
+  "#7e22ce",
+  "#a855f7",
+  "#d8b4fe",
+  "#111827",
+  "#374151",
+  "#6b7280",
+  "#d1d5db",
+  "#0f172a",
+  "#475569",
+  "#94a3b8",
+  "#f8fafc",
+];
+
+const normalizeHexColor = (value: string) => {
+  const trimmed = value.trim().replace(/^#?/, "#").toLowerCase();
+
+  if (/^#[0-9a-f]{3}$/.test(trimmed)) {
+    return `#${trimmed
+      .slice(1)
+      .split("")
+      .map((char) => `${char}${char}`)
+      .join("")}`;
+  }
+
+  return /^#[0-9a-f]{6}$/.test(trimmed) ? trimmed : null;
+};
+
 export function ColorSubmenu({
   brushColor,
   setBrushColor,
   onPicked,
 }: ColorSubmenuProps) {
+  const [customColor, setCustomColor] = useState(brushColor);
+  const normalizedCustomColor = normalizeHexColor(customColor);
+
+  const pickColor = (color: string) => {
+    setCustomColor(color);
+    setBrushColor(color);
+    onPicked();
+  };
+
   return (
-    <div className="grid grid-cols-5 gap-1 p-1">
-      {PALETTE.map((c) => (
-        <button
-          key={c}
-          onClick={() => {
-            setBrushColor(c);
-            onPicked();
+    <div className="w-64 space-y-2 p-1.5">
+      <div className="grid grid-cols-5 gap-1">
+        {PALETTE.map((c) => (
+          <button
+            key={c}
+            type="button"
+            aria-label={`Pick color ${c}`}
+            onClick={() => pickColor(c)}
+            className={cn(
+              "size-7 rounded-md border border-border transition-transform hover:scale-110 active:scale-95 flex items-center justify-center",
+              brushColor === c && "ring-2 ring-primary ring-offset-1 ring-offset-popover"
+            )}
+            style={{ backgroundColor: c }}
+          >
+            {brushColor === c && (
+              <Check className="size-3 text-white mix-blend-difference" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-border/80 bg-muted/20 p-2">
+        <div className="mb-1.5 flex items-center justify-between px-0.5">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            DIY Grid
+          </span>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {brushColor}
+          </span>
+        </div>
+        <div className="grid grid-cols-8 gap-1">
+          {DIY_COLOR_GRID.map((c) => (
+            <button
+              key={c}
+              type="button"
+              aria-label={`Pick DIY color ${c}`}
+              onClick={() => pickColor(c)}
+              className={cn(
+                "size-6 rounded-[0.45rem] border border-black/10 shadow-sm transition-transform hover:scale-110 active:scale-95 flex items-center justify-center",
+                brushColor === c && "ring-2 ring-primary ring-offset-1 ring-offset-popover"
+              )}
+              style={{ backgroundColor: c }}
+            >
+              {brushColor === c && (
+                <Check className="size-3 text-white mix-blend-difference" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-background/70 p-1.5">
+        <div
+          className="size-7 shrink-0 rounded-lg border border-border shadow-inner"
+          style={{ backgroundColor: normalizedCustomColor ?? brushColor }}
+        />
+        <Input
+          value={customColor}
+          onChange={(e) => setCustomColor(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter" && normalizedCustomColor) {
+              pickColor(normalizedCustomColor);
+            }
           }}
-          className={cn(
-            "size-6 rounded-md border border-border transition-transform hover:scale-110 active:scale-95 flex items-center justify-center",
-            brushColor === c && "ring-2 ring-primary ring-offset-1 ring-offset-popover"
-          )}
-          style={{ backgroundColor: c }}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="#00ffcc"
+          maxLength={7}
+          className="h-8 flex-1 rounded-lg bg-muted/40 px-2 font-mono text-xs uppercase shadow-none"
+        />
+        <button
+          type="button"
+          disabled={!normalizedCustomColor}
+          onClick={() => normalizedCustomColor && pickColor(normalizedCustomColor)}
+          className="h-8 rounded-lg bg-primary px-2 text-[11px] font-semibold text-primary-foreground transition-opacity disabled:pointer-events-none disabled:opacity-40"
         >
-          {brushColor === c && (
-            <Check className="size-3 text-white mix-blend-difference" />
-          )}
+          Use
         </button>
-      ))}
+      </div>
     </div>
   );
 }
