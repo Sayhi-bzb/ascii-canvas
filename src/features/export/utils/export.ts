@@ -57,6 +57,9 @@ const GIF_GLOBAL_COLOR_COUNT = 256;
 const GIF_PALETTE_COMPONENTS = 3;
 const ANSI_RESET = "\u001b[0m";
 const MONOCHROME_EXPORT_COLOR = COLOR_PRIMARY_TEXT;
+const EXPORT_FONT_FAMILY = "'Maple Mono NF CN', monospace";
+const EXPORT_FONT = `${FONT_SIZE}px ${EXPORT_FONT_FAMILY}`;
+const EXPORT_FONT_SAMPLE = "A@╭你";
 
 type AnsiRgb = {
   red: number;
@@ -66,6 +69,17 @@ type AnsiRgb = {
 
 const resolveExportColor = (color: string, includeColor: boolean) => {
   return includeColor ? color : MONOCHROME_EXPORT_COLOR;
+};
+
+const waitForExportFont = async () => {
+  if (typeof document === "undefined" || !document.fonts) return;
+
+  try {
+    await document.fonts.load(EXPORT_FONT, EXPORT_FONT_SAMPLE);
+    await document.fonts.ready;
+  } catch {
+    // Fall back to the browser monospace stack if the remote font is unavailable.
+  }
 };
 
 const applyMonochromeProtocolColor = (
@@ -136,7 +150,7 @@ const renderAnimationFrame = (
     ctx.stroke();
   }
 
-  ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
+  ctx.font = EXPORT_FONT;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
 
@@ -148,7 +162,10 @@ const renderAnimationFrame = (
     const drawY = y * CELL_HEIGHT;
     const wide = GridManager.isWideChar(cell.char);
 
-    ctx.fillStyle = cell.color;
+    ctx.fillStyle = resolveExportColor(
+      cell.color,
+      options?.includeColor !== false
+    );
     ctx.fillText(
       cell.char,
       drawX + (wide ? CELL_WIDTH : CELL_WIDTH / 2),
@@ -237,7 +254,7 @@ const lzwEncodeGif = (indices: Uint8Array, minimumCodeSize = 8) => {
     if (nextCode <= 4095) {
       dictionary.set(combined, nextCode);
       nextCode += 1;
-      if (nextCode === 1 << codeSize && codeSize < 12) {
+      if (nextCode > 1 << codeSize && codeSize < 12) {
         codeSize += 1;
       }
     } else {
@@ -518,6 +535,7 @@ export const copySelectionToPngClipboard = async (
   includeColor: boolean = true
 ) => {
   if (selections.length === 0) return;
+  await waitForExportFont();
 
   const { minX, maxX, minY, maxY } = getSelectionsBoundingBox(selections);
   const padding = 1;
@@ -559,7 +577,7 @@ export const copySelectionToPngClipboard = async (
     ctx.stroke();
   }
 
-  ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
+  ctx.font = EXPORT_FONT;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
 
@@ -606,6 +624,7 @@ const createPngBlobFromGrid = async (
   includeColor: boolean = true
 ) => {
   if (grid.size === 0) return null;
+  await waitForExportFont();
   const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
   const padding = 2;
   const width = (maxX - minX + 1 + padding * 2) * CELL_WIDTH;
@@ -640,7 +659,7 @@ const createPngBlobFromGrid = async (
     ctx.stroke();
   }
 
-  ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
+  ctx.font = EXPORT_FONT;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
 
@@ -672,12 +691,13 @@ export const copyCanvasToPngClipboard = async (
   return clipboard.writeItems([new ClipboardItem({ [blob.type]: blob })]);
 };
 
-export const exportToPNG = (
+export const exportToPNG = async (
   grid: GridMap,
   showGrid: boolean = false,
   includeColor: boolean = true
 ) => {
   if (grid.size === 0) return false;
+  await waitForExportFont();
   const { minX, maxX, minY, maxY } = GridManager.getGridBounds(grid);
   const padding = 2;
   const width = (maxX - minX + 1 + padding * 2) * CELL_WIDTH;
@@ -712,7 +732,7 @@ export const exportToPNG = (
     ctx.stroke();
   }
 
-  ctx.font = `${FONT_SIZE}px 'Maple Mono NF CN', monospace`;
+  ctx.font = EXPORT_FONT;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
 
@@ -797,6 +817,7 @@ export const exportAnimationToGIF = async (
   timeline: AnimationTimeline,
   includeColor: boolean = true
 ) => {
+  await waitForExportFont();
   const width = Math.max(1, Math.round(size.width * CELL_WIDTH));
   const height = Math.max(1, Math.round(size.height * CELL_HEIGHT));
   const canvas = document.createElement("canvas");

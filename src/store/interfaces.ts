@@ -84,6 +84,10 @@ export interface SessionSlice {
     mode?: CanvasMode,
     options?: { size?: AnimationCanvasSize }
   ) => void;
+  importCanvasSession: (
+    raw: string | unknown,
+    options?: { name?: string }
+  ) => CanvasSession;
   switchCanvasSession: (canvasId: string) => void;
   removeCanvasSession: (canvasId: string) => void;
   renameCanvasSession: (canvasId: string, nextName: string) => void;

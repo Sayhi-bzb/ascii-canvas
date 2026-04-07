@@ -62,12 +62,12 @@ export const toolbarHandlers: Record<
     return actionSucceeded();
   },
 
-  undo: (options, _context): ActionResult => {
+  undo: (options): ActionResult => {
     options.onUndo();
     return actionSucceeded();
   },
 
-  color: (_options, _context): ActionResult => {
+  color: (): ActionResult => {
     return actionFailed("submenu-only");
   },
 };

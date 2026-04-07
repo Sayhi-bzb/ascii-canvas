@@ -32,10 +32,6 @@ export {
 } from "./validation";
 export {
   parseProtocolDocument,
-  protocolDocumentToSession,
   protocolDocumentToSnapshot,
 } from "./import";
-export type {
-  ProtocolImportSnapshot,
-  ProtocolSessionOptions,
-} from "./import";
+export type { ProtocolImportSnapshot } from "./import";

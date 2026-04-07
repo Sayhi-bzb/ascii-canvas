@@ -65,7 +65,11 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
       canvasBounds: state.canvasBounds,
     }))
   );
-  const canvasMode = interactionStore.canvasMode;
+  const {
+    canvasMode,
+    canvasBounds: interactionCanvasBounds,
+    setOffset: setCanvasOffset,
+  } = interactionStore;
   const rendererStore = useCanvasStore(
     useShallow((state) => ({
       offset: state.offset,
@@ -118,29 +122,29 @@ export const AsciiCanvas = ({ onUndo, onRedo }: AsciiCanvasProps) => {
 
   useEffect(() => {
     if (
-      interactionStore.canvasMode !== 'animation' ||
-      !interactionStore.canvasBounds ||
+      canvasMode !== 'animation' ||
+      !interactionCanvasBounds ||
       !size
     ) {
       return;
     }
 
     const centeredOffset = getCenteredAnimationOffset(
-      interactionStore.canvasBounds,
+      interactionCanvasBounds,
       size,
       zoom
     );
 
-    interactionStore.setOffset((prev) => {
+    setCanvasOffset((prev) => {
       if (prev.x === centeredOffset.x && prev.y === centeredOffset.y) {
         return prev;
       }
       return centeredOffset;
     });
   }, [
-    interactionStore.canvasMode,
-    interactionStore.canvasBounds,
-    interactionStore.setOffset,
+    canvasMode,
+    interactionCanvasBounds,
+    setCanvasOffset,
     size,
     zoom,
   ]);

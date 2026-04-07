@@ -207,15 +207,15 @@ export function AnimationTimeline({
                 aria-label="Toggle onion skin"
                 onClick={toggleGhost}
                 className={cn(
-                  "relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors",
+                  "relative inline-flex h-6 w-10 shrink-0 items-center rounded-full border transition-colors",
                   animationTimeline.onionSkin.enabled
-                    ? "bg-primary/70"
-                    : "bg-muted/40 hover:bg-accent/55"
+                    ? "border-primary bg-primary/70"
+                    : "border-border bg-background hover:bg-accent/55"
                 )}
               >
                 <span
                   className={cn(
-                    "ml-0.5 size-5 rounded-full bg-background shadow-sm transition-transform",
+                    "ml-0.5 size-5 rounded-full border border-border bg-background transition-transform",
                     animationTimeline.onionSkin.enabled && "translate-x-4"
                   )}
                 />

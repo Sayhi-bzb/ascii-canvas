@@ -9,7 +9,6 @@ import {
   buildStructuredProtocolDocument,
   isAsciiCanvasDocument,
   parseProtocolDocument,
-  protocolDocumentToSession,
   protocolDocumentToSnapshot,
 } from "@/features/protocol";
 import { normalizeAnimationTimeline } from "@/store/helpers/animationHelpers";
@@ -261,12 +260,7 @@ describe("protocol builders", () => {
       ["1,2", { char: "@", color: "#ff0000" }],
     ]);
 
-    expect(protocolDocumentToSession(document)).toMatchObject({
-      id: "imported-animation",
-      name: "Imported Animation",
-      mode: "animation",
-      size: { width: 64, height: 32 },
-    });
+    expect(snapshot.timeline?.currentFrameId).toBe("f1");
   });
 
   it("imports a structured protocol document into semantic nodes and grid entries", () => {

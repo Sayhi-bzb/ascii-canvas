@@ -126,49 +126,49 @@ export const useCanvasRenderer = (
     ctx.restore();
   };
 
-  const getAnimationGhostLayers = () => {
-    if (
-      canvasMode !== "animation" ||
-      !animationTimeline ||
-      !animationTimeline.onionSkin.enabled
-    ) {
-      return [];
-    }
-
-    const currentIndex = getAnimationFrameIndex(
-      animationTimeline,
-      animationTimeline.currentFrameId
-    );
-    if (currentIndex === -1) return [];
-
-    const { backwardLayers, forwardLayers, opacityFalloff } =
-      animationTimeline.onionSkin;
-    const layers: Array<{ grid: GridMap; alpha: number }> = [];
-
-    for (let i = backwardLayers; i >= 1; i--) {
-      const frame = animationTimeline.frames[currentIndex - i];
-      const alpha = opacityFalloff[i - 1] ?? 0;
-      if (!frame || alpha <= 0) continue;
-      layers.push({
-        grid: createMapFromEntries(frame.grid),
-        alpha,
-      });
-    }
-
-    for (let i = 1; i <= forwardLayers; i++) {
-      const frame = animationTimeline.frames[currentIndex + i];
-      const alpha = opacityFalloff[i - 1] ?? 0;
-      if (!frame || alpha <= 0) continue;
-      layers.push({
-        grid: createMapFromEntries(frame.grid),
-        alpha,
-      });
-    }
-
-    return layers;
-  };
-
   useEffect(() => {
+    const getAnimationGhostLayers = () => {
+      if (
+        canvasMode !== "animation" ||
+        !animationTimeline ||
+        !animationTimeline.onionSkin.enabled
+      ) {
+        return [];
+      }
+
+      const currentIndex = getAnimationFrameIndex(
+        animationTimeline,
+        animationTimeline.currentFrameId
+      );
+      if (currentIndex === -1) return [];
+
+      const { backwardLayers, forwardLayers, opacityFalloff } =
+        animationTimeline.onionSkin;
+      const layers: Array<{ grid: GridMap; alpha: number }> = [];
+
+      for (let i = backwardLayers; i >= 1; i--) {
+        const frame = animationTimeline.frames[currentIndex - i];
+        const alpha = opacityFalloff[i - 1] ?? 0;
+        if (!frame || alpha <= 0) continue;
+        layers.push({
+          grid: createMapFromEntries(frame.grid),
+          alpha,
+        });
+      }
+
+      for (let i = 1; i <= forwardLayers; i++) {
+        const frame = animationTimeline.frames[currentIndex + i];
+        const alpha = opacityFalloff[i - 1] ?? 0;
+        if (!frame || alpha <= 0) continue;
+        layers.push({
+          grid: createMapFromEntries(frame.grid),
+          alpha,
+        });
+      }
+
+      return layers;
+    };
+
     const render = () => {
       if (!size || size.width === 0 || size.height === 0) return;
 

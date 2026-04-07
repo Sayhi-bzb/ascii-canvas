@@ -1,10 +1,14 @@
-import type { CanvasSession } from "@/store/interfaces";
 import {
   getAnimationFrameEntries,
   normalizeAnimationCanvasSize,
   normalizeAnimationTimeline,
 } from "@/store/helpers/animationHelpers";
-import type { GridCell, StructuredNode } from "@/types";
+import type {
+  AnimationCanvasSize,
+  AnimationTimeline,
+  GridCell,
+  StructuredNode,
+} from "@/types";
 import { GridManager } from "@/utils/grid";
 import { sceneToGridEntries } from "@/utils/structured";
 import type {
@@ -21,13 +25,8 @@ export interface ProtocolImportSnapshot {
   mode: AsciiCanvasDocumentV1["mode"];
   scene: StructuredNode[];
   grid: [string, GridCell][];
-  size?: CanvasSession["size"];
-  timeline?: CanvasSession["timeline"];
-}
-
-export interface ProtocolSessionOptions {
-  id?: string;
-  name?: string;
+  size?: AnimationCanvasSize;
+  timeline?: AnimationTimeline;
 }
 
 const toGridEntries = (cells: AsciiCanvasProtocolCellV1[]) => {
@@ -77,26 +76,6 @@ const cloneStructuredProtocolNode = (
         style: { color: node.style.color },
       };
   }
-};
-
-const getSessionName = (
-  document: AsciiCanvasDocumentV1,
-  name?: string
-) => {
-  if (name?.trim()) return name.trim();
-  switch (document.mode) {
-    case "animation":
-      return "Imported Animation";
-    case "structured":
-      return "Imported Structured";
-    case "freeform":
-      return "Imported Canvas";
-  }
-};
-
-const getSessionId = (document: AsciiCanvasDocumentV1, id?: string) => {
-  if (id?.trim()) return id.trim();
-  return `imported-${document.mode}`;
 };
 
 const importFreeformDocument = (
@@ -168,28 +147,4 @@ export const protocolDocumentToSnapshot = (
     case "structured":
       return importStructuredDocument(document);
   }
-};
-
-export const protocolDocumentToSession = (
-  document: AsciiCanvasDocumentV1,
-  options: ProtocolSessionOptions = {}
-): CanvasSession => {
-  const snapshot = protocolDocumentToSnapshot(document);
-  const baseSession = {
-    id: getSessionId(document, options.id),
-    name: getSessionName(document, options.name),
-    mode: snapshot.mode,
-    scene: snapshot.scene,
-    grid: snapshot.grid,
-  } satisfies Omit<CanvasSession, "size" | "timeline">;
-
-  if (snapshot.mode === "animation") {
-    return {
-      ...baseSession,
-      size: snapshot.size,
-      timeline: snapshot.timeline,
-    };
-  }
-
-  return baseSession;
 };

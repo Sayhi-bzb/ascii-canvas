@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExportDialog } from "@/features/export";
+import { ImportButton } from "@/features/import";
 import { HandbookDialog, ClearCanvasDialog } from "@/components/dialogs";
 import { useShallow } from "zustand/react/shallow";
 
@@ -74,6 +75,8 @@ export function SidebarRight() {
             )}
           >
             <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
+              <ImportButton />
+
               <ExportDialog
                 grid={grid}
                 canvasMode={canvasMode}

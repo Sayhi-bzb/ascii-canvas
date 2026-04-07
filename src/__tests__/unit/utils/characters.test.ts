@@ -4,6 +4,10 @@ import {
   normalizeBrushChar
 } from '@/utils/characters';
 
+type IntlWithOptionalSegmenter = typeof Intl & {
+  Segmenter?: typeof Intl.Segmenter;
+};
+
 describe('characters', () => {
   describe('getFirstGrapheme', () => {
     it('should return first ASCII character', () => {
@@ -37,12 +41,14 @@ describe('characters', () => {
 
     it('should use fallback when Intl.Segmenter is unavailable', () => {
       // Save original state
+      const intlWithOptionalSegmenter =
+        Intl as IntlWithOptionalSegmenter;
       const hasSegmenter = 'Segmenter' in Intl;
-      const originalSegmenter = (Intl as any).Segmenter;
+      const originalSegmenter = intlWithOptionalSegmenter.Segmenter;
 
       try {
         // Remove Segmenter from Intl
-        delete (Intl as any).Segmenter;
+        Reflect.deleteProperty(intlWithOptionalSegmenter, 'Segmenter');
 
         // Re-import to test the fallback path
         // We need to test the fallbackGrapheme function indirectly
@@ -52,7 +58,7 @@ describe('characters', () => {
       } finally {
         // Restore
         if (hasSegmenter) {
-          (Intl as any).Segmenter = originalSegmenter;
+          intlWithOptionalSegmenter.Segmenter = originalSegmenter;
         }
       }
     });

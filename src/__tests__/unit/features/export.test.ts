@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildAnimationExchangeDocument,
   buildProtocolExportDocument,
   exportAnimationFrameToAnsi,
+  exportAnimationToGIF,
   exportAnimationToJSON,
   exportProtocolToJSON,
   exportToAnsi,
@@ -10,7 +11,148 @@ import {
 import { normalizeAnimationTimeline } from "@/store/helpers/animationHelpers";
 import type { GridMap, StructuredNode } from "@/types";
 
+const quantizeGifIndex = (red: number, green: number, blue: number) => {
+  return ((red & 0xe0) | ((green & 0xe0) >> 3) | (blue >> 6)) & 0xff;
+};
+
+const createComplexImageData = (width: number, height: number) => {
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  for (let index = 0; index < width * height; index += 1) {
+    const offset = index * 4;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    data[offset] = (x * 17 + y * 29) % 256;
+    data[offset + 1] = (x * 47 + y * 13) % 256;
+    data[offset + 2] = (x * 7 + y * 71) % 256;
+    data[offset + 3] = 255;
+  }
+
+  return data;
+};
+
+const quantizeImageData = (data: Uint8ClampedArray) => {
+  const indices = new Uint8Array(data.length / 4);
+
+  for (let src = 0, dest = 0; src < data.length; src += 4, dest += 1) {
+    indices[dest] = quantizeGifIndex(data[src], data[src + 1], data[src + 2]);
+  }
+
+  return indices;
+};
+
+const readGifImageData = (bytes: Uint8Array) => {
+  const graphicsControlIndex = bytes.findIndex(
+    (_byte, index) =>
+      bytes[index] === 0x21 &&
+      bytes[index + 1] === 0xf9 &&
+      bytes[index + 2] === 0x04
+  );
+  const imageDescriptorIndex = bytes.indexOf(0x2c, graphicsControlIndex);
+  const minimumCodeSize = bytes[imageDescriptorIndex + 10];
+  const data: number[] = [];
+
+  for (
+    let index = imageDescriptorIndex + 11;
+    index < bytes.length && bytes[index] > 0;
+    index += bytes[index] + 1
+  ) {
+    data.push(...bytes.slice(index + 1, index + 1 + bytes[index]));
+  }
+
+  return {
+    graphicsControlIndex,
+    imageDescriptorIndex,
+    minimumCodeSize,
+    data: new Uint8Array(data),
+  };
+};
+
+const decodeGifLzw = (
+  data: Uint8Array,
+  minimumCodeSize: number,
+  expectedLength: number
+) => {
+  const clearCode = 1 << minimumCodeSize;
+  const endOfInformationCode = clearCode + 1;
+  let bitOffset = 0;
+  let codeSize = minimumCodeSize + 1;
+  let nextCode = endOfInformationCode + 1;
+  let dictionary = new Map<number, number[]>();
+
+  const resetDictionary = () => {
+    dictionary = new Map<number, number[]>();
+    for (let index = 0; index < clearCode; index += 1) {
+      dictionary.set(index, [index]);
+    }
+    nextCode = endOfInformationCode + 1;
+    codeSize = minimumCodeSize + 1;
+  };
+
+  const readCode = () => {
+    let code = 0;
+    for (let bit = 0; bit < codeSize; bit += 1) {
+      const byte = data[Math.floor(bitOffset / 8)] ?? 0;
+      code |= ((byte >> (bitOffset % 8)) & 1) << bit;
+      bitOffset += 1;
+    }
+    return code;
+  };
+
+  resetDictionary();
+
+  const output: number[] = [];
+  let previous: number[] | null = null;
+
+  while (bitOffset < data.length * 8) {
+    const code = readCode();
+
+    if (code === clearCode) {
+      resetDictionary();
+      previous = null;
+      continue;
+    }
+
+    if (code === endOfInformationCode) break;
+
+    const dictionaryEntry = dictionary.get(code);
+    const entry: number[] | null =
+      dictionaryEntry ??
+      (code === nextCode && previous
+        ? [...previous, previous[0]]
+        : null);
+
+    if (!entry) {
+      throw new Error(`Invalid GIF LZW code ${code}.`);
+    }
+
+    output.push(...entry);
+
+    if (previous) {
+      dictionary.set(nextCode, [...previous, entry[0]]);
+      nextCode += 1;
+      if (nextCode === 1 << codeSize && codeSize < 12) {
+        codeSize += 1;
+      }
+    }
+
+    previous = entry;
+
+    if (output.length >= expectedLength) break;
+  }
+
+  if (output.length < expectedLength) {
+    throw new Error("GIF LZW stream ended before all pixels were decoded.");
+  }
+
+  return new Uint8Array(output.slice(0, expectedLength));
+};
+
 describe("export utilities", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("builds a stable animation exchange document", () => {
     const timeline = normalizeAnimationTimeline({
       fps: 12,
@@ -242,5 +384,82 @@ describe("export utilities", () => {
     expect(ansi).toBe(
       " \u001b[38;2;255;0;0m@\u001b[0m \u001b[0m\n   "
     );
+  });
+
+  it("encodes complex GIF pixel streams without corrupting LZW data", async () => {
+    const timeline = normalizeAnimationTimeline({
+      fps: 1,
+      loop: false,
+      frames: [{ id: "f1", name: "Frame 1", grid: [] }],
+      currentFrameId: "f1",
+    });
+    let exportedBlob: Blob | null = null;
+    const originalFonts = document.fonts;
+    const loadFont = vi.fn().mockResolvedValue([]);
+    let expectedIndices = new Uint8Array();
+
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: {
+        load: loadFont,
+        ready: Promise.resolve([]),
+      },
+    });
+
+    try {
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+        clearRect: vi.fn(),
+        fillRect: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        stroke: vi.fn(),
+        fillText: vi.fn(),
+        getImageData: (_x: number, _y: number, width: number, height: number) => {
+          const data = createComplexImageData(width, height);
+          expectedIndices = quantizeImageData(data);
+
+          return {
+            width,
+            height,
+            data,
+          } as ImageData;
+        },
+      } as unknown as CanvasRenderingContext2D);
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => {
+        exportedBlob = blob instanceof Blob ? blob : null;
+        return "blob:ascii-canvas-test";
+      });
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+      await exportAnimationToGIF({ width: 10, height: 10 }, timeline);
+
+      expect(loadFont).toHaveBeenCalled();
+      expect(exportedBlob).not.toBeNull();
+      const blob = exportedBlob as Blob | null;
+      if (!blob) {
+        throw new Error("GIF export did not produce a blob.");
+      }
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const gifImageData = readGifImageData(bytes);
+      const decodedIndices = decodeGifLzw(
+        gifImageData.data,
+        gifImageData.minimumCodeSize,
+        expectedIndices.length
+      );
+
+      expect(String.fromCharCode(...bytes.slice(0, 6))).toBe("GIF89a");
+      expect(gifImageData.graphicsControlIndex).toBeGreaterThan(0);
+      expect(gifImageData.imageDescriptorIndex).toBeGreaterThan(0);
+      expect(bytes[gifImageData.imageDescriptorIndex + 9]).toBe(0x00);
+      expect(gifImageData.minimumCodeSize).toBe(0x08);
+      expect(decodedIndices).toEqual(expectedIndices);
+    } finally {
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: originalFonts,
+      });
+    }
   });
 });
