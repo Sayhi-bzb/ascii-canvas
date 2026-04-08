@@ -38,6 +38,7 @@ import {
 import { MATERIAL_PRESETS, SHAPE_TOOLS } from "./dock/constants";
 import { useShallow } from "zustand/react/shallow";
 import { AnimationTimeline } from "@/components/AnimationTimeline";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ToolbarProps {
   tool: ToolType;
@@ -74,6 +75,7 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
   const isShapeGroupActive = SHAPE_TOOLS.includes(tool);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const isMobile = useIsMobile();
 
   const getToolMeta = useCallback((type: ToolType) => {
     switch (type) {
@@ -151,7 +153,8 @@ export function Toolbar({ tool, setTool, onUndo }: ToolbarProps) {
         <div
           className={cn(
             uiClass.toolbarShell,
-            canvasMode === "animation" && "flex-col items-center gap-2 p-2.5"
+            canvasMode === "animation" && "flex-col items-center gap-2 p-2.5",
+            isMobile && "scale-90 origin-bottom"
           )}
         >
           <nav className="relative flex items-center justify-center gap-1">

@@ -7,6 +7,7 @@ import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 import { uiClass } from "@/styles/components";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
@@ -60,6 +61,7 @@ export function SessionTabs() {
   const [animationWidth, setAnimationWidth] = useState("80");
   const [animationHeight, setAnimationHeight] = useState("25");
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const isMobile = useIsMobile();
 
   const canRemove = canvasSessions.length > 1;
 
@@ -107,7 +109,7 @@ export function SessionTabs() {
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] pointer-events-none">
       <div className={uiClass.sessionShell}>
-        <div className="flex items-center gap-1 max-w-[min(72vw,760px)] overflow-x-auto pr-1">
+        <div className="flex items-center gap-1 max-w-[min(85vw,760px)] md:max-w-[min(72vw,760px)] overflow-x-auto pr-1 scrollbar-hide">
           {canvasSessions.map((session) => {
             const isActive = session.id === activeCanvasId;
             const ModeIcon =
@@ -155,8 +157,9 @@ export function SessionTabs() {
                     onClick={() => switchCanvasSession(session.id)}
                     onDoubleClick={() => startRename(session.id, session.name)}
                     className={cn(
-                      "h-8 px-3 text-xs font-medium whitespace-nowrap max-w-44 outline-none flex items-center gap-1.5",
-                      isActive ? "text-primary" : "text-foreground"
+                      "h-8 text-xs font-medium whitespace-nowrap outline-none flex items-center gap-1.5",
+                      isActive ? "text-primary" : "text-foreground",
+                      isMobile ? "px-2 max-w-20" : "px-3 max-w-44"
                     )}
                     title={`${session.name} (${modeLabel})`}
                   >
@@ -166,7 +169,7 @@ export function SessionTabs() {
                         isActive ? "text-primary/80" : "text-muted-foreground"
                       )}
                     />
-                    <span className="truncate">{session.name}</span>
+                    <span className={cn("truncate", isMobile && "max-w-[60px]")}>{session.name}</span>
                   </button>
                 )}
                 <button

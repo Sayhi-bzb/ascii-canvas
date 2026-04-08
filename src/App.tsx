@@ -1,9 +1,10 @@
 import { useKeyPress, useLocalStorageState } from "ahooks";
+import { Library } from "lucide-react";
 import { AsciiCanvas } from "./components/AsciiCanvas";
 import { useCanvasStore } from "./store/canvasStore";
 import { AppLayout } from "./layout";
 import { Toolbar } from "./components/ToolBar/dock";
-import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
+import { SidebarInset, SidebarProvider, useSidebar } from "./components/ui/sidebar";
 import { Suspense, lazy } from "react";
 import { runRedo, runUndo } from "./store/actions/shortcutActions";
 import { runAction } from "./features/actions";
@@ -11,6 +12,8 @@ import { resolveFillHotkeyChar } from "./features/input-arbiter";
 import { feedback } from "./services/effects";
 import { useShallow } from "zustand/react/shallow";
 import { SessionTabs } from "./components/SessionTabs";
+import { useIsMobile } from "./hooks/use-mobile";
+import { cn } from "./lib/utils";
 
 const SidebarRight = lazy(() =>
   import("./components/ToolBar/sidebar-right").then((module) => ({
@@ -24,7 +27,30 @@ const SidebarLeft = lazy(() =>
   }))
 );
 
-export default function App() {
+// 移动端侧边栏触发按钮组件
+function MobileSidebarTrigger() {
+  const isMobile = useIsMobile();
+  const { setOpenMobile } = useSidebar();
+
+  if (!isMobile) return null;
+
+  return (
+    <button
+      onClick={() => setOpenMobile(true)}
+      className={cn(
+        "fixed bottom-24 right-4 z-50 size-10 rounded-xl",
+        "bg-popover/95 border border-border shadow-lg",
+        "flex items-center justify-center pointer-events-auto",
+        "hover:bg-accent/45 transition-colors"
+      )}
+      aria-label="Open library"
+    >
+      <Library className="size-5" />
+    </button>
+  );
+}
+
+function AppContent() {
   const { tool, setTool, canvasMode } = useCanvasStore(
     useShallow((state) => ({
       tool: state.tool,
@@ -119,6 +145,7 @@ export default function App() {
             onOpenChange={setIsRightPanelOpen}
             className="h-full items-end"
           >
+            <MobileSidebarTrigger />
             <Suspense fallback={<div className="w-0" />}>
               <SidebarRight />
             </Suspense>
@@ -127,4 +154,8 @@ export default function App() {
       </SidebarInset>
     </SidebarProvider>
   );
+}
+
+export default function App() {
+  return <AppContent />;
 }

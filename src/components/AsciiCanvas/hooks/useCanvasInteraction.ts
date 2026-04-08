@@ -223,8 +223,39 @@ export const useCanvasInteraction = (
     trailing: true,
   });
 
+  const pinchStartZoomRef = useRef(zoom);
+
   const bind = useGesture(
     {
+      onPinchStart: () => {
+        pinchStartZoomRef.current = zoom;
+      },
+      onPinch: ({ offset: [scale], origin: [ox, oy], event }) => {
+        event.preventDefault();
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const nextZoom = Math.max(
+          MIN_ZOOM,
+          Math.min(MAX_ZOOM, pinchStartZoomRef.current * scale)
+        );
+
+        if (nextZoom !== zoom) {
+          setZoom(() => nextZoom);
+          if (canvasMode !== "animation") {
+            const mouseX = ox - rect.left;
+            const mouseY = oy - rect.top;
+            const actualScale = nextZoom / zoom;
+            setOffset((prev: Point) => ({
+              x: mouseX - (mouseX - prev.x) * actualScale,
+              y: mouseY - (mouseY - prev.y) * actualScale,
+            }));
+          }
+        }
+      },
+      onPinchEnd: () => {
+        // Pinch gesture ended
+      },
       onMove: ({ xy: [x, y], event }) => {
         if (isFromMinimap(event)) return;
         if (canvasMode === "structured") return;
