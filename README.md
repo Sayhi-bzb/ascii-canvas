@@ -10,6 +10,10 @@
 
 > **"The native visual interface for the LLM era: An infinite, multi-byte ASCII canvas designed to be the shared whiteboard for Humans and AI."**
 
+<div align="center">
+  <img src="public/demo.gif" alt="ASCII Canvas Demo" width="100%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;">
+</div>
+
 <br />
 
 <p align="center">

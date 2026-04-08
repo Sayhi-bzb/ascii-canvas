@@ -10,6 +10,10 @@
 
 > **"大模型时代的原生视觉接口：一个支持 CJK、Nerd Fonts 与全色域的无限 ASCII 画布，旨在成为人类与 AI 的共享白板。"**
 
+
+<div align="center">
+  <img src="public/demo.gif" alt="ASCII Canvas 演示" width="100%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;">
+</div>
 <br />
 
 <p align="center">
@@ -66,6 +70,8 @@
 ---
 
 ## 作品展示
+
+
 
 <div align="center">
   <img src="public/Case/Case.webp" width="100%" style="border-radius: 6px; border: 1px solid #333; margin: 5px;" />
