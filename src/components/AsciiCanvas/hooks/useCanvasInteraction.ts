@@ -495,24 +495,22 @@ export const useCanvasInteraction = (
           const mouseY = clientY - rect.top;
           const zoomWeight = 0.002;
           const deltaZoom = 1 - dy * zoomWeight;
+          const oldZoom = zoom;
+          const nextZoom = Math.max(
+            MIN_ZOOM,
+            Math.min(MAX_ZOOM, oldZoom * deltaZoom)
+          );
 
-          // Use functional updates to ensure we always have the latest state
-          setZoom((prevZoom) => {
-            const nextZoom = Math.max(
-              MIN_ZOOM,
-              Math.min(MAX_ZOOM, prevZoom * deltaZoom)
-            );
-
-            if (nextZoom !== prevZoom && canvasMode !== "animation") {
-              const actualScale = nextZoom / prevZoom;
+          if (nextZoom !== oldZoom) {
+            setZoom(() => nextZoom);
+            if (canvasMode !== "animation") {
+              const actualScale = nextZoom / oldZoom;
               setOffset((prev: Point) => ({
                 x: mouseX - (mouseX - prev.x) * actualScale,
                 y: mouseY - (mouseY - prev.y) * actualScale,
               }));
             }
-
-            return nextZoom;
-          });
+          }
         } else {
           if (canvasMode === "animation") return;
           const wheelEvent = event as WheelEvent;
@@ -526,7 +524,13 @@ export const useCanvasInteraction = (
         }
       },
     },
-    { target: containerRef, eventOptions: { passive: false } }
+    {
+      target: containerRef,
+      eventOptions: { passive: false },
+      pinch: {
+        pinchOnWheel: false,
+      },
+    }
   );
 
   return { bind, draggingSelection };
