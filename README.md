@@ -1,3 +1,13 @@
+## Star History
+
+<a href="https://www.star-history.com/?repos=Sayhi-bzb%2FAsciiCanvas&type=date&logscale=&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Sayhi-bzb/AsciiCanvas&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Sayhi-bzb/AsciiCanvas&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Sayhi-bzb/AsciiCanvas&type=date&legend=top-left" />
+ </picture>
+</a>
+
 [English] | [简体中文](./README.zh-CN.md)
 
 # ASCII Canvas
